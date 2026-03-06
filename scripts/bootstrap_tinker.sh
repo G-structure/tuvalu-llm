@@ -26,19 +26,36 @@ git submodule update --init --recursive "$SUBMODULE_PATH"
 
 echo "Installing Python dependencies..."
 uv pip install -e "$SUBMODULE_PATH"
-uv pip install tinker datasets sacrebleu pyarrow pandas
+uv pip install -e ".[training]"
 
 echo
 cat <<MSG
 Bootstrap complete.
 
-Next steps:
+Staged training pipeline:
   1. Export your API key:  export TINKER_API_KEY=...
-  2. Build MT data:
-       uv run python scripts/build_tinker_mt_data.py
-  3. Train a first adapter:
-       uv run python scripts/train_tinker_mt.py --data data/finetune/tinker_mt/train_balanced.jsonl
-  4. Evaluate it:
-       uv run python scripts/eval_tinker_mt.py --model-path <tinker://.../weights/final> \\
-         --data data/finetune/tinker_mt/validation.jsonl
+
+  Stage A (translation adapter):
+  2. Build Stage A data:
+       uv run python scripts/build_stage_a_mt_data.py --config configs/stage_a_translation_qwen30b_base.json
+  3. Train Stage A:
+       uv run python scripts/train_stage_a_translation.py --config configs/stage_a_translation_qwen30b_base.json
+  4. Evaluate Stage A:
+       uv run python scripts/eval_stage_a_translation.py --config configs/stage_a_translation_qwen30b_base.json
+
+  Synthetic generation:
+  5. Build English source pool:
+       uv run python scripts/build_stage_b_sources.py --config configs/synthetic_stage_b_core.json
+  6. Generate synthetic Tuvaluan:
+       uv run python scripts/generate_stage_b_synthetic_tvl.py --config configs/synthetic_stage_b_core.json
+
+  Stage B (bilingual agent):
+  7. Build mixed training data:
+       uv run python scripts/build_stage_b_mix.py --config configs/stage_b_mix_default.json
+  8. Train Stage B:
+       uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json
+  9. Evaluate Stage B:
+       uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json
+
+  See docs/TRAINING_PIPELINE.md for full documentation.
 MSG

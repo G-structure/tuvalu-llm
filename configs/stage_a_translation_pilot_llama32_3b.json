@@ -1,0 +1,43 @@
+{
+  "stage": "stage_a_translation",
+  "model": {
+    "name": "meta-llama/Llama-3.2-3B",
+    "type": "base"
+  },
+  "training": {
+    "mode": "lora",
+    "lora_rank": 16,
+    "max_length": 2048,
+    "batch_size": 32,
+    "learning_rate": 1e-4,
+    "epochs": 1,
+    "save_every": 100,
+    "seed": 17,
+    "train_on_what": "ALL_ASSISTANT_MESSAGES",
+    "ttl_seconds": 604800
+  },
+  "data": {
+    "input_dir": "data/aligned",
+    "output_dir": "data/finetune/stage_a_mt_pilot",
+    "min_confidence": 0.8,
+    "min_chars": 10,
+    "max_chars": 4096,
+    "ratio_min": 0.4,
+    "ratio_max": 2.5,
+    "bible_max_train_share": 0.7,
+    "non_bible_val_frac": 0.05,
+    "non_bible_test_frac": 0.05,
+    "validation_books": [31, 63, 64],
+    "test_books": [8, 57, 65],
+    "train_file": "train_balanced.jsonl"
+  },
+  "eval": {
+    "max_tokens": 512,
+    "temperature": 0.0,
+    "test_file": "test.jsonl",
+    "out_dir": "logs/tinker/evals/stage_a"
+  },
+  "logs": {
+    "base_dir": "logs/tinker/stage_a_pilot"
+  }
+}

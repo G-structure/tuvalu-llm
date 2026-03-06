@@ -1,0 +1,48 @@
+{
+  "stage": "synthetic_generation",
+  "stage_a_model": {
+    "model_path": null,
+    "base_model": "Qwen/Qwen3-30B-A3B-Base",
+    "log_path": "logs/tinker/stage_a"
+  },
+  "translation": {
+    "max_tokens": 1024,
+    "temperature": 0.3,
+    "tool_mode": "safe",
+    "enable_native_tool_mode": false
+  },
+  "budget": {
+    "total_tokens": 200000000,
+    "per_dataset": {
+      "tasksource-instruct-v0": 0.15,
+      "ultrachat_200k": 0.25,
+      "gsm8k": 0.10,
+      "xlam-function-calling-60k": 0.15,
+      "mbpp": 0.10,
+      "squad": 0.10,
+      "cnn_dailymail": 0.15
+    }
+  },
+  "datasets": [
+    {"name": "tasksource/tasksource-instruct-v0", "task_family": "chat", "enabled": true},
+    {"name": "HuggingFaceH4/ultrachat_200k", "task_family": "chat", "enabled": true},
+    {"name": "openai/gsm8k", "task_family": "math", "enabled": true},
+    {"name": "Salesforce/xlam-function-calling-60k", "task_family": "tool", "enabled": true},
+    {"name": "Muennighoff/mbpp", "task_family": "code", "enabled": true},
+    {"name": "rajpurkar/squad", "task_family": "qa", "enabled": true},
+    {"name": "ccdv/cnn_dailymail", "task_family": "summarization", "enabled": true}
+  ],
+  "quality": {
+    "length_ratio_min": 0.3,
+    "length_ratio_max": 3.0,
+    "require_placeholder_completeness": true,
+    "require_json_validity": true,
+    "require_code_preservation": true
+  },
+  "output": {
+    "sources_dir": "data/finetune/stage_b_sources",
+    "synthetic_dir": "data/finetune/stage_b_synthetic_tvl",
+    "batch_size": 16,
+    "resume": true
+  }
+}

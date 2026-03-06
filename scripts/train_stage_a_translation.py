@@ -1,33 +1,27 @@
 #!/usr/bin/env python3
-"""DEPRECATED: Use scripts/train_stage_a_translation.py instead.
-
-This wrapper delegates to training.stage_a_mt.train for backwards
-compatibility. It will be removed in a future version.
-"""
+"""CLI wrapper: Train Stage A translation adapter via Tinker."""
 
 from __future__ import annotations
 
+import argparse
+import json
 import sys
-import warnings
 from pathlib import Path
-
-warnings.warn(
-    "scripts/train_tinker_mt.py is deprecated. "
-    "Use scripts/train_stage_a_translation.py instead.",
-    DeprecationWarning,
-    stacklevel=2,
-)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-# Parse legacy CLI args and forward to Stage A trainer.
-import argparse
-import json
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="DEPRECATED: Use train_stage_a_translation.py")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Train a Tuvaluan<->English LoRA translation adapter."
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="JSON config file. CLI args override config values.",
+    )
     parser.add_argument("--data", type=str, default=None)
     parser.add_argument("--val-data", type=str, default=None)
     parser.add_argument("--model-name", type=str, default=None)
@@ -43,16 +37,37 @@ def main() -> None:
     parser.add_argument("--ttl-seconds", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--do-final-val-loss", action="store_true", default=None)
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
 
     config: dict = {}
-    for key in ("data", "val_data", "model_name", "log_path", "base_url",
-                "batch_size", "learning_rate", "epochs", "max_length",
-                "lora_rank", "train_on_what", "save_every", "ttl_seconds",
-                "seed", "do_final_val_loss"):
-        val = getattr(args, key.replace("-", "_"), None)
-        if val is not None:
-            config[key] = val
+    if args.config:
+        with args.config.open() as f:
+            config = json.load(f)
+
+    cli_map = {
+        "data": args.data,
+        "val_data": args.val_data,
+        "model_name": args.model_name,
+        "log_path": args.log_path,
+        "base_url": args.base_url,
+        "batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "epochs": args.epochs,
+        "max_length": args.max_length,
+        "lora_rank": args.lora_rank,
+        "train_on_what": args.train_on_what,
+        "save_every": args.save_every,
+        "ttl_seconds": args.ttl_seconds,
+        "seed": args.seed,
+        "do_final_val_loss": args.do_final_val_loss,
+    }
+    for key, value in cli_map.items():
+        if value is not None:
+            config[key] = value
 
     from training.stage_a_mt.train import main as train_main
 

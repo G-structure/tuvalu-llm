@@ -1,0 +1,39 @@
+{
+  "stage": "stage_b_agent",
+  "model": {
+    "name": "openai/gpt-oss-120b",
+    "type": "moe",
+    "note": "Stage B starts from base model, NOT from Stage A weights"
+  },
+  "training": {
+    "mode": "lora",
+    "lora_rank": 32,
+    "max_length": 4096,
+    "batch_size": 32,
+    "learning_rate": 1e-4,
+    "epochs": 2,
+    "save_every": 200,
+    "seed": 17,
+    "train_on_what": "ALL_ASSISTANT_MESSAGES",
+    "ttl_seconds": 604800,
+    "ablation_mode": "mixed",
+    "included_task_families": ["chat", "tool", "math", "code", "qa", "summarization", "translation"],
+    "tool_mode": "safe"
+  },
+  "data": {
+    "train_file": "data/finetune/stage_b_mix/train.jsonl",
+    "train_pilot_file": "data/finetune/stage_b_mix/train_pilot.jsonl",
+    "validation_file": "data/finetune/stage_b_mix/validation.jsonl"
+  },
+  "eval": {
+    "mt_test_file": "data/finetune/stage_a_mt/test.jsonl",
+    "capability_test_file": "data/finetune/stage_b_mix/test.jsonl",
+    "stage_a_baseline_metrics": "logs/tinker/evals/stage_a/metrics.json",
+    "max_tokens": 1024,
+    "temperature": 0.0,
+    "out_dir": "logs/tinker/evals/stage_b"
+  },
+  "logs": {
+    "base_dir": "logs/tinker/stage_b"
+  }
+}

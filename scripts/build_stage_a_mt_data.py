@@ -1,37 +1,29 @@
 #!/usr/bin/env python3
-"""DEPRECATED: Use scripts/build_stage_a_mt_data.py instead.
-
-This wrapper delegates to training.stage_a_mt.build_data for backwards
-compatibility. It will be removed in a future version.
-"""
+"""CLI wrapper: Build Stage A MT dataset from aligned JSONL files."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
-import warnings
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 
-def main() -> None:
-    warnings.warn(
-        "scripts/build_tinker_mt_data.py is deprecated. "
-        "Use scripts/build_stage_a_mt_data.py instead.",
-        DeprecationWarning,
-        stacklevel=2,
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Build Stage A MT chat datasets from aligned JSONL."
     )
-    print(
-        "WARNING: This script is deprecated. "
-        "Use scripts/build_stage_a_mt_data.py instead.",
-        file=sys.stderr,
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help="JSON config file. CLI args override config values.",
     )
-
-    parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input-dir", type=str, default=None)
-    parser.add_argument("--output-dir", type=str, default="data/finetune/tinker_mt")
+    parser.add_argument("--output-dir", type=str, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--min-confidence", type=float, default=None)
     parser.add_argument("--min-chars", type=int, default=None)
@@ -42,9 +34,18 @@ def main() -> None:
     parser.add_argument("--bible-max-train-share", type=float, default=None)
     parser.add_argument("--non-bible-val-frac", type=float, default=None)
     parser.add_argument("--non-bible-test-frac", type=float, default=None)
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
 
     config: dict = {}
+    if args.config:
+        with args.config.open() as f:
+            config = json.load(f)
+
+    # Map CLI args to config keys (only set if explicitly provided)
     cli_map = {
         "input_dir": args.input_dir,
         "output_dir": args.output_dir,

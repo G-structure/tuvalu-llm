@@ -154,6 +154,10 @@ def main():
         for dt in tqdm(dates_to_scrape, desc="Scraping daily text"):
             dt_iso = dt.isoformat()
 
+            # Skip if already written (handles adjacent-day duplicates)
+            if dt_iso in existing_dates:
+                continue
+
             # Check if we already extracted this date from a previous page fetch
             if dt_iso in extracted_from_page:
                 tvl_text, en_text = extracted_from_page[dt_iso]

@@ -8,6 +8,9 @@
 data/
 logs/
 
+# Secrets
+.env
+
 # Python
 __pycache__/
 *.pyc

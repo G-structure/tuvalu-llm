@@ -1,0 +1,395 @@
+"""Build the Stage B mixed training dataset.
+
+Stage B trains a bilingual capability adapter on openai/gpt-oss-120b BASE
+(NOT Stage A weights). Stage A exists only to produce the synthetic TVL
+dataset that feeds into this mix.
+
+Three data sources:
+1. English capability data  (real upstream EN datasets, normalized)
+2. Synthetic TVL translations (produced by Stage A adapter via selective translation)
+3. Original TVL<->EN parallel anchor data (from Stage A training set)
+
+Default ratio: 40% English / 40% synthetic TVL / 20% anchor.
+
+Outputs (under data/finetune/stage_b_mix/):
+    train.jsonl        - full mixed training set
+    train_pilot.jsonl  - ~5000 examples for shakeout runs
+    validation.jsonl   - held-out validation set
+    test.jsonl         - held-out test set
+    stats.json         - dataset statistics
+    manifest.json      - reproducibility manifest
+"""
+
+from __future__ import annotations
+
+import hashlib
+import math
+import random
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any
+
+from training.common.config import get_repo_root, resolve_path
+from training.common.io import read_jsonl, write_json, write_jsonl
+from training.common.manifests import create_manifest, save_manifest
+from training.common.schema import TASK_FAMILIES, validate_example
+from training.common.token_estimates import estimate_dataset_tokens, format_token_count
+
+from .tooling_modes import SAFE_MODE, ToolMode, detect_tool_messages, format_messages
+
+DEFAULTS: dict[str, Any] = {
+    # Input paths (relative to repo root)
+    "english_dir": "data/finetune/stage_b_sources/english_normalized",
+    "synthetic_tvl_dir": "data/finetune/stage_b_synthetic_tvl/accepted",
+    "anchor_path": "data/finetune/stage_a_mt/train_balanced.jsonl",
+    # Output path
+    "output_dir": "data/finetune/stage_b_mix",
+    # Mix ratios
+    "mix_ratios": {"english": 0.4, "synthetic_tvl": 0.4, "anchor": 0.2},
+    # Splits
+    "validation_fraction": 0.02,
+    "test_fraction": 0.02,
+    "pilot_size": 5000,
+    # Filtering
+    "include_task_families": None,  # None = all
+    "exclude_task_families": None,
+    # Tool mode
+    "tool_mode": "safe",
+    # Reproducibility
+    "seed": 42,
+}
+
+
+def _stable_hash(value: str) -> int:
+    return int(hashlib.sha256(value.encode("utf-8")).hexdigest(), 16)
+
+
+def _load_jsonl_dir(dir_path: Path) -> list[dict[str, Any]]:
+    """Load all JSONL files from a directory, sorted by filename."""
+    rows: list[dict[str, Any]] = []
+    if not dir_path.exists():
+        return rows
+    for path in sorted(dir_path.glob("*.jsonl")):
+        rows.extend(read_jsonl(path))
+    return rows
+
+
+def _filter_by_task_family(
+    examples: list[dict[str, Any]],
+    include: list[str] | None,
+    exclude: list[str] | None,
+) -> list[dict[str, Any]]:
+    """Filter examples by task family inclusion/exclusion lists."""
+    if include is not None:
+        examples = [ex for ex in examples if ex.get("task_family") in include]
+    if exclude is not None:
+        examples = [ex for ex in examples if ex.get("task_family") not in exclude]
+    return examples
+
+
+def _tag_source(examples: list[dict[str, Any]], source: str) -> list[dict[str, Any]]:
+    """Add source tag to each example's metadata."""
+    for ex in examples:
+        meta = ex.get("metadata", {})
+        meta["stage_b_source"] = source
+        ex["metadata"] = meta
+    return examples
+
+
+def _deduplicate(examples: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Deduplicate examples by base id (strip language suffixes).
+
+    Examples from the same source (same base id) in different languages
+    are kept, but exact duplicates are removed.
+    """
+    seen: set[str] = set()
+    deduped: list[dict[str, Any]] = []
+    for ex in examples:
+        full_id = ex.get("id", "")
+        if full_id in seen:
+            continue
+        seen.add(full_id)
+        deduped.append(ex)
+    return deduped
+
+
+def _apply_tool_mode(examples: list[dict[str, Any]], mode: ToolMode) -> list[dict[str, Any]]:
+    """Format tool messages in all examples according to tool mode."""
+    out: list[dict[str, Any]] = []
+    for ex in examples:
+        msgs = ex.get("messages", [])
+        tool_indices = detect_tool_messages(msgs)
+        if tool_indices:
+            ex = dict(ex)
+            ex["messages"] = format_messages(msgs, mode)
+        out.append(ex)
+    return out
+
+
+def _sample_to_ratio(
+    pools: dict[str, list[dict[str, Any]]],
+    ratios: dict[str, float],
+    rng: random.Random,
+) -> list[dict[str, Any]]:
+    """Sample from pools according to target ratios.
+
+    If a pool has fewer examples than its allocation, it uses all of them
+    and redistributes the remaining budget to other pools.
+    """
+    total_weight = sum(ratios.values())
+    normalized = {k: v / total_weight for k, v in ratios.items()}
+
+    # Total available
+    total_available = sum(len(v) for v in pools.values())
+    if total_available == 0:
+        return []
+
+    # Iteratively allocate, capping pools that are too small
+    allocation: dict[str, int] = {}
+    remaining_budget = total_available
+    remaining_ratios = dict(normalized)
+
+    for _ in range(len(pools)):
+        if not remaining_ratios:
+            break
+        ratio_sum = sum(remaining_ratios.values())
+        new_remaining_ratios: dict[str, float] = {}
+        for name, ratio in remaining_ratios.items():
+            target = int(remaining_budget * ratio / ratio_sum)
+            available = len(pools.get(name, []))
+            if available <= target:
+                allocation[name] = available
+                remaining_budget -= available
+            else:
+                new_remaining_ratios[name] = ratio
+        if not new_remaining_ratios or new_remaining_ratios == remaining_ratios:
+            # Final pass: allocate remaining
+            ratio_sum = sum(new_remaining_ratios.values())
+            for name, ratio in new_remaining_ratios.items():
+                target = int(remaining_budget * ratio / ratio_sum)
+                allocation[name] = min(target, len(pools.get(name, [])))
+            break
+        remaining_ratios = new_remaining_ratios
+
+    result: list[dict[str, Any]] = []
+    for name, count in allocation.items():
+        pool = pools.get(name, [])
+        if count >= len(pool):
+            result.extend(pool)
+        else:
+            result.extend(rng.sample(pool, count))
+
+    return result
+
+
+def _assign_split(
+    example_id: str,
+    val_frac: float,
+    test_frac: float,
+) -> str:
+    """Deterministic split assignment by hash."""
+    bucket = _stable_hash(example_id) % 10000
+    test_cut = int(test_frac * 10000)
+    val_cut = test_cut + int(val_frac * 10000)
+    if bucket < test_cut:
+        return "test"
+    if bucket < val_cut:
+        return "validation"
+    return "train"
+
+
+def _split_examples(
+    examples: list[dict[str, Any]],
+    anchor_examples: list[dict[str, Any]],
+    val_frac: float,
+    test_frac: float,
+) -> dict[str, list[dict[str, Any]]]:
+    """Split examples into train/validation/test.
+
+    Anchor examples always go to train (they have their own eval set in Stage A).
+    English and synthetic TVL examples are split by hash.
+    """
+    splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for ex in anchor_examples:
+        splits["train"].append(ex)
+
+    for ex in examples:
+        source = ex.get("metadata", {}).get("stage_b_source", "")
+        if source == "anchor":
+            splits["train"].append(ex)
+        else:
+            split = _assign_split(ex["id"], val_frac, test_frac)
+            splits[split].append(ex)
+
+    return dict(splits)
+
+
+def _summarize(examples: list[dict[str, Any]], label: str) -> dict[str, Any]:
+    """Compute summary stats for a set of examples."""
+    if not examples:
+        return {"label": label, "count": 0}
+
+    by_source = Counter(ex.get("metadata", {}).get("stage_b_source", "unknown") for ex in examples)
+    by_family = Counter(ex.get("task_family", "unknown") for ex in examples)
+    total_tokens = estimate_dataset_tokens(examples)
+
+    return {
+        "label": label,
+        "count": len(examples),
+        "by_source": dict(by_source),
+        "by_task_family": dict(by_family),
+        "total_tokens_est": total_tokens,
+        "total_tokens_human": format_token_count(total_tokens),
+    }
+
+
+def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build the Stage B mixed dataset.
+
+    Args:
+        config: Configuration overrides. Missing keys use DEFAULTS.
+
+    Returns:
+        Stats dict.
+    """
+    cfg = dict(DEFAULTS)
+    if config:
+        cfg.update(config)
+
+    repo_root = get_repo_root()
+    rng = random.Random(cfg["seed"])
+    tool_mode: ToolMode = cfg.get("tool_mode", SAFE_MODE)
+
+    # Resolve paths
+    english_dir = resolve_path(cfg["english_dir"], repo_root)
+    synthetic_tvl_dir = resolve_path(cfg["synthetic_tvl_dir"], repo_root)
+    anchor_path = resolve_path(cfg["anchor_path"], repo_root)
+    output_dir = resolve_path(cfg["output_dir"], repo_root)
+
+    # Load data sources
+    english_raw = _load_jsonl_dir(english_dir)
+    synthetic_tvl_raw = _load_jsonl_dir(synthetic_tvl_dir)
+    anchor_raw = read_jsonl(anchor_path) if anchor_path.exists() else []
+
+    print(f"Loaded: {len(english_raw)} English, {len(synthetic_tvl_raw)} synthetic TVL, "
+          f"{len(anchor_raw)} anchor")
+
+    # Tag sources
+    _tag_source(english_raw, "english")
+    _tag_source(synthetic_tvl_raw, "synthetic_tvl")
+    _tag_source(anchor_raw, "anchor")
+
+    # Filter by task family
+    include_families = cfg.get("include_task_families")
+    exclude_families = cfg.get("exclude_task_families")
+    english = _filter_by_task_family(english_raw, include_families, exclude_families)
+    synthetic_tvl = _filter_by_task_family(synthetic_tvl_raw, include_families, exclude_families)
+
+    # Validate examples
+    for label, pool in [("english", english), ("synthetic_tvl", synthetic_tvl), ("anchor", anchor_raw)]:
+        invalid = sum(1 for ex in pool if validate_example(ex))
+        if invalid:
+            print(f"  Warning: {invalid} invalid examples in {label}")
+
+    # Deduplicate
+    english = _deduplicate(english)
+    synthetic_tvl = _deduplicate(synthetic_tvl)
+    anchor = _deduplicate(anchor_raw)
+
+    print(f"After dedup: {len(english)} English, {len(synthetic_tvl)} synthetic TVL, "
+          f"{len(anchor)} anchor")
+
+    # Apply tool mode formatting
+    english = _apply_tool_mode(english, tool_mode)
+    synthetic_tvl = _apply_tool_mode(synthetic_tvl, tool_mode)
+
+    # Split non-anchor data into train/val/test
+    val_frac = cfg["validation_fraction"]
+    test_frac = cfg["test_fraction"]
+
+    en_splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    tvl_splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
+
+    for ex in english:
+        split = _assign_split(ex["id"], val_frac, test_frac)
+        en_splits[split].append(ex)
+
+    for ex in synthetic_tvl:
+        split = _assign_split(ex["id"], val_frac, test_frac)
+        tvl_splits[split].append(ex)
+
+    # Build training mix from train splits only
+    mix_ratios = cfg["mix_ratios"]
+    train_pools = {
+        "english": en_splits["train"],
+        "synthetic_tvl": tvl_splits["train"],
+        "anchor": anchor,
+    }
+    train_all = _sample_to_ratio(train_pools, mix_ratios, rng)
+    rng.shuffle(train_all)
+
+    # Pilot subset
+    pilot_size = min(cfg["pilot_size"], len(train_all))
+    train_pilot = train_all[:pilot_size]
+
+    # Validation and test combine EN + synthetic TVL (no anchor)
+    validation = en_splits["validation"] + tvl_splits["validation"]
+    test = en_splits["test"] + tvl_splits["test"]
+
+    # Sort deterministically
+    train_all.sort(key=lambda x: _stable_hash(x["id"]))
+    train_pilot.sort(key=lambda x: _stable_hash(x["id"]))
+    validation.sort(key=lambda x: _stable_hash(x["id"]))
+    test.sort(key=lambda x: _stable_hash(x["id"]))
+
+    # Write outputs
+    output_dir.mkdir(parents=True, exist_ok=True)
+    write_jsonl(output_dir / "train.jsonl", train_all)
+    write_jsonl(output_dir / "train_pilot.jsonl", train_pilot)
+    write_jsonl(output_dir / "validation.jsonl", validation)
+    write_jsonl(output_dir / "test.jsonl", test)
+
+    stats = {
+        "train": _summarize(train_all, "train"),
+        "train_pilot": _summarize(train_pilot, "train_pilot"),
+        "validation": _summarize(validation, "validation"),
+        "test": _summarize(test, "test"),
+        "input_counts": {
+            "english_raw": len(english_raw),
+            "synthetic_tvl_raw": len(synthetic_tvl_raw),
+            "anchor_raw": len(anchor_raw),
+            "english_after_filter": len(english),
+            "synthetic_tvl_after_filter": len(synthetic_tvl),
+            "anchor_after_dedup": len(anchor),
+        },
+        "config": {
+            k: v for k, v in cfg.items()
+            if k not in ("english_dir", "synthetic_tvl_dir", "anchor_path", "output_dir")
+        },
+    }
+    write_json(output_dir / "stats.json", stats)
+
+    manifest = create_manifest(
+        stage="stage_b_mix",
+        config=cfg,
+        extra={
+            "english_dir": str(english_dir),
+            "synthetic_tvl_dir": str(synthetic_tvl_dir),
+            "anchor_path": str(anchor_path),
+            "output_dir": str(output_dir),
+            "train_count": len(train_all),
+            "validation_count": len(validation),
+            "test_count": len(test),
+        },
+    )
+    save_manifest(manifest, output_dir / "manifest.json")
+
+    print(f"\nStage B mix built:")
+    print(f"  train: {len(train_all)} ({format_token_count(stats['train']['total_tokens_est'])} tokens)")
+    print(f"  train_pilot: {len(train_pilot)}")
+    print(f"  validation: {len(validation)}")
+    print(f"  test: {len(test)}")
+    print(f"  Output: {output_dir}")
+
+    return stats

@@ -1,4 +1,5 @@
 {
+  "_deprecated": "Use stage-specific configs instead. See configs/stage_a_*, configs/stage_b_*, configs/synthetic_*",
   "stage": "translation_adapter_v1",
   "base_model": "openai/gpt-oss-120b",
   "tinker": {
