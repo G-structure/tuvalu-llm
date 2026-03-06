@@ -1,0 +1,33 @@
+{
+  "stage": "translation_adapter_v1",
+  "base_model": "openai/gpt-oss-120b",
+  "tinker": {
+    "training_mode": "lora",
+    "lora_rank": 32,
+    "max_length": 2048,
+    "batch_size": 64,
+    "learning_rate_sweep": [0.0001, 0.0002, 0.0004],
+    "epochs_sweep": [1, 2, 3],
+    "save_every": 100
+  },
+  "data": {
+    "min_alignment_confidence": 0.8,
+    "length_ratio_min": 0.4,
+    "length_ratio_max": 2.5,
+    "min_chars_per_side": 10,
+    "max_chars_per_side": 4096,
+    "bible_max_train_share": 0.7,
+    "validation_books": [31, 63, 64],
+    "test_books": [8, 57, 65]
+  },
+  "curriculum": [
+    "stage_a_translation_only_high_confidence_parallel_data",
+    "stage_b_translate_selected_english_capability_data_into_tuvaluan",
+    "stage_c_bilingual_capability_adapter_with_english_replay"
+  ],
+  "deployment": {
+    "keep_base_model_intact": true,
+    "ship_adapter_separately": true,
+    "avoid_weight_merge_until_eval_is_stable": true
+  }
+}

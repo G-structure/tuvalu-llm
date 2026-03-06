@@ -1,7 +1,7 @@
 [project]
 name = "tv"
 version = "0.1.0"
-description = "Add your description here"
+description = "Tuvaluan-English parallel corpus and translation model"
 requires-python = ">=3.14"
 dependencies = [
     "beautifulsoup4>=4.14.3",
@@ -10,4 +10,16 @@ dependencies = [
     "lxml>=6.0.2",
     "requests>=2.32.5",
     "tqdm>=4.67.3",
+]
+
+[project.optional-dependencies]
+training = [
+    "tinker",
+    "torch",
+    "datasets",
+    "chz",
+    "blobfile",
+    "sacrebleu",
+    "pandas",
+    "pyarrow",
 ]

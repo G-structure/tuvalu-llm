@@ -7,6 +7,17 @@ curl-imp/curl-impersonate/.git/
 
 # Claude Code
 .claude/
-data
+
+# Data (large, not tracked)
+data/
+logs/
+
+# Build artifacts
 curl-imp/curl-impersonate
-logs
+
+# Python
+__pycache__/
+*.pyc
+
+# Prompts (scratch)
+prompt*.txt
