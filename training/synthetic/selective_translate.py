@@ -254,9 +254,46 @@ def selective_translate_example(
         A new example dict with translated messages.
     """
     task_family = example.get("task_family", "chat")
+    translate_mask = example.get("translate_mask")
 
     translated_messages: list[dict[str, Any]] = []
-    for msg in example.get("messages", []):
+    preservation_metadata: dict[str, Any] = {}
+
+    for i, msg in enumerate(example.get("messages", [])):
+        # Use explicit mask if available, otherwise fall back to heuristic
+        if translate_mask and i < len(translate_mask):
+            mask_entry = translate_mask[i]
+            mask_action = mask_entry.get("translate", True)
+
+            if mask_action is False:
+                translated_messages.append(dict(msg))
+                continue
+            elif mask_action is True:
+                result_msg = dict(msg)
+                content = msg.get("content", "")
+                if content and isinstance(content, str):
+                    result_msg["content"] = translate_fn(content)
+                translated_messages.append(result_msg)
+                continue
+            elif mask_action == "selective":
+                result_msg = dict(msg)
+                content = msg.get("content", "")
+                if content and isinstance(content, str):
+                    masked, ph_map = mask_protected_spans(content)
+                    translated = translate_fn(masked)
+                    result_msg["content"] = unmask_protected_spans(translated, ph_map)
+                    if ph_map:
+                        preservation_metadata[f"msg_{i}_placeholders"] = len(ph_map)
+                        ph_types = list(set(
+                            k.split("_")[0] for k in list(ph_map.values())[:5] if "_" in k
+                        ))
+                        preservation_metadata[f"msg_{i}_placeholder_types"] = (
+                            ph_types if len(ph_map) <= 20 else ["many"]
+                        )
+                translated_messages.append(result_msg)
+                continue
+
+        # Fallback to heuristic classification
         translated_messages.append(
             selective_translate_message(msg, translate_fn, task_family)
         )
@@ -268,6 +305,8 @@ def selective_translate_example(
     meta = dict(result.get("metadata", {}))
     meta["selectively_translated"] = True
     meta["tool_mode"] = tool_mode
+    if preservation_metadata:
+        meta["preservation"] = preservation_metadata
     result["metadata"] = meta
 
     return result

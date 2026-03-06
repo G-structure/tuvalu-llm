@@ -9,6 +9,7 @@ SCRIPTS = [
     "scripts/build_stage_a_mt_data.py",
     "scripts/train_stage_a_translation.py",
     "scripts/eval_stage_a_translation.py",
+    "scripts/export_stage_a_translation.py",
     "scripts/build_stage_b_sources.py",
     "scripts/generate_stage_b_synthetic_tvl.py",
     "scripts/build_stage_b_mix.py",
@@ -64,6 +65,11 @@ def test_train_stage_b_help():
 
 def test_eval_stage_b_help():
     result = _run_help("scripts/eval_stage_b_agent.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_export_stage_a_help():
+    result = _run_help("scripts/export_stage_a_translation.py")
     assert result.returncode == 0, result.stderr
 
 

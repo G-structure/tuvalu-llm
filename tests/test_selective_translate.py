@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from training.synthetic.selective_translate import (
     classify_message_content,
     mask_protected_spans,
+    selective_translate_example,
     unmask_protected_spans,
 )
 from training.synthetic.quality import (
@@ -191,3 +192,83 @@ class TestValidation:
         accepted, reasons = validate_translation(original, translated)
         assert accepted is False
         assert any("placeholder_leak" in r for r in reasons)
+
+
+class TestMaskUsage:
+    """Test that selective_translate_example uses the translate_mask field."""
+
+    @staticmethod
+    def _mock_translate(text):
+        return f"TRANSLATED:{text}"
+
+    def test_explicit_mask_overrides_heuristic(self):
+        """mask=[False, True] should translate only the second message."""
+        example = {
+            "task_family": "chat",
+            "messages": [
+                {"role": "system", "content": "You are helpful."},
+                {"role": "user", "content": "Hello world"},
+            ],
+            "translate_mask": [
+                {"translate": False},
+                {"translate": True},
+            ],
+        }
+        result = selective_translate_example(example, self._mock_translate)
+        # First message preserved (mask=False)
+        assert result["messages"][0]["content"] == "You are helpful."
+        # Second message translated (mask=True)
+        assert result["messages"][1]["content"] == "TRANSLATED:Hello world"
+
+    def test_selective_mask_preserves_code(self):
+        """mask='selective' on a message with code block preserves the code."""
+        code_content = "Here is code:\n```python\nprint('hello')\n```\nDone."
+        example = {
+            "task_family": "code",
+            "messages": [
+                {"role": "assistant", "content": code_content},
+            ],
+            "translate_mask": [
+                {"translate": "selective"},
+            ],
+        }
+        result = selective_translate_example(example, self._mock_translate)
+        output = result["messages"][0]["content"]
+        # Code block should be preserved (not translated)
+        assert "```python\nprint('hello')\n```" in output
+        # Surrounding text should be translated
+        assert "TRANSLATED:" in output
+
+    def test_preservation_metadata_emitted(self):
+        """When selective masking finds placeholders, metadata records them."""
+        code_content = "Check ```python\nx = 1\n``` and https://example.com."
+        example = {
+            "task_family": "code",
+            "messages": [
+                {"role": "assistant", "content": code_content},
+            ],
+            "translate_mask": [
+                {"translate": "selective"},
+            ],
+        }
+        result = selective_translate_example(example, self._mock_translate)
+        meta = result.get("metadata", {})
+        assert meta.get("selectively_translated") is True
+        preservation = meta.get("preservation", {})
+        assert "msg_0_placeholders" in preservation
+        assert preservation["msg_0_placeholders"] > 0
+
+    def test_no_mask_falls_back_to_heuristic(self):
+        """Without translate_mask, old heuristic behavior works."""
+        example = {
+            "task_family": "chat",
+            "messages": [
+                {"role": "user", "content": "Hello world"},
+                {"role": "assistant", "content": "Hi there"},
+            ],
+            # No translate_mask field
+        }
+        result = selective_translate_example(example, self._mock_translate)
+        # Both should be translated via heuristic (user+assistant = translate)
+        assert result["messages"][0]["content"] == "TRANSLATED:Hello world"
+        assert result["messages"][1]["content"] == "TRANSLATED:Hi there"

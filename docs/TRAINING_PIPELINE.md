@@ -245,6 +245,53 @@ bash scripts/bootstrap_tinker.sh
 export TINKER_API_KEY=...
 ```
 
+## Quick Start Runbook
+
+### Stage A: Translation Adapter
+
+1. Build data: `uv run python scripts/build_stage_a_mt_data.py --config configs/stage_a_translation_qwen30b_base.json`
+2. Train: `uv run python scripts/train_stage_a_translation.py --config configs/stage_a_translation_qwen30b_base.json`
+3. Export: `uv run python scripts/export_stage_a_translation.py --config configs/stage_a_translation_qwen30b_base.json`
+4. Monitor: `tensorboard --logdir logs/tinker/stage_a/tb`
+
+### Stage A Pilot (~2M tokens, 1 epoch)
+
+1. Build pilot subset: `uv run python scripts/build_stage_a_mt_data.py --config configs/stage_a_translation_qwen30b_base_pilot_2m_1epoch.json`
+2. Train pilot: `uv run python scripts/train_stage_a_translation.py --config configs/stage_a_translation_qwen30b_base_pilot_2m_1epoch.json`
+
+### Stage B: Bilingual Capability Adapter
+
+1. Build sources: `uv run python scripts/build_stage_b_sources.py --config configs/synthetic_stage_b_core.json --limit 100`
+2. Generate synthetic TVL: `uv run python scripts/generate_stage_b_synthetic_tvl.py --config configs/synthetic_stage_b_core.json`
+3. Build mix: `uv run python scripts/build_stage_b_mix.py --config configs/stage_b_mix_default.json`
+4. Train: `uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
+5. Evaluate: `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
+
+## TensorBoard
+
+Training metrics (loss, chrF++, BLEU, learning rate) are logged to TensorBoard
+during both Stage A and Stage B training runs. Event files are written to a `tb/`
+subdirectory under each run's log path.
+
+```bash
+# Stage A (full run)
+tensorboard --logdir logs/tinker/stage_a/tb
+
+# Stage A (pilot)
+tensorboard --logdir logs/tinker/stage_a_pilot_2m/tb
+
+# Stage B
+tensorboard --logdir logs/tinker/stage_b/tb
+
+# All runs at once
+tensorboard --logdir logs/tinker
+```
+
+The TBLogger (`training/common/tb.py`) writes scalars alongside the existing
+JSONL metrics files. It uses TensorBoard's `EventFileWriter` directly (no
+PyTorch dependency required). Periodic validation metrics are also logged when
+the training loop runs mid-training evaluation.
+
 ## What Remains Experimental
 
 - Native tool-message training mode (behind `tool_mode: "native"` flag)

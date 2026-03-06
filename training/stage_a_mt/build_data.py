@@ -36,7 +36,7 @@ from typing import Any
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import read_jsonl, write_json, write_jsonl
 from training.common.manifests import create_manifest, save_manifest
-from training.common.token_estimates import estimate_dataset_tokens, format_token_count
+from training.common.token_estimates import estimate_dataset_tokens, estimate_example_tokens, format_token_count
 
 SYSTEM_PROMPT = (
     "You are a careful translator between Tuvaluan and English. "
@@ -56,8 +56,8 @@ EN_TO_TVL_TEMPLATES = [
     "Convert this English text to Tuvaluan while keeping the original structure when possible.\n\n{source}",
 ]
 
-TEST_BOOKS = {8, 57, 65}  # Ruth, Philemon, Jude
-VALID_BOOKS = {31, 63, 64}  # Obadiah, 2 John, 3 John
+DEFAULT_TEST_BOOKS = {8, 57, 65}  # Ruth, Philemon, Jude
+DEFAULT_VALID_BOOKS = {31, 63, 64}  # Obadiah, 2 John, 3 John
 
 # Default config values
 DEFAULTS: dict[str, Any] = {
@@ -154,12 +154,19 @@ def _assign_split(
     *,
     non_bible_val_frac: float,
     non_bible_test_frac: float,
+    test_books: set[int] | None = None,
+    validation_books: set[int] | None = None,
 ) -> str:
+    if test_books is None:
+        test_books = DEFAULT_TEST_BOOKS
+    if validation_books is None:
+        validation_books = DEFAULT_VALID_BOOKS
+
     if row.get("content_type") == "bible_verse":
         book_num = int(row.get("book_num") or 0)
-        if book_num in TEST_BOOKS:
+        if book_num in test_books:
             return "test"
-        if book_num in VALID_BOOKS:
+        if book_num in validation_books:
             return "validation"
         return "train"
 
@@ -262,6 +269,37 @@ def _summarize_examples(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _format_budget_label(budget: int) -> str:
+    """Human-readable label for a token budget (e.g., 2000000 -> '2m')."""
+    if budget >= 1_000_000 and budget % 1_000_000 == 0:
+        return f"{budget // 1_000_000}m"
+    if budget >= 1_000 and budget % 1_000 == 0:
+        return f"{budget // 1_000}k"
+    return str(budget)
+
+
+def build_pilot_subset(
+    examples: list[dict[str, Any]],
+    *,
+    token_budget: int,
+) -> list[dict[str, Any]]:
+    """Build a deterministic pilot subset within a token budget.
+
+    Selection: sort by stable hash of id, then accumulate until budget is reached.
+    Token counting uses estimate_example_tokens (full sequence).
+    """
+    sorted_examples = sorted(examples, key=lambda x: _stable_hash(x["id"]))
+    subset: list[dict[str, Any]] = []
+    total_tokens = 0
+    for ex in sorted_examples:
+        ex_tokens = estimate_example_tokens(ex)
+        if total_tokens + ex_tokens > token_budget and subset:
+            break
+        subset.append(ex)
+        total_tokens += ex_tokens
+    return subset
+
+
 def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Build Stage A MT dataset.
 
@@ -321,12 +359,18 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             continue
         accepted.append(row)
 
+    # Config-driven holdout books (fall back to module defaults)
+    test_books = set(cfg["test_books"]) if "test_books" in cfg else None
+    validation_books = set(cfg["validation_books"]) if "validation_books" in cfg else None
+
     splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in accepted:
         split = _assign_split(
             row,
             non_bible_val_frac=cfg["non_bible_val_frac"],
             non_bible_test_frac=cfg["non_bible_test_frac"],
+            test_books=test_books,
+            validation_books=validation_books,
         )
         splits[split].append(row)
 
@@ -351,6 +395,18 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     write_jsonl(output_dir / "test.jsonl", test)
     write_jsonl(output_dir / "rejected.jsonl", rejected)
 
+    # Pilot subset (optional)
+    pilot_budget = cfg.get("pilot_token_budget")
+    train_pilot = None
+    pilot_file = None
+    if pilot_budget is not None:
+        pilot_budget = int(pilot_budget)
+        budget_label = _format_budget_label(pilot_budget)
+        pilot_file = f"train_pilot_{budget_label}.jsonl"
+        train_pilot = build_pilot_subset(train_balanced, token_budget=pilot_budget)
+        write_jsonl(output_dir / pilot_file, train_pilot)
+        print(f"  Pilot subset: {len(train_pilot)} examples -> {pilot_file}")
+
     stats = {
         "source_files": [str(p.name) for p in aligned_paths],
         "input_rows": len(raw_rows),
@@ -366,6 +422,9 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         ),
         "config": {k: v for k, v in cfg.items() if k not in ("input_dir", "output_dir")},
     }
+    if train_pilot is not None:
+        stats["train_pilot"] = _summarize_examples(train_pilot)
+        stats["train_pilot"]["file"] = pilot_file
     write_json(output_dir / "stats.json", stats)
 
     manifest = create_manifest(

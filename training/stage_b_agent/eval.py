@@ -81,42 +81,50 @@ def _extract_prompt_and_reference(example: dict[str, Any]) -> tuple[list[dict], 
 def _generate_predictions(
     sampling_client: Any,
     renderer: Any,
-    tokenizer: Any,
     sampling_params: Any,
     examples: list[dict[str, Any]],
     batch_size: int,
 ) -> list[dict[str, Any]]:
-    """Generate predictions for a set of examples."""
+    """Generate predictions for a set of examples using Stage A's known-good pattern."""
     predictions: list[dict[str, Any]] = []
+    parse_success_count = 0
 
-    for i in range(0, len(examples), batch_size):
-        batch = examples[i : i + batch_size]
-        for ex in batch:
-            prompt_msgs, reference = _extract_prompt_and_reference(ex)
-            if not prompt_msgs:
-                continue
+    for i, ex in enumerate(examples):
+        prompt_msgs, reference = _extract_prompt_and_reference(ex)
+        if not prompt_msgs:
+            continue
 
-            try:
-                prompt_tokens = renderer.render_messages(prompt_msgs, tokenizer)
-                result = sampling_client.sample(
-                    prompt=prompt_tokens,
-                    sampling_params=sampling_params,
-                )
-                prediction_text = tokenizer.decode(result.get("tokens", []))
-            except Exception as e:
-                logger.warning("Generation failed for %s: %s", ex.get("id"), e)
-                prediction_text = ""
+        try:
+            prompt = renderer.build_generation_prompt(prompt_msgs)
+            result = sampling_client.sample(
+                prompt, sampling_params=sampling_params, num_samples=1,
+            ).result()
+            output_tokens = result.sequences[0].tokens
+            response_message, parse_success = renderer.parse_response(output_tokens)
+            if parse_success:
+                parse_success_count += 1
 
-            predictions.append({
-                "id": ex.get("id", ""),
-                "task_family": ex.get("task_family", "unknown"),
-                "prediction": prediction_text,
-                "reference": reference,
-                "metadata": ex.get("metadata", {}),
-            })
+            prediction_text = ""
+            if isinstance(response_message, dict):
+                prediction_text = str(response_message.get("content", ""))
+            else:
+                prediction_text = str(response_message)
+        except Exception as e:
+            logger.warning("Generation failed for %s: %s", ex.get("id"), e)
+            prediction_text = ""
+            parse_success = False
 
-        if (i // batch_size) % 5 == 0:
-            logger.info("Generated %d / %d predictions", len(predictions), len(examples))
+        predictions.append({
+            "id": ex.get("id", ""),
+            "task_family": ex.get("task_family", "unknown"),
+            "prediction": prediction_text,
+            "reference": reference,
+            "metadata": ex.get("metadata", {}),
+            "parse_success": bool(parse_success),
+        })
+
+        if i % 25 == 0:
+            logger.info("Generated %d / %d predictions", i + 1, len(examples))
 
     return predictions
 
@@ -124,7 +132,6 @@ def _generate_predictions(
 def _run_translation_regression(
     service: Any,
     renderer: Any,
-    tokenizer: Any,
     sampling_params: Any,
     mt_test: list[dict[str, Any]],
     cfg: dict[str, Any],
@@ -141,7 +148,7 @@ def _run_translation_regression(
 
     logger.info("Evaluating Stage B on %d MT test examples", len(mt_test))
     stage_b_preds = _generate_predictions(
-        stage_b_client, renderer, tokenizer, sampling_params, mt_test, batch_size,
+        stage_b_client, renderer, sampling_params, mt_test, batch_size,
     )
     report["stage_b"] = compute_translation_metrics(stage_b_preds)
     report["stage_b_by_direction"] = compute_grouped_metrics(stage_b_preds, "direction")
@@ -151,7 +158,7 @@ def _run_translation_regression(
         logger.info("Evaluating Stage A baseline for regression comparison")
         stage_a_client = create_sampling_client(service, model_path=cfg["stage_a_model_path"])
         stage_a_preds = _generate_predictions(
-            stage_a_client, renderer, tokenizer, sampling_params, mt_test, batch_size,
+            stage_a_client, renderer, sampling_params, mt_test, batch_size,
         )
         report["stage_a"] = compute_translation_metrics(stage_a_preds)
         report["stage_a_by_direction"] = compute_grouped_metrics(stage_a_preds, "direction")
@@ -169,7 +176,6 @@ def _run_translation_regression(
 def _run_capability_smoke(
     sampling_client: Any,
     renderer: Any,
-    tokenizer: Any,
     sampling_params: Any,
     capability_test: list[dict[str, Any]],
     batch_size: int,
@@ -184,7 +190,7 @@ def _run_capability_smoke(
     for family, examples in sorted(by_family.items()):
         logger.info("Capability smoke test: %s (%d examples)", family, len(examples))
         preds = _generate_predictions(
-            sampling_client, renderer, tokenizer, sampling_params, examples, batch_size,
+            sampling_client, renderer, sampling_params, examples, batch_size,
         )
         report[family] = {
             "translation_metrics": compute_translation_metrics(preds),
@@ -198,7 +204,6 @@ def _run_capability_smoke(
 def _run_bilingual_comparison(
     sampling_client: Any,
     renderer: Any,
-    tokenizer: Any,
     sampling_params: Any,
     capability_test: list[dict[str, Any]],
     batch_size: int,
@@ -217,13 +222,13 @@ def _run_bilingual_comparison(
 
     if en_examples:
         en_preds = _generate_predictions(
-            sampling_client, renderer, tokenizer, sampling_params, en_examples, batch_size,
+            sampling_client, renderer, sampling_params, en_examples, batch_size,
         )
         report["english"] = compute_translation_metrics(en_preds)
 
     if tvl_examples:
         tvl_preds = _generate_predictions(
-            sampling_client, renderer, tokenizer, sampling_params, tvl_examples, batch_size,
+            sampling_client, renderer, sampling_params, tvl_examples, batch_size,
         )
         report["synthetic_tvl"] = compute_translation_metrics(tvl_preds)
 
@@ -256,7 +261,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     logger.info("Stage B evaluation run: %s", run_dir)
 
     # Get renderer
-    tokenizer, renderer, renderer_name = get_renderer(model_name)
+    _tokenizer, renderer, renderer_name = get_renderer(model_name)
     sampling_params = get_sampling_params(
         renderer, max_tokens=cfg["max_tokens"], temperature=cfg["temperature"],
     )
@@ -290,14 +295,14 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     if mt_test:
         logger.info("=== Translation Regression ===")
         report["translation_regression"] = _run_translation_regression(
-            service, renderer, tokenizer, sampling_params, mt_test, cfg,
+            service, renderer, sampling_params, mt_test, cfg,
         )
 
     # 2. Capability smoke tests
     if capability_test:
         logger.info("=== Capability Smoke Tests ===")
         report["capability_smoke"] = _run_capability_smoke(
-            stage_b_sampling, renderer, tokenizer, sampling_params,
+            stage_b_sampling, renderer, sampling_params,
             capability_test, batch_size,
         )
 
@@ -305,7 +310,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     if capability_test:
         logger.info("=== Bilingual Comparison ===")
         report["bilingual_comparison"] = _run_bilingual_comparison(
-            stage_b_sampling, renderer, tokenizer, sampling_params,
+            stage_b_sampling, renderer, sampling_params,
             capability_test, batch_size,
         )
 
@@ -313,7 +318,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     if capability_test:
         logger.info("=== Preservation Metrics ===")
         all_preds = _generate_predictions(
-            stage_b_sampling, renderer, tokenizer, sampling_params,
+            stage_b_sampling, renderer, sampling_params,
             capability_test, batch_size,
         )
         report["preservation"] = compute_preservation_metrics(all_preds)

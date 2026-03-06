@@ -40,15 +40,8 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-
-    raw_config: dict = {}
-    if args.config:
-        with args.config.open() as f:
-            raw_config = json.load(f)
-
-    # Flatten nested config structure into the flat keys train.main() expects.
+def flatten_train_config(raw_config: dict) -> dict:
+    """Flatten nested config into flat keys that train.main() expects."""
     config: dict = {}
     data_sec = raw_config.get("data", {})
     training_sec = raw_config.get("training", {})
@@ -74,6 +67,20 @@ def main() -> None:
     # Logs
     if logs_sec.get("base_dir"):
         config["log_path"] = logs_sec["base_dir"]
+
+    return config
+
+
+def main() -> None:
+    args = parse_args()
+
+    raw_config: dict = {}
+    if args.config:
+        with args.config.open() as f:
+            raw_config = json.load(f)
+
+    # Flatten nested config structure into the flat keys train.main() expects.
+    config = flatten_train_config(raw_config)
 
     # CLI args override everything
     cli_map = {

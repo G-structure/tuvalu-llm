@@ -17,6 +17,7 @@ for ablation studies.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from pathlib import Path
 from typing import Any
@@ -29,6 +30,7 @@ from training.common.tb import TBLogger
 from training.common.tinker_runtime import (
     create_lora_training_client,
     create_service_client,
+    ensure_cookbook_on_path,
     get_adam_params,
     get_renderer,
     require_tinker_api_key,
@@ -50,6 +52,8 @@ DEFAULTS: dict[str, Any] = {
     "learning_rate": 2e-4,
     "save_every": 200,
     "seed": 42,
+    "train_on_what": "ALL_ASSISTANT_MESSAGES",
+    "ttl_seconds": 7 * 24 * 3600,
     # Data paths (relative to repo root)
     "train_data": "data/finetune/stage_b_mix/train.jsonl",
     "validation_data": "data/finetune/stage_b_mix/validation.jsonl",
@@ -99,6 +103,54 @@ def _filter_by_task_family(
     return examples
 
 
+def _load_split(path: Path, split_name: str) -> Any:
+    import datasets  # type: ignore
+
+    ds = datasets.load_dataset("json", data_files={split_name: str(path)})
+    assert isinstance(ds, datasets.DatasetDict)
+    return ds[split_name]
+
+
+def _get_train_on_what(name: str) -> Any:
+    ensure_cookbook_on_path()
+    from tinker_cookbook import renderers  # type: ignore
+
+    try:
+        return getattr(renderers.TrainOnWhat, name)
+    except AttributeError as exc:
+        raise SystemExit(f"Unknown TrainOnWhat value: {name}") from exc
+
+
+def _mean_val_loss(
+    *,
+    dataset: Any,
+    renderer: Any,
+    training_client: Any,
+    batch_size: int,
+    max_length: int,
+    train_on_what: Any,
+) -> float:
+    ensure_cookbook_on_path()
+    from tinker_cookbook.supervised.common import compute_mean_nll  # type: ignore
+    from tinker_cookbook.supervised.data import conversation_to_datum  # type: ignore
+
+    losses: list[float] = []
+    n_batches = math.ceil(len(dataset) / batch_size)
+    for batch_idx in range(n_batches):
+        start = batch_idx * batch_size
+        end = min((batch_idx + 1) * batch_size, len(dataset))
+        rows = dataset.select(range(start, end))
+        batch = [
+            conversation_to_datum(row["messages"], renderer, max_length, train_on_what)
+            for row in rows
+        ]
+        result = training_client.forward(batch, "cross_entropy").result()
+        logprobs = [x["logprobs"] for x in result.loss_fn_outputs]
+        weights = [d.loss_fn_inputs["weights"] for d in batch]
+        losses.append(compute_mean_nll(logprobs, weights))
+    return sum(losses) / len(losses) if losses else float("nan")
+
+
 def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run Stage B training.
 
@@ -129,63 +181,61 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     logger.info("IMPORTANT: Training from BASE model, NOT Stage A adapter")
 
     # Get renderer for the model
-    tokenizer, renderer, renderer_name = get_renderer(model_name)
+    _tokenizer, renderer, renderer_name = get_renderer(model_name)
     logger.info("Renderer: %s", renderer_name)
 
-    # Load data
+    train_on_what = _get_train_on_what(cfg.get("train_on_what", "ALL_ASSISTANT_MESSAGES"))
+
+    # Load data as HF datasets (like Stage A)
     train_path = resolve_path(cfg["train_data"], repo_root)
     val_path = resolve_path(cfg["validation_data"], repo_root)
 
-    train_examples = read_jsonl(train_path)
-    val_examples = read_jsonl(val_path) if val_path.exists() else []
+    if not train_path.exists():
+        raise SystemExit(f"Training data not found: {train_path}")
+
+    train_dataset = _load_split(train_path, "train")
 
     # Apply ablation filter
     ablation_mode = cfg["ablation_mode"]
-    train_examples = _filter_by_ablation(train_examples, ablation_mode)
-    val_examples = _filter_by_ablation(val_examples, ablation_mode)
+    if ablation_mode != "mixed":
+        # Convert to list, filter, then back to dataset
+        all_rows = list(train_dataset)
+        all_rows = _filter_by_ablation(all_rows, ablation_mode)
+        # Apply task family filter
+        include = cfg.get("include_task_families")
+        exclude = cfg.get("exclude_task_families")
+        all_rows = _filter_by_task_family(all_rows, include, exclude)
+        if not all_rows:
+            raise SystemExit("No training examples after filtering")
+        import datasets  # type: ignore
+        train_dataset = datasets.Dataset.from_list(all_rows)
+    else:
+        include = cfg.get("include_task_families")
+        exclude = cfg.get("exclude_task_families")
+        if include is not None or exclude is not None:
+            all_rows = list(train_dataset)
+            all_rows = _filter_by_task_family(all_rows, include, exclude)
+            if not all_rows:
+                raise SystemExit("No training examples after filtering")
+            import datasets  # type: ignore
+            train_dataset = datasets.Dataset.from_list(all_rows)
 
-    # Apply task family filter
-    include = cfg.get("include_task_families")
-    exclude = cfg.get("exclude_task_families")
-    train_examples = _filter_by_task_family(train_examples, include, exclude)
-    val_examples = _filter_by_task_family(val_examples, include, exclude)
+    train_dataset = train_dataset.shuffle(seed=cfg["seed"])
+    logger.info("Training data: %d examples, ablation=%s", len(train_dataset), ablation_mode)
 
-    if not train_examples:
-        raise SystemExit("No training examples after filtering")
-
-    train_tokens = estimate_dataset_tokens(train_examples)
-    logger.info(
-        "Training data: %d examples (%s tokens), ablation=%s",
-        len(train_examples), format_token_count(train_tokens), ablation_mode,
-    )
-    if val_examples:
-        logger.info("Validation data: %d examples", len(val_examples))
-
-    # Render examples to token sequences
-    def render_example(ex: dict[str, Any]) -> list[int]:
-        """Render a single example to token IDs via the renderer."""
-        return renderer.render_messages(ex["messages"], tokenizer)
-
-    train_rendered = []
-    skipped = 0
-    max_length = cfg["max_length"]
-    for ex in train_examples:
-        tokens = render_example(ex)
-        if len(tokens) > max_length:
-            skipped += 1
-            continue
-        train_rendered.append(tokens)
-
-    if skipped:
-        logger.info("Skipped %d examples exceeding max_length=%d", skipped, max_length)
-
-    val_rendered = []
-    for ex in val_examples:
-        tokens = render_example(ex)
-        if len(tokens) <= max_length:
-            val_rendered.append(tokens)
-    if val_rendered:
-        logger.info("Rendered %d validation examples", len(val_rendered))
+    val_dataset = None
+    if val_path.exists():
+        val_dataset = _load_split(val_path, "validation")
+        if ablation_mode != "mixed":
+            val_rows = list(val_dataset)
+            val_rows = _filter_by_ablation(val_rows, ablation_mode)
+            val_rows = _filter_by_task_family(val_rows, include, exclude)
+            if val_rows:
+                import datasets as _ds  # type: ignore
+                val_dataset = _ds.Dataset.from_list(val_rows)
+            else:
+                val_dataset = None
+        logger.info("Validation data: %d examples", len(val_dataset) if val_dataset else 0)
 
     tb = TBLogger(run_dir / "tb")
 
@@ -196,9 +246,8 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         extra={
             "model_name": model_name,
             "renderer": renderer_name,
-            "train_examples": len(train_rendered),
-            "train_skipped": skipped,
-            "val_examples": len(val_examples),
+            "train_examples": len(train_dataset),
+            "val_examples": len(val_dataset) if val_dataset else 0,
             "ablation_mode": ablation_mode,
             "run_dir": str(run_dir),
         },
@@ -219,109 +268,115 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             service, model_name, lora_rank=lora_rank,
         )
 
-    adam_params = get_adam_params(cfg["learning_rate"])
+    ensure_cookbook_on_path()
+    from tinker_cookbook.supervised.common import compute_mean_nll  # type: ignore
+    from tinker_cookbook.supervised.data import conversation_to_datum  # type: ignore
 
-    # Training loop
-    epochs = cfg["epochs"]
+    # Training loop (aligned with Stage A pattern)
     batch_size = cfg["batch_size"]
+    max_length = cfg["max_length"]
     save_every = cfg["save_every"]
-    total_steps = epochs * len(train_rendered) // batch_size
+    steps_per_epoch = math.ceil(len(train_dataset) / batch_size)
+    total_steps = steps_per_epoch * cfg["epochs"]
 
     logger.info(
         "Starting training: %d epochs, batch_size=%d, total_steps=%d, start_step=%d",
-        epochs, batch_size, total_steps, start_step,
+        cfg["epochs"], batch_size, total_steps, start_step,
     )
 
-    global_step = start_step
-    for epoch in range(epochs):
-        epoch_start = time.time()
-        epoch_loss_sum = 0.0
-        epoch_batches = 0
+    final_metrics: dict[str, Any] = {}
 
-        # Simple sequential batching
-        for batch_start in range(0, len(train_rendered), batch_size):
-            if global_step < start_step:
-                global_step += 1
-                continue
+    for global_step in range(start_step, total_steps):
+        epoch = global_step // steps_per_epoch
+        step_in_epoch = global_step % steps_per_epoch
+        batch_start = step_in_epoch * batch_size
+        batch_end = min(batch_start + batch_size, len(train_dataset))
+        rows = train_dataset.select(range(batch_start, batch_end))
+        batch = [
+            conversation_to_datum(row["messages"], renderer, max_length, train_on_what)
+            for row in rows
+        ]
+        if not batch:
+            continue
 
-            batch = train_rendered[batch_start : batch_start + batch_size]
-            if not batch:
-                continue
-
-            result = training_client.train_step(
-                batch=batch,
-                adam_params=adam_params,
+        if save_every > 0 and global_step > 0 and global_step % save_every == 0:
+            save_checkpoint(
+                training_client=training_client,
+                name=f"{global_step:06d}",
+                log_path=log_path,
+                kind="state",
+                loop_state={"step": global_step},
+                ttl_seconds=cfg["ttl_seconds"],
             )
 
-            loss = float(result.get("loss", 0.0))
-            epoch_loss_sum += loss
-            epoch_batches += 1
-            global_step += 1
+        val_every = cfg["val_every"] if cfg["val_every"] is not None else save_every
+        if (
+            val_every > 0
+            and val_dataset is not None
+            and global_step > 0
+            and global_step % val_every == 0
+        ):
+            val_nll = _mean_val_loss(
+                dataset=val_dataset,
+                renderer=renderer,
+                training_client=training_client,
+                batch_size=batch_size,
+                max_length=max_length,
+                train_on_what=train_on_what,
+            )
+            val_m = {"step": global_step, "validation_mean_nll": val_nll}
+            append_jsonl(metrics_path, val_m)
+            tb.log_scalars(val_m, step=global_step)
+            logger.info("step=%d validation_mean_nll=%.4f", global_step, val_nll)
 
-            if global_step % 10 == 0:
-                avg_loss = epoch_loss_sum / max(epoch_batches, 1)
-                logger.info(
-                    "step=%d/%d epoch=%d loss=%.4f avg_loss=%.4f",
-                    global_step, total_steps, epoch, loss, avg_loss,
-                )
-                step_metrics = {
-                    "step": global_step,
-                    "epoch": epoch,
-                    "loss": loss,
-                    "avg_loss": avg_loss,
-                    "timestamp": time.time(),
-                }
-                append_jsonl(metrics_path, step_metrics)
-                tb.log_scalars(step_metrics, step=global_step)
+        start_time = time.time()
+        lr_mult = max(0.0, 1.0 - (global_step / max(total_steps, 1)))
+        current_lr = cfg["learning_rate"] * lr_mult
+        adam_params = get_adam_params(current_lr)
 
-            if save_every and global_step % save_every == 0:
-                save_checkpoint(
-                    training_client,
-                    name=f"step_{global_step}",
-                    log_path=log_path,
-                    loop_state={"step": global_step, "epoch": epoch},
-                )
+        fwd_bwd_result = training_client.forward_backward(batch, loss_fn="cross_entropy").result()
+        optim_result = training_client.optim_step(adam_params).result()
 
-            val_every = cfg["val_every"] if cfg["val_every"] is not None else save_every
-            if val_every and val_rendered and global_step % val_every == 0:
-                val_loss_sum = 0.0
-                val_batches = 0
-                for vb_start in range(0, len(val_rendered), batch_size):
-                    vb = val_rendered[vb_start : vb_start + batch_size]
-                    if not vb:
-                        continue
-                    vr = training_client.forward(vb)
-                    val_loss_sum += float(vr.get("loss", 0.0))
-                    val_batches += 1
-                val_loss = val_loss_sum / max(val_batches, 1)
-                val_m = {"step": global_step, "val_loss": val_loss}
-                append_jsonl(metrics_path, val_m)
-                tb.log_scalars(val_m, step=global_step)
-                logger.info("step=%d val_loss=%.4f", global_step, val_loss)
+        train_logprobs = [x["logprobs"] for x in fwd_bwd_result.loss_fn_outputs]
+        train_weights = [d.loss_fn_inputs["weights"] for d in batch]
+        train_nll = compute_mean_nll(train_logprobs, train_weights)
 
-        epoch_time = time.time() - epoch_start
-        avg_loss = epoch_loss_sum / max(epoch_batches, 1)
-        logger.info(
-            "Epoch %d complete: avg_loss=%.4f time=%.1fs",
-            epoch, avg_loss, epoch_time,
-        )
+        metrics: dict[str, Any] = {
+            "step": global_step,
+            "epoch": epoch,
+            "step_in_epoch": step_in_epoch,
+            "learning_rate": current_lr,
+            "train_mean_nll": train_nll,
+            "num_sequences": len(batch),
+            "num_tokens": sum(d.model_input.length for d in batch),
+            "time_total": time.time() - start_time,
+        }
+        if getattr(optim_result, "metrics", None):
+            metrics.update(optim_result.metrics)
+        append_jsonl(metrics_path, metrics)
+        tb.log_scalars(metrics, step=global_step)
+        final_metrics = metrics
 
-        # Save epoch checkpoint
-        save_checkpoint(
-            training_client,
-            name=f"epoch_{epoch}",
-            log_path=log_path,
-            kind="both",
-            loop_state={"step": global_step, "epoch": epoch},
-        )
+        if global_step % 10 == 0:
+            logger.info(
+                "step=%d/%d epoch=%d train_nll=%.4f lr=%.6g batch=%d tokens=%d",
+                global_step,
+                total_steps,
+                epoch,
+                train_nll,
+                current_lr,
+                len(batch),
+                metrics["num_tokens"],
+            )
 
     # Save final checkpoint
     save_checkpoint(
-        training_client,
+        training_client=training_client,
         name="final",
         log_path=log_path,
         kind="both",
-        loop_state={"step": global_step, "epoch": epochs - 1},
+        loop_state={"step": total_steps},
+        ttl_seconds=cfg["ttl_seconds"],
     )
 
     tb.close()
@@ -331,9 +386,10 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "model_name": model_name,
         "renderer": renderer_name,
         "ablation_mode": ablation_mode,
-        "total_steps": global_step,
-        "train_examples": len(train_rendered),
+        "total_steps": total_steps,
+        "train_examples": len(train_dataset),
         "final_checkpoint": log_path,
+        "final_metrics": final_metrics,
     }
     write_json(run_dir / "summary.json", summary)
 

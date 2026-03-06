@@ -1,4 +1,4 @@
-# TVL↔EN on gpt-oss-120b with Tinker: staged plan
+# TVL↔EN with Tinker: staged plan
 
 This scaffold assumes the current repo layout from `tv/README.md` and the aligned JSONL
 outputs produced by:
@@ -75,6 +75,12 @@ reduce Bible share further.
 
 ### Stage A — translation adapter
 
+**Model**: `Qwen/Qwen3-30B-A3B-Base` (default) or `meta-llama/Llama-3.2-3B` (pilot shakeout).
+
+**Decision**: Skip monolingual continued pretraining (CPT) — go straight to
+translation SFT. Literature suggests CPT alone increases forgetting risk, and
+our parallel corpus is too small for meaningful CPT gains.
+
 Train only on high-confidence parallel data, both directions.
 
 Input example:
@@ -113,10 +119,12 @@ Preserve these spans exactly unless human review shows they should change:
 
 Translate only the human-language spans around them.
 
-### Stage C — bilingual capability adapter
+### Stage C (= Stage B in pipeline) — bilingual capability adapter
 
-Create a second adapter (or continue from the translation adapter only after careful eval)
-using a mixture like:
+**Model**: `openai/gpt-oss-120b` — starts from BASE weights, **not** from Stage A.
+Stage A exists only to produce synthetic Tuvaluan training data.
+
+Create a second adapter using a mixture like:
 
 - original English tool/use/math/QA data
 - selectively translated Tuvaluan copies
@@ -124,7 +132,7 @@ using a mixture like:
 
 The goal here is not just translation. It is bilingual instruction following.
 
-## Mixing recommendations for Stage C
+## Mixing recommendations for Stage C (= Stage B in pipeline)
 
 A reasonable starting point for a bilingual capability run is:
 
@@ -168,6 +176,23 @@ Before merging or reusing the adapter for synthetic data generation, spot-check:
 - code block preservation
 - refusal behavior
 
+## Dataset loaders: status
+
+Some synthetic-data loaders remain TODO or experimental:
+
+| Dataset | Status |
+|---------|--------|
+| tasksource/tasksource-instruct-v0 | Implemented |
+| HuggingFaceH4/ultrachat_200k | Implemented |
+| openai/gsm8k | Implemented |
+| Salesforce/xlam-function-calling-60k | Implemented |
+| Muennighoff/mbpp | Implemented |
+| rajpurkar/squad | Implemented |
+| ccdv/cnn_dailymail | Implemented |
+| meta-math/MetaMathQA | TODO |
+| NousResearch/hermes-function-calling-v1 | TODO |
+| zai-org/AgentInstruct | TODO |
+
 ## Answer to the 10M-character question
 
 10M total characters is probably enough for a **useful first translation adapter**, assuming
@@ -179,13 +204,15 @@ For that second goal, you will need translated English capability data plus Engl
 
 ## Practical defaults for v1
 
-- base model: `openai/gpt-oss-120b`
+- **Stage A** base model: `Qwen/Qwen3-30B-A3B-Base` (small MoE, cheap to train)
+- **Stage B** base model: `openai/gpt-oss-120b` (large MoE, 117B total / 5.1B active)
 - training mode: LoRA
 - LoRA rank: 32
 - max length: 2048
 - first train file: `train_balanced.jsonl`
 - first LR sweep: `1e-4`, `2e-4`, `4e-4`
 - first epoch sweep: `1`, `2`, `3`
+- **Pilot path**: ~2M tokens, 1 epoch on Qwen3-30B-A3B-Base (config: `stage_a_translation_qwen30b_base_pilot_2m_1epoch.json`)
 
 ## Deployment recommendation
 

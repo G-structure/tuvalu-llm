@@ -23,6 +23,7 @@ from training.common.io import write_json
 from training.common.manifests import create_manifest, save_manifest
 from training.common.token_estimates import estimate_example_tokens, format_token_count
 from training.synthetic.budgeting import BudgetManager
+from training.synthetic.naming import dataset_name_to_filename
 from training.synthetic.registry import get_loader, list_datasets
 
 # Force loader registration
@@ -67,7 +68,7 @@ def build_sources(
             logger.warning("Skipping unknown dataset: %s (%s)", ds_name, e)
             continue
 
-        safe_name = ds_name.replace("/", "__")
+        safe_name = dataset_name_to_filename(ds_name)
         out_path = english_dir / f"{safe_name}.jsonl"
         count = 0
         total_tokens = 0
@@ -134,7 +135,15 @@ def main() -> None:
         datasets = [d.strip() for d in args.datasets.split(",")]
     elif args.config:
         config = load_config(args.config)
-        datasets = config.get("datasets", DEFAULT_DATASETS)
+        raw_datasets = config.get("datasets", DEFAULT_DATASETS)
+        # Support both string list and dict list (e.g., synthetic_stage_b_core.json)
+        datasets = []
+        for d in raw_datasets:
+            if isinstance(d, dict):
+                if d.get("enabled", True):
+                    datasets.append(d["name"])
+            else:
+                datasets.append(d)
     else:
         datasets = DEFAULT_DATASETS
 

@@ -37,15 +37,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def flatten_build_config(raw_config: dict) -> dict:
+    """Flatten nested config into flat keys that build_data.main() expects."""
+    config: dict = {}
+    data_sec = raw_config.get("data", {})
+    training_sec = raw_config.get("training", {})
+
+    # All data.* keys map directly
+    for key, value in data_sec.items():
+        config[key] = value
+
+    # seed comes from training section
+    if "seed" in training_sec:
+        config["seed"] = training_sec["seed"]
+
+    return config
+
+
 def main() -> None:
     args = parse_args()
 
-    config: dict = {}
+    raw_config: dict = {}
     if args.config:
         with args.config.open() as f:
-            config = json.load(f)
+            raw_config = json.load(f)
 
-    # Map CLI args to config keys (only set if explicitly provided)
+    # Flatten nested config structure into flat keys build_data.main() expects
+    config = flatten_build_config(raw_config)
+
+    # CLI args override everything
     cli_map = {
         "input_dir": args.input_dir,
         "output_dir": args.output_dir,

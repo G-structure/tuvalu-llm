@@ -15,6 +15,7 @@ from typing import Any, Callable
 
 from ..common.config import get_repo_root, load_config, resolve_path
 from ..common.io import append_jsonl, read_json, read_jsonl, write_json, write_jsonl
+from .naming import dataset_name_to_filename
 from ..common.manifests import create_manifest, save_manifest
 from ..common.schema import validate_example
 from ..common.token_estimates import (
@@ -206,11 +207,29 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
     _tokenizer, renderer, _renderer_name = get_renderer(model_name)
     service_client = create_service_client()
 
+    # Resolve Stage A model path
+    model_path = stage_a_config.get("model_path")
+    if not model_path and stage_a_config.get("log_path"):
+        log_path = resolve_path(stage_a_config["log_path"], repo_root)
+        export_info_path = log_path / "export_info.json"
+        if export_info_path.exists():
+            export_info = read_json(export_info_path)
+            model_path = export_info.get("model_path")
+            logger.info("Resolved Stage A model from export_info.json: %s", model_path)
+        else:
+            from ..stage_a_mt.export import get_model_path
+
+            try:
+                model_path = get_model_path({"log_path": stage_a_config["log_path"]})
+                logger.info("Resolved Stage A model from checkpoint: %s", model_path)
+            except FileNotFoundError:
+                logger.warning("Could not resolve Stage A model path, using base model")
+
     translation_config = config.get("translation", {})
     translate_fn = create_translate_fn(
         service_client,
         renderer,
-        model_path=stage_a_config.get("model_path"),
+        model_path=model_path,
         base_model=model_name,
         max_tokens=translation_config.get("max_tokens", 1024),
         temperature=translation_config.get("temperature", 0.3),
@@ -224,8 +243,8 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
     # Process each dataset
     english_dir = sources_dir / "english_normalized"
     datasets_config = config.get("datasets", [])
-    dataset_names = [
-        d["name"].split("/")[-1]
+    dataset_entries = [
+        (d["name"], dataset_name_to_filename(d["name"]))
         for d in datasets_config
         if d.get("enabled", True)
     ]
@@ -234,8 +253,8 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
     total_rejected = 0
     per_dataset_stats: dict[str, dict[str, Any]] = {}
 
-    for ds_name in dataset_names:
-        source_file = english_dir / f"{ds_name}.jsonl"
+    for ds_name, ds_filename in dataset_entries:
+        source_file = english_dir / f"{ds_filename}.jsonl"
         if not source_file.exists():
             logger.warning("Source file not found: %s, skipping", source_file)
             continue
@@ -250,8 +269,8 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
         ds_rejected = 0
         ds_tokens = 0
 
-        accepted_path = accepted_dir / f"{ds_name}.jsonl"
-        rejected_path = rejected_dir / f"{ds_name}.jsonl"
+        accepted_path = accepted_dir / f"{ds_filename}.jsonl"
+        rejected_path = rejected_dir / f"{ds_filename}.jsonl"
 
         for i, example in enumerate(examples):
             ex_id = example.get("id", f"{ds_name}_{i}")
@@ -328,6 +347,7 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
         "accept_rate": total_accepted / max(total_accepted + total_rejected, 1),
         "per_dataset": per_dataset_stats,
         "budget_report": budget.get_report(),
+        "stage_a_model_path": model_path,
     }
 
     write_json(stats_dir / "generation_stats.json", summary)

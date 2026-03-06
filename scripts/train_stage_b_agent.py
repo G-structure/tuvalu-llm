@@ -31,7 +31,8 @@ def _translate_config(raw: dict, pilot: bool = False) -> dict:
 
     training = raw.get("training", {})
     for key in ("lora_rank", "max_length", "batch_size", "learning_rate",
-                "epochs", "save_every", "seed", "ablation_mode"):
+                "epochs", "save_every", "seed", "ablation_mode",
+                "train_on_what", "ttl_seconds"):
         if key in training:
             cfg[key] = training[key]
     if "included_task_families" in training:

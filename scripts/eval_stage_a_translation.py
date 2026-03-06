@@ -34,14 +34,42 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def flatten_eval_config(raw_config: dict) -> dict:
+    """Flatten nested config into flat keys that eval.main() expects."""
+    config: dict = {}
+    data_sec = raw_config.get("data", {})
+    model_sec = raw_config.get("model", {})
+    eval_sec = raw_config.get("eval", {})
+
+    # data path: output_dir / test_file
+    data_output = data_sec.get("output_dir", "data/finetune/stage_a_mt")
+    test_file = eval_sec.get("test_file", "test.jsonl")
+    config["data"] = str(Path(data_output) / test_file)
+
+    # model
+    if model_sec.get("name"):
+        config["model_name"] = model_sec["name"]
+
+    # eval params
+    for key in ("max_tokens", "temperature", "out_dir"):
+        if key in eval_sec:
+            config[key] = eval_sec[key]
+
+    return config
+
+
 def main() -> None:
     args = parse_args()
 
-    config: dict = {}
+    raw_config: dict = {}
     if args.config:
         with args.config.open() as f:
-            config = json.load(f)
+            raw_config = json.load(f)
 
+    # Flatten nested config structure into flat keys eval.main() expects
+    config = flatten_eval_config(raw_config)
+
+    # CLI args override everything
     cli_map = {
         "data": args.data,
         "model_path": args.model_path,

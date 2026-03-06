@@ -130,11 +130,17 @@ def _sample_to_ratio(
     pools: dict[str, list[dict[str, Any]]],
     ratios: dict[str, float],
     rng: random.Random,
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     """Sample from pools according to target ratios.
 
     If a pool has fewer examples than its allocation, it uses all of them
     and redistributes the remaining budget to other pools.
+
+    Returns (sampled_examples, ratio_report) where ratio_report contains:
+    - requested_ratios: the input ratios (normalized)
+    - realized_counts: {pool_name: actual_count}
+    - realized_ratios: {pool_name: actual_count / total}
+    - shortfall: {pool_name: target_count - actual_count} for pools that were short
     """
     total_weight = sum(ratios.values())
     normalized = {k: v / total_weight for k, v in ratios.items()}
@@ -142,12 +148,22 @@ def _sample_to_ratio(
     # Total available
     total_available = sum(len(v) for v in pools.values())
     if total_available == 0:
-        return []
+        return [], {
+            "requested_ratios": normalized,
+            "realized_counts": {k: 0 for k in ratios},
+            "realized_ratios": {k: 0.0 for k in ratios},
+            "shortfall": {},
+        }
 
     # Iteratively allocate, capping pools that are too small
     allocation: dict[str, int] = {}
     remaining_budget = total_available
     remaining_ratios = dict(normalized)
+
+    # Track ideal target for shortfall reporting
+    ideal_allocation: dict[str, int] = {
+        k: int(total_available * v) for k, v in normalized.items()
+    }
 
     for _ in range(len(pools)):
         if not remaining_ratios:
@@ -179,7 +195,27 @@ def _sample_to_ratio(
         else:
             result.extend(rng.sample(pool, count))
 
-    return result
+    # Build ratio report
+    total_sampled = len(result)
+    realized_counts = {name: allocation.get(name, 0) for name in ratios}
+    realized_ratios = {
+        name: count / total_sampled if total_sampled > 0 else 0.0
+        for name, count in realized_counts.items()
+    }
+    shortfall = {
+        name: ideal_allocation[name] - realized_counts[name]
+        for name in ratios
+        if realized_counts[name] < ideal_allocation[name]
+    }
+
+    ratio_report: dict[str, Any] = {
+        "requested_ratios": normalized,
+        "realized_counts": realized_counts,
+        "realized_ratios": realized_ratios,
+        "shortfall": shortfall,
+    }
+
+    return result, ratio_report
 
 
 def _assign_split(
@@ -280,7 +316,12 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     _tag_source(synthetic_tvl_raw, "synthetic_tvl")
     _tag_source(anchor_raw, "anchor")
 
-    # Filter by task family
+    # Ensure anchor examples have task_family="translation" for filtering purposes
+    for ex in anchor_raw:
+        if "task_family" not in ex:
+            ex["task_family"] = "translation"
+
+    # Filter by task family — anchors are exempt (they prevent catastrophic forgetting)
     include_families = cfg.get("include_task_families")
     exclude_families = cfg.get("exclude_task_families")
     english = _filter_by_task_family(english_raw, include_families, exclude_families)
@@ -326,7 +367,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "synthetic_tvl": tvl_splits["train"],
         "anchor": anchor,
     }
-    train_all = _sample_to_ratio(train_pools, mix_ratios, rng)
+    train_all, ratio_report = _sample_to_ratio(train_pools, mix_ratios, rng)
     rng.shuffle(train_all)
 
     # Pilot subset
@@ -355,6 +396,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "train_pilot": _summarize(train_pilot, "train_pilot"),
         "validation": _summarize(validation, "validation"),
         "test": _summarize(test, "test"),
+        "mix_ratios": ratio_report,
         "input_counts": {
             "english_raw": len(english_raw),
             "synthetic_tvl_raw": len(synthetic_tvl_raw),
