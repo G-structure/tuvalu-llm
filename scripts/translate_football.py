@@ -205,9 +205,9 @@ def get_untranslated_articles(
 
 
 def save_translation(conn: sqlite3.Connection, article_id: str, translation: dict):
-    """Insert translation into the database."""
+    """Insert or replace translation in the database."""
     conn.execute(
-        """INSERT INTO translations
+        """INSERT OR REPLACE INTO translations
            (article_id, title_tvl, body_tvl, og_description_tvl,
             model_path, paragraph_count, failed_paragraphs)
            VALUES (?, ?, ?, ?, ?, ?, ?)""",

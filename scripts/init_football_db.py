@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS fetch_log (
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category, published_at DESC);
-CREATE INDEX IF NOT EXISTS idx_translations_article ON translations(article_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_translations_article ON translations(article_id);
 """
 
 SEED_SOURCES = [
