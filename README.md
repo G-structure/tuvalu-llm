@@ -712,7 +712,74 @@ Updated estimates based on sitemap analysis (7,103 URLs vs original 1,310 estima
 - [x] **How many Tuvaluan pages exist?** 7,103 (not 1,310 as initially estimated from partial sitemap).
 - [x] **What is the TVL/EN length ratio for Bible text?** Average 1.21 (TVL ~21% longer), range 0.83–1.64.
 
-## 15. Open questions
+## 15. Tinker training cost estimates
+
+All costs below are **USD** and use **only** the rates you provided.
+
+Formulas, where:
+
+* **P** = Prefill rate ($ / 1M input tokens)
+* **S** = Sample rate ($ / 1M output tokens)
+* **T** = Train rate ($ / 1M training tokens)
+
+Formulas used for every model:
+
+* **Stage 1 (10M-token training)**
+
+  * 1x = `10 × T`
+  * 2x = `20 × T`
+  * 3x = `30 × T`
+* **Stage 2 (synthetic data generation inference)**
+
+  * Input = `200 × P`
+  * Output = `200 × S`
+  * Total = `200 × (P + S)`
+* **Stage 3 (200M-token synthetic-data training)**
+
+  * 1x = `200 × T`
+  * 2x = `400 × T`
+  * 3x = `600 × T`
+* **Total pipeline**
+
+  * **1x/1x** = `10T + 200(P+S) + 200T = 210T + 200(P+S)`
+  * **2x/2x** = `20T + 200(P+S) + 400T = 420T + 200(P+S)`
+  * **3x/3x** = `30T + 200(P+S) + 600T = 630T + 200(P+S)`
+
+**Storage:** billed at **$0.10/GB/month**, but **cannot be calculated** from the information provided because no GB usage is given, so it is **excluded** from totals.
+
+| Model | Prefill | Sample | Train | S1 1x | S1 2x | S1 3x | S2 In | S2 Out | S2 Total | S3 1x | S3 2x | S3 3x | Pipeline 1x | Pipeline 2x | Pipeline 3x |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| meta-llama/Llama-3.2-1B | $0.03 | $0.09 | $0.09 | $0.90 | $1.80 | $2.70 | $6.00 | $18.00 | $24.00 | $18.00 | $36.00 | $54.00 | $42.90 | $61.80 | $80.70 |
+| meta-llama/Llama-3.2-3B | $0.06 | $0.18 | $0.18 | $1.80 | $3.60 | $5.40 | $12.00 | $36.00 | $48.00 | $36.00 | $72.00 | $108.00 | $85.80 | $123.60 | $161.40 |
+| Qwen/Qwen3-4B-Instruct-2507 | $0.07 | $0.22 | $0.22 | $2.20 | $4.40 | $6.60 | $14.00 | $44.00 | $58.00 | $44.00 | $88.00 | $132.00 | $104.20 | $150.40 | $196.60 |
+| Qwen/Qwen3-30B-A3B | $0.12 | $0.30 | $0.36 | $3.60 | $7.20 | $10.80 | $24.00 | $60.00 | $84.00 | $72.00 | $144.00 | $216.00 | $159.60 | $235.20 | $310.80 |
+| gpt-oss/GPT-OSS-20B | $0.12 | $0.30 | $0.36 | $3.60 | $7.20 | $10.80 | $24.00 | $60.00 | $84.00 | $72.00 | $144.00 | $216.00 | $159.60 | $235.20 | $310.80 |
+| Qwen/Qwen3-8B | $0.13 | $0.40 | $0.40 | $4.00 | $8.00 | $12.00 | $26.00 | $80.00 | $106.00 | $80.00 | $160.00 | $240.00 | $190.00 | $274.00 | $358.00 |
+| meta-llama/Llama-3.1-8B | $0.13 | $0.40 | $0.40 | $4.00 | $8.00 | $12.00 | $26.00 | $80.00 | $106.00 | $80.00 | $160.00 | $240.00 | $190.00 | $274.00 | $358.00 |
+| gpt-oss/GPT-OSS-120B | $0.18 | $0.44 | $0.52 | $5.20 | $10.40 | $15.60 | $36.00 | $88.00 | $124.00 | $104.00 | $208.00 | $312.00 | $233.20 | $342.40 | $451.60 |
+| Qwen/Qwen3-VL-30B-A3B-Instruct | $0.18 | $0.44 | $0.53 | $5.30 | $10.60 | $15.90 | $36.00 | $88.00 | $124.00 | $106.00 | $212.00 | $318.00 | $235.30 | $346.60 | $457.90 |
+| Qwen/Qwen3-32B | $0.49 | $1.47 | $1.47 | $14.70 | $29.40 | $44.10 | $98.00 | $294.00 | $392.00 | $294.00 | $588.00 | $882.00 | $700.70 | $1,009.40 | $1,318.10 |
+| Qwen/Qwen3-235B-Instruct-2507 | $0.68 | $1.70 | $2.04 | $20.40 | $40.80 | $61.20 | $136.00 | $340.00 | $476.00 | $408.00 | $816.00 | $1,224.00 | $904.40 | $1,332.80 | $1,761.20 |
+| moonshotai/Kimi-K2-Thinking | $0.98 | $2.44 | $2.93 | $29.30 | $58.60 | $87.90 | $196.00 | $488.00 | $684.00 | $586.00 | $1,172.00 | $1,758.00 | $1,299.30 | $1,914.60 | $2,529.90 |
+| Qwen/Qwen3-VL-235B-A22B-Instruct | $1.02 | $2.56 | $3.07 | $30.70 | $61.40 | $92.10 | $204.00 | $512.00 | $716.00 | $614.00 | $1,228.00 | $1,842.00 | $1,360.70 | $2,005.40 | $2,650.10 |
+| deepseek-ai/DeepSeek-V3.1 | $1.13 | $2.81 | $3.38 | $33.80 | $67.60 | $101.40 | $226.00 | $562.00 | $788.00 | $676.00 | $1,352.00 | $2,028.00 | $1,497.80 | $2,207.60 | $2,917.40 |
+| meta-llama/Llama-3.1-70B | $1.05 | $3.16 | $3.16 | $31.60 | $63.20 | $94.80 | $210.00 | $632.00 | $842.00 | $632.00 | $1,264.00 | $1,896.00 | $1,505.60 | $2,169.20 | $2,832.80 |
+| moonshotai/Kimi-K2.5 | $1.47 | $3.66 | $4.40 | $44.00 | $88.00 | $132.00 | $294.00 | $732.00 | $1,026.00 | $880.00 | $1,760.00 | $2,640.00 | $1,950.00 | $2,874.00 | $3,798.00 |
+
+Summary:
+
+* **Cheapest model:** `meta-llama/Llama-3.2-1B` at **$42.90** for the **1x Stage 1 + inference + 1x Stage 3** pipeline
+* **Most expensive model:** `moonshotai/Kimi-K2.5` at **$1,950.00** for the same pipeline
+* **Cost range:** **$42.90 to $1,950.00**, a spread of **$1,907.10**
+
+Notable ties:
+
+* `Qwen/Qwen3-30B-A3B` and `gpt-oss/GPT-OSS-20B` have identical totals
+* `Qwen/Qwen3-8B` and `meta-llama/Llama-3.1-8B` have identical totals
+
+---
+
+## 16. Open questions
 
 - [ ] How many WOL docIds actually have Tuvaluan translations? (Need to discover via scraping)
 - [ ] Are there additional WOL Bible translation codes beyond `nwt` for Tuvaluan?
