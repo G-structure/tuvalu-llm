@@ -43,11 +43,39 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    config: dict = {}
+    raw_config: dict = {}
     if args.config:
         with args.config.open() as f:
-            config = json.load(f)
+            raw_config = json.load(f)
 
+    # Flatten nested config structure into the flat keys train.main() expects.
+    config: dict = {}
+    data_sec = raw_config.get("data", {})
+    training_sec = raw_config.get("training", {})
+    model_sec = raw_config.get("model", {})
+    logs_sec = raw_config.get("logs", {})
+
+    # Data paths
+    data_output = data_sec.get("output_dir", "data/finetune/stage_a_mt")
+    train_file = data_sec.get("train_file", "train_balanced.jsonl")
+    config["data"] = str(Path(data_output) / train_file)
+    config["val_data"] = str(Path(data_output) / "validation.jsonl")
+
+    # Model
+    if model_sec.get("name"):
+        config["model_name"] = model_sec["name"]
+
+    # Training hyperparams
+    for key in ("lora_rank", "max_length", "batch_size", "learning_rate",
+                "epochs", "save_every", "seed", "train_on_what", "ttl_seconds"):
+        if key in training_sec:
+            config[key] = training_sec[key]
+
+    # Logs
+    if logs_sec.get("base_dir"):
+        config["log_path"] = logs_sec["base_dir"]
+
+    # CLI args override everything
     cli_map = {
         "data": args.data,
         "val_data": args.val_data,

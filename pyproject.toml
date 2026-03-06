@@ -23,4 +23,6 @@ training = [
     "pandas",
     "pyarrow",
     "pytest",
+    "tensorboard",
+    "setuptools<81",
 ]

@@ -25,6 +25,7 @@ from training.common.checkpoints import get_last_checkpoint, save_checkpoint
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import append_jsonl, read_jsonl, setup_run_dir, write_json
 from training.common.manifests import create_manifest, save_manifest
+from training.common.tb import TBLogger
 from training.common.tinker_runtime import (
     create_lora_training_client,
     create_service_client,
@@ -62,6 +63,7 @@ DEFAULTS: dict[str, Any] = {
     "run_name": None,  # auto-generated if None
     # Resume
     "resume_from": None,  # path to checkpoint state dir
+    "val_every": None,  # defaults to save_every; set 0 to disable periodic val
 }
 
 
@@ -177,6 +179,16 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     if skipped:
         logger.info("Skipped %d examples exceeding max_length=%d", skipped, max_length)
 
+    val_rendered = []
+    for ex in val_examples:
+        tokens = render_example(ex)
+        if len(tokens) <= max_length:
+            val_rendered.append(tokens)
+    if val_rendered:
+        logger.info("Rendered %d validation examples", len(val_rendered))
+
+    tb = TBLogger(run_dir / "tb")
+
     # Save manifest
     manifest = create_manifest(
         stage="stage_b_agent_train",
@@ -252,13 +264,15 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
                     "step=%d/%d epoch=%d loss=%.4f avg_loss=%.4f",
                     global_step, total_steps, epoch, loss, avg_loss,
                 )
-                append_jsonl(metrics_path, {
+                step_metrics = {
                     "step": global_step,
                     "epoch": epoch,
                     "loss": loss,
                     "avg_loss": avg_loss,
                     "timestamp": time.time(),
-                })
+                }
+                append_jsonl(metrics_path, step_metrics)
+                tb.log_scalars(step_metrics, step=global_step)
 
             if save_every and global_step % save_every == 0:
                 save_checkpoint(
@@ -267,6 +281,23 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
                     log_path=log_path,
                     loop_state={"step": global_step, "epoch": epoch},
                 )
+
+            val_every = cfg["val_every"] if cfg["val_every"] is not None else save_every
+            if val_every and val_rendered and global_step % val_every == 0:
+                val_loss_sum = 0.0
+                val_batches = 0
+                for vb_start in range(0, len(val_rendered), batch_size):
+                    vb = val_rendered[vb_start : vb_start + batch_size]
+                    if not vb:
+                        continue
+                    vr = training_client.forward(vb)
+                    val_loss_sum += float(vr.get("loss", 0.0))
+                    val_batches += 1
+                val_loss = val_loss_sum / max(val_batches, 1)
+                val_m = {"step": global_step, "val_loss": val_loss}
+                append_jsonl(metrics_path, val_m)
+                tb.log_scalars(val_m, step=global_step)
+                logger.info("step=%d val_loss=%.4f", global_step, val_loss)
 
         epoch_time = time.time() - epoch_start
         avg_loss = epoch_loss_sum / max(epoch_batches, 1)
@@ -292,6 +323,8 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         kind="both",
         loop_state={"step": global_step, "epoch": epochs - 1},
     )
+
+    tb.close()
 
     summary = {
         "run_dir": str(run_dir),

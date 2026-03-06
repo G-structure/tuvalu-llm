@@ -17,6 +17,7 @@ from training.common.checkpoints import get_last_checkpoint, save_checkpoint
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import append_jsonl, write_json
 from training.common.manifests import create_manifest, save_manifest
+from training.common.tb import TBLogger
 from training.common.tinker_runtime import (
     create_lora_training_client,
     create_service_client,
@@ -45,6 +46,7 @@ DEFAULTS: dict[str, Any] = {
     "ttl_seconds": 7 * 24 * 3600,
     "seed": 17,
     "do_final_val_loss": False,
+    "val_every": None,  # defaults to save_every; set 0 to disable periodic val
 }
 
 
@@ -129,6 +131,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     log_path = resolve_path(cfg["log_path"], repo_root)
 
     metrics_path = _setup_logging(log_path)
+    tb = TBLogger(log_path / "tb")
     require_tinker_api_key()
 
     if not data_path.exists():
@@ -211,6 +214,26 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
                 ttl_seconds=cfg["ttl_seconds"],
             )
 
+        val_every = cfg["val_every"] if cfg["val_every"] is not None else cfg["save_every"]
+        if (
+            val_every > 0
+            and val_dataset is not None
+            and global_step > 0
+            and global_step % val_every == 0
+        ):
+            val_nll = _mean_val_loss(
+                dataset=val_dataset,
+                renderer=renderer,
+                training_client=training_client,
+                batch_size=cfg["batch_size"],
+                max_length=cfg["max_length"],
+                train_on_what=train_on_what,
+            )
+            val_metrics = {"step": global_step, "validation_mean_nll": val_nll}
+            append_jsonl(metrics_path, val_metrics)
+            tb.log_scalars(val_metrics, step=global_step)
+            logger.info("step=%d validation_mean_nll=%.4f", global_step, val_nll)
+
         start_time = time.time()
         lr_mult = max(0.0, 1.0 - (global_step / max(total_steps, 1)))
         current_lr = cfg["learning_rate"] * lr_mult
@@ -236,6 +259,7 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         if getattr(optim_result, "metrics", None):
             metrics.update(optim_result.metrics)
         append_jsonl(metrics_path, metrics)
+        tb.log_scalars(metrics, step=global_step)
         final_metrics = metrics
 
         if global_step % 10 == 0:
@@ -276,10 +300,13 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             max_length=cfg["max_length"],
             train_on_what=train_on_what,
         )
-        append_jsonl(metrics_path, {"step": total_steps, "validation_mean_nll": val_nll})
+        val_metrics = {"step": total_steps, "validation_mean_nll": val_nll}
+        append_jsonl(metrics_path, val_metrics)
+        tb.log_scalars(val_metrics, step=total_steps)
         logger.info("final validation_mean_nll=%.4f", val_nll)
         final_metrics["validation_mean_nll"] = val_nll
 
+    tb.close()
     logger.info("Training completed")
 
     return {
