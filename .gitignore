@@ -1,7 +1,3 @@
-# curl-impersonate build artifacts
-curl-imp/curl-impersonate/build/
-curl-imp/curl-impersonate/.git/
-
 # macOS
 .DS_Store
 
@@ -11,9 +7,6 @@ curl-imp/curl-impersonate/.git/
 # Data (large, not tracked)
 data/
 logs/
-
-# Build artifacts
-curl-imp/curl-impersonate
 
 # Python
 __pycache__/

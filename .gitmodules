@@ -1,3 +1,6 @@
 [submodule "vendor/tinker-cookbook"]
 	path = vendor/tinker-cookbook
 	url = https://github.com/thinking-machines-lab/tinker-cookbook.git
+[submodule "curl-imp/curl-impersonate"]
+	path = curl-imp/curl-impersonate
+	url = https://github.com/lwthiker/curl-impersonate.git
