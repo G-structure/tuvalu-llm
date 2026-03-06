@@ -1,8 +1,13 @@
 """Stage B trainer: bilingual capability adapter.
 
-IMPORTANT: Stage B starts from openai/gpt-oss-120b BASE, NOT from Stage A
-weights. Stage A exists only to produce the synthetic TVL dataset. The adapter
-produced by Stage B is the final shipping artifact.
+IMPORTANT: Stage B starts from a base/chat model, NOT from Stage A weights.
+Stage A exists only to produce the synthetic TVL dataset. The adapter produced
+by Stage B is the final shipping artifact.
+
+Supported base models:
+- openai/gpt-oss-120b (MoE, 117B/5.1B active) — uses gpt_oss renderer (harmony format)
+- Qwen/Qwen3-30B-A3B (MoE, 30B/3B active) — uses qwen3 renderer (im_start/im_end format)
+  NOTE: Use the chat variant (not -Base) for tool-calling support.
 
 Training modes (ablation support):
 - "mixed" (default): full 3-source mix (EN + synthetic TVL + anchor)

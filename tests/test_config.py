@@ -161,6 +161,17 @@ def test_pilot_config_selects_pilot_model():
     assert config["training"]["epochs"] == 1
 
 
+def test_stage_b_qwen30b_config_valid():
+    """Stage B Qwen3 config loads and has correct model."""
+    root = get_repo_root()
+    config_path = root / "configs" / "stage_b_agent_qwen30b.json"
+    config = load_config(config_path)
+    assert config["model"]["name"] == "Qwen/Qwen3-30B-A3B"
+    assert config["stage"] == "stage_b_agent"
+    assert config["training"]["train_on_what"] == "ALL_ASSISTANT_MESSAGES"
+    assert config["training"]["lora_rank"] == 32
+
+
 # --- Task 2 tests: pilot subset ---
 
 def _make_fake_examples(n: int, chars_per_msg: int = 200) -> list[dict]:

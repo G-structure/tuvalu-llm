@@ -3,6 +3,7 @@
 
 Usage:
     uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json
+    uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_qwen30b.json
     uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json --model-path /path/to/adapter
 """
 

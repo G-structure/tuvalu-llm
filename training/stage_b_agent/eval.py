@@ -1,5 +1,8 @@
 """Stage B evaluation: translation regression, capability, bilingual comparison.
 
+Supports multiple base models (gpt-oss-120b, Qwen3-30B-A3B, etc.) — renderer
+and tokenizer are auto-selected via get_renderer() based on model_name.
+
 Evaluation dimensions:
 1. Translation regression: compare Stage B adapter on MT test set vs Stage A baseline.
 2. Capability smoke tests: per-task-family generation quality checks.

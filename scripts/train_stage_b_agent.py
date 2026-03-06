@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """CLI: Train Stage B bilingual capability adapter.
 
-Stage B starts from openai/gpt-oss-120b BASE, NOT from Stage A weights.
+Stage B starts from a base/chat model, NOT from Stage A weights.
 
 Usage:
     uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json
+    uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_qwen30b.json
     uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json --pilot
 """
 

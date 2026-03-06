@@ -25,7 +25,7 @@ Aligned parallel corpus
         |
         v
   [Stage B: Bilingual Agent]
-  Model: openai/gpt-oss-120b (from BASE, not Stage A)
+  Model: openai/gpt-oss-120b or Qwen/Qwen3-30B-A3B (from base, not Stage A)
   Mix: 40% English + 40% Synthetic TVL + 20% Parallel anchor
         |
         v
@@ -140,8 +140,15 @@ data/finetune/stage_b_synthetic_tvl/
 **Purpose**: Train the final bilingual adapter that handles both TVL and EN
 across all capability domains.
 
-**IMPORTANT**: Stage B starts from `openai/gpt-oss-120b` BASE, NOT from Stage A weights.
+**IMPORTANT**: Stage B starts from a base/chat model, NOT from Stage A weights.
 Stage A exists only to produce the synthetic dataset.
+
+**Supported Stage B models**:
+- `openai/gpt-oss-120b` (MoE, 117B/5.1B active) — `gpt_oss_no_sysprompt` renderer (Harmony format)
+- `Qwen/Qwen3-30B-A3B` (MoE, 30B/3B active) — `qwen3` renderer (im_start/im_end format)
+
+NOTE: Use `Qwen/Qwen3-30B-A3B` (chat variant), not `-Base`, for Stage B.
+The `-Base` variant gets the `role_colon` renderer which lacks tool-calling support.
 
 ### Default mix
 
@@ -158,13 +165,17 @@ Stage A exists only to produce the synthetic dataset.
 uv run python scripts/build_stage_b_mix.py \
     --config configs/stage_b_mix_default.json
 
-# 2. Train Stage B adapter
+# 2. Train Stage B adapter (pick one model)
 uv run python scripts/train_stage_b_agent.py \
-    --config configs/stage_b_agent_oss120b.json
+    --config configs/stage_b_agent_oss120b.json    # gpt-oss-120b
+uv run python scripts/train_stage_b_agent.py \
+    --config configs/stage_b_agent_qwen30b.json    # Qwen3-30B-A3B
 
 # 3. Evaluate
 uv run python scripts/eval_stage_b_agent.py \
     --config configs/stage_b_agent_oss120b.json
+uv run python scripts/eval_stage_b_agent.py \
+    --config configs/stage_b_agent_qwen30b.json
 ```
 
 ### Ablation modes
@@ -201,6 +212,7 @@ data/finetune/stage_b_mix/
 | `configs/synthetic_stage_b_core.json` | Synthetic generation settings |
 | `configs/stage_b_mix_default.json` | Stage B mix ratios and sources |
 | `configs/stage_b_agent_oss120b.json` | Stage B training on gpt-oss-120b |
+| `configs/stage_b_agent_qwen30b.json` | Stage B training on Qwen3-30B-A3B |
 
 ## Package Structure
 
@@ -264,8 +276,12 @@ export TINKER_API_KEY=...
 1. Build sources: `uv run python scripts/build_stage_b_sources.py --config configs/synthetic_stage_b_core.json --limit 100`
 2. Generate synthetic TVL: `uv run python scripts/generate_stage_b_synthetic_tvl.py --config configs/synthetic_stage_b_core.json`
 3. Build mix: `uv run python scripts/build_stage_b_mix.py --config configs/stage_b_mix_default.json`
-4. Train: `uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
-5. Evaluate: `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
+4. Train (pick model):
+   - `uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
+   - `uv run python scripts/train_stage_b_agent.py --config configs/stage_b_agent_qwen30b.json`
+5. Evaluate:
+   - `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_oss120b.json`
+   - `uv run python scripts/eval_stage_b_agent.py --config configs/stage_b_agent_qwen30b.json`
 
 ## TensorBoard
 
