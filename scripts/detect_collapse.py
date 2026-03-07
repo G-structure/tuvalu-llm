@@ -69,7 +69,7 @@ def collapse_score(text: str) -> float:
     """Score how collapsed/repetitive a text is.
 
     Returns 0.0 (no collapse) to 1.0 (fully collapsed).
-    Combines whole-text, tail, and per-paragraph signals.
+    Combines whole-text, tail, sliding window, and phrase signals.
     """
     words = re.findall(r'\w+', text.lower())
     if len(words) < MIN_WORDS_FOR_DETECTION:
@@ -83,16 +83,27 @@ def collapse_score(text: str) -> float:
     max_freq, _ = max_ngram_frequency(text)
 
     # Tail signal
-    tail_words = words[-50:] if len(words) >= 50 else words
+    tail_words = words[-80:] if len(words) >= 80 else words
     tail_text = " ".join(tail_words)
     tail_uniqueness = ngram_repetition_score(tail_text)
     tail_rep = 1.0 - tail_uniqueness
 
-    # Combine: take max of whole-text and tail signals
-    whole_score = 0.7 * repetition + 0.3 * max_freq
-    tail_score = tail_rep * 0.8  # tail collapse alone is strong signal
+    # Sliding window signal: worst window in the text
+    window_score = 0.0
+    window_size = 100
+    if len(words) >= window_size:
+        for start in range(0, len(words) - window_size + 1, 50):
+            w = words[start:start + window_size]
+            w_text = " ".join(w)
+            w_uniq = ngram_repetition_score(w_text)
+            window_score = max(window_score, 1.0 - w_uniq)
 
-    return min(1.0, max(whole_score, tail_score))
+    # Combine: take max of all signals
+    whole_score = 0.7 * repetition + 0.3 * max_freq
+    tail_score = tail_rep * 0.8
+    win_score = window_score * 0.85
+
+    return min(1.0, max(whole_score, tail_score, win_score))
 
 
 def tail_collapse_detected(text: str, window_words: int = 80) -> bool:
@@ -128,6 +139,58 @@ def tail_collapse_detected(text: str, window_words: int = 80) -> bool:
     return False
 
 
+def sliding_window_collapse(text: str, window_words: int = 100, stride: int = 50) -> bool:
+    """Check every window of text for collapse, not just the tail.
+
+    Catches collapse zones in the middle of the text that the tail detector
+    misses because they don't land at the very end.
+    """
+    words = re.findall(r'\w+', text.lower())
+    if len(words) < window_words:
+        return False
+
+    for start in range(0, len(words) - window_words + 1, stride):
+        window = words[start:start + window_words]
+        for n in [3, 4]:
+            ngrams = [tuple(window[i:i + n]) for i in range(len(window) - n + 1)]
+            if len(ngrams) < 10:
+                continue
+            unique = len(set(ngrams))
+            ratio = unique / len(ngrams)
+            if ratio < 0.20:
+                return True
+            counts = Counter(ngrams)
+            _, top_count = counts.most_common(1)[0]
+            if top_count / len(ngrams) > 0.12:
+                return True
+
+    return False
+
+
+def repeated_phrase_detected(text: str, min_phrase_len: int = 5, min_repeats: int = 8) -> bool:
+    """Detect long phrases (5+ words) repeated many times.
+
+    Catches collapse where the repeating unit is longer than 4 words,
+    which distributes across overlapping 4-grams and dilutes the signal.
+    Uses min_repeats=8 to avoid false positives from natural sports
+    repetition (e.g. "scored a goal" appearing 4-5 times).
+    """
+    words = re.findall(r'\w+', text.lower())
+    if len(words) < min_phrase_len * min_repeats:
+        return False
+
+    for phrase_len in [5, 6, 7, 8]:
+        if len(words) < phrase_len + 1:
+            continue
+        ngrams = [tuple(words[i:i + phrase_len]) for i in range(len(words) - phrase_len + 1)]
+        counts = Counter(ngrams)
+        most_common, count = counts.most_common(1)[0]
+        if count >= min_repeats:
+            return True
+
+    return False
+
+
 def per_paragraph_collapse(text: str, n: int = DEFAULT_NGRAM_SIZE) -> bool:
     """Check each paragraph individually for collapse.
 
@@ -154,8 +217,10 @@ def is_collapsed(text: str, threshold: float = DEFAULT_THRESHOLD) -> bool:
     A text is collapsed if any of these triggers:
     1. The whole-text unique 4-gram ratio is below the threshold
     2. Any single 4-gram accounts for >40% of all 4-grams
-    3. The tail (last 50 words) shows extreme repetition
+    3. The tail (last 80 words) shows extreme repetition
     4. Any individual paragraph is heavily collapsed
+    5. Any 100-word sliding window is heavily collapsed
+    6. Any phrase of 5+ words repeats 4+ times
     """
     words = re.findall(r'\w+', text.lower())
     if len(words) < MIN_WORDS_FOR_DETECTION:
@@ -172,6 +237,14 @@ def is_collapsed(text: str, threshold: float = DEFAULT_THRESHOLD) -> bool:
 
     # Tail check — catches degeneration that starts mid-text
     if tail_collapse_detected(text):
+        return True
+
+    # Sliding window — catches collapse zones anywhere in the text
+    if sliding_window_collapse(text):
+        return True
+
+    # Repeated long phrases — catches loops longer than 4-gram window
+    if repeated_phrase_detected(text):
         return True
 
     # Per-paragraph check — catches one bad paragraph among good ones
