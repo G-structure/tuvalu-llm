@@ -13,7 +13,7 @@ from typing import Any
 
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import write_json, write_jsonl
-from training.common.manifests import create_manifest, save_manifest
+from training.common.manifests import create_manifest, save_git_diff, save_manifest
 from training.common.metrics import (
     compute_grouped_metrics,
     compute_translation_metrics,
@@ -38,6 +38,7 @@ DEFAULTS: dict[str, Any] = {
     "max_tokens": 512,
     "temperature": 0.0,
     "limit": None,
+    "parallel": 8,  # number of concurrent sample requests
 }
 
 
@@ -102,38 +103,52 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         temperature=cfg["temperature"],
     )
 
-    predictions: list[dict[str, Any]] = []
+    parallel = cfg.get("parallel", 8)
+    predictions: list[dict[str, Any]] = [None] * len(dataset)  # type: ignore[list-item]
     parse_success_count = 0
-    for idx, row in enumerate(dataset):
-        messages = row["messages"]
-        prompt = renderer.build_generation_prompt(messages[:-1])
-        result = sampling_client.sample(
-            prompt, sampling_params=sampling_params, num_samples=1
-        ).result()
-        output_tokens = result.sequences[0].tokens
-        response_message, parse_success = renderer.parse_response(output_tokens)
-        if parse_success:
-            parse_success_count += 1
+    n = len(dataset)
 
-        prediction_text = ""
-        if isinstance(response_message, dict):
-            prediction_text = str(response_message.get("content", ""))
-        else:
-            prediction_text = str(response_message)
+    # Process in windows of `parallel` concurrent requests
+    for window_start in range(0, n, parallel):
+        window_end = min(window_start + parallel, n)
+        # Fire off all sample requests in this window
+        futures = []
+        for idx in range(window_start, window_end):
+            row = dataset[idx]
+            messages = row["messages"]
+            prompt = renderer.build_generation_prompt(messages[:-1])
+            future = sampling_client.sample(
+                prompt, sampling_params=sampling_params, num_samples=1
+            )
+            futures.append((idx, row, future))
 
-        record = {
-            "id": row.get("id", idx),
-            "prediction": prediction_text,
-            "reference": messages[-1]["content"],
-            "direction": row.get("metadata", {}).get("direction"),
-            "domain": row.get("metadata", {}).get("domain"),
-            "content_type": row.get("metadata", {}).get("content_type"),
-            "parse_success": bool(parse_success),
-        }
-        predictions.append(record)
+        # Collect results
+        for idx, row, future in futures:
+            result = future.result()
+            output_tokens = result.sequences[0].tokens
+            response_message, parse_success = renderer.parse_response(output_tokens)
+            if parse_success:
+                parse_success_count += 1
 
-        if idx % 25 == 0:
-            logger.info("Scored %d / %d", idx + 1, len(dataset))
+            prediction_text = ""
+            if isinstance(response_message, dict):
+                prediction_text = str(response_message.get("content", ""))
+            else:
+                prediction_text = str(response_message)
+
+            messages = row["messages"]
+            record = {
+                "id": row.get("id", idx),
+                "prediction": prediction_text,
+                "reference": messages[-1]["content"],
+                "direction": row.get("metadata", {}).get("direction"),
+                "domain": row.get("metadata", {}).get("domain"),
+                "content_type": row.get("metadata", {}).get("content_type"),
+                "parse_success": bool(parse_success),
+            }
+            predictions[idx] = record
+
+        logger.info("Scored %d / %d", window_end, n)
 
     write_jsonl(out_dir / "predictions.jsonl", predictions)
 
@@ -155,9 +170,11 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     }
     write_json(out_dir / "metrics.json", summary)
 
+    save_git_diff(out_dir)
     manifest = create_manifest(
         stage="stage_a_mt_eval",
         config=cfg,
+        data_files=[data_path],
         extra={
             "data_path": str(data_path),
             "out_dir": str(out_dir),

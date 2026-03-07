@@ -31,6 +31,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-tokens", type=int, default=None)
     parser.add_argument("--temperature", type=float, default=None)
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--parallel", type=int, default=None,
+                        help="Number of concurrent sample requests (default: 8)")
     return parser.parse_args()
 
 
@@ -80,6 +82,7 @@ def main() -> None:
         "max_tokens": args.max_tokens,
         "temperature": args.temperature,
         "limit": args.limit,
+        "parallel": args.parallel,
     }
     for key, value in cli_map.items():
         if value is not None:

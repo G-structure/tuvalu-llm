@@ -14,6 +14,9 @@
     "save_every": 100,
     "val_every": 1000,
     "val_max_examples": 200,
+    "gen_eval_every": 1000,
+    "gen_eval_parallel": 64,
+    "gen_eval_max_tokens": 512,
     "seed": 17,
     "train_on_what": "ALL_ASSISTANT_MESSAGES",
     "ttl_seconds": 604800

@@ -16,14 +16,16 @@ from typing import Any
 from training.common.checkpoints import get_last_checkpoint, save_checkpoint
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import append_jsonl, write_json
-from training.common.manifests import create_manifest, save_manifest
+from training.common.manifests import create_manifest, save_git_diff, save_manifest
 from training.common.tb import TBLogger
+from training.common.metrics import compute_translation_metrics
 from training.common.tinker_runtime import (
     create_lora_training_client,
     create_service_client,
     ensure_cookbook_on_path,
     get_adam_params,
     get_renderer,
+    get_sampling_params,
     require_tinker_api_key,
     resume_training_client,
 )
@@ -48,6 +50,10 @@ DEFAULTS: dict[str, Any] = {
     "do_final_val_loss": False,
     "val_every": None,  # defaults to save_every; set 0 to disable periodic val
     "val_max_examples": None,  # subsample validation set for periodic checks; None = full
+    "gen_eval_every": None,  # run generation eval (chrF++/BLEU) every N steps; None = disabled
+    "gen_eval_data": "data/finetune/stage_a_mt/test.jsonl",
+    "gen_eval_parallel": 64,  # concurrent sample requests for gen eval
+    "gen_eval_max_tokens": 512,
 }
 
 
@@ -113,6 +119,66 @@ def _mean_val_loss(
     return sum(losses) / len(losses) if losses else float("nan")
 
 
+def _run_gen_eval(
+    *,
+    dataset: Any,
+    renderer: Any,
+    service_client: Any,
+    training_client: Any,
+    step_name: str,
+    parallel: int = 64,
+    max_tokens: int = 512,
+) -> dict[str, Any]:
+    """Run parallel generation eval and return chrF++/BLEU metrics."""
+    save_result = training_client.save_weights_for_sampler(
+        name=f"gen_eval_{step_name}"
+    ).result()
+    sampler_path = save_result.path
+    logger.info("Saved sampler weights for gen eval: %s", sampler_path)
+
+    sampling_client = service_client.create_sampling_client(model_path=sampler_path)
+    import tinker  # type: ignore
+
+    sampling_params = tinker.SamplingParams(
+        max_tokens=max_tokens,
+        temperature=0.0,
+        stop=renderer.get_stop_sequences(),
+    )
+
+    n = len(dataset)
+    predictions: list[dict[str, Any]] = [None] * n  # type: ignore[list-item]
+    for window_start in range(0, n, parallel):
+        window_end = min(window_start + parallel, n)
+        futures = []
+        for idx in range(window_start, window_end):
+            row = dataset[idx]
+            messages = row["messages"]
+            prompt = renderer.build_generation_prompt(messages[:-1])
+            future = sampling_client.sample(
+                prompt, sampling_params=sampling_params, num_samples=1
+            )
+            futures.append((idx, row, future))
+        for idx, row, future in futures:
+            result = future.result()
+            output_tokens = result.sequences[0].tokens
+            response_message, _ok = renderer.parse_response(output_tokens)
+            pred_text = ""
+            if isinstance(response_message, dict):
+                pred_text = str(response_message.get("content", ""))
+            else:
+                pred_text = str(response_message)
+            messages = row["messages"]
+            predictions[idx] = {
+                "prediction": pred_text,
+                "reference": messages[-1]["content"],
+                "direction": row.get("metadata", {}).get("direction"),
+                "domain": row.get("metadata", {}).get("domain"),
+            }
+        logger.info("Gen eval: scored %d / %d", window_end, n)
+
+    return compute_translation_metrics(predictions)
+
+
 def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run Stage A training.
 
@@ -154,6 +220,16 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         val_dataset = _load_split(val_path, "validation")
         logger.info("Loaded %d validation examples", len(val_dataset))
 
+    gen_eval_dataset = None
+    gen_eval_every = cfg.get("gen_eval_every")
+    if gen_eval_every and gen_eval_every > 0:
+        gen_eval_path = resolve_path(cfg["gen_eval_data"], repo_root)
+        if gen_eval_path.exists():
+            gen_eval_dataset = _load_split(gen_eval_path, "eval")
+            logger.info("Loaded %d gen eval examples", len(gen_eval_dataset))
+        else:
+            logger.warning("Gen eval data not found: %s — skipping gen eval", gen_eval_path)
+
     service_client = create_service_client(base_url=cfg["base_url"])
 
     checkpoint_info = get_last_checkpoint(str(log_path))
@@ -178,9 +254,11 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     total_steps = steps_per_epoch * cfg["epochs"]
     logger.info("Training for %d epochs, %d total steps", cfg["epochs"], total_steps)
 
+    save_git_diff(log_path)
     manifest = create_manifest(
         stage="stage_a_mt_train",
         config=cfg,
+        data_files=[data_path, val_path],
         extra={
             "data_path": str(data_path),
             "log_path": str(log_path),
@@ -237,6 +315,38 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             append_jsonl(metrics_path, val_metrics)
             tb.log_scalars(val_metrics, step=global_step)
             logger.info("step=%d validation_mean_nll=%.4f", global_step, val_nll)
+
+        if (
+            gen_eval_every
+            and gen_eval_every > 0
+            and gen_eval_dataset is not None
+            and global_step > 0
+            and global_step % gen_eval_every == 0
+        ):
+            logger.info("Running generation eval at step %d...", global_step)
+            gen_metrics = _run_gen_eval(
+                dataset=gen_eval_dataset,
+                renderer=renderer,
+                service_client=service_client,
+                training_client=training_client,
+                step_name=f"{global_step:06d}",
+                parallel=cfg.get("gen_eval_parallel", 64),
+                max_tokens=cfg.get("gen_eval_max_tokens", 512),
+            )
+            gen_log = {
+                "step": global_step,
+                "gen_eval_chrf_pp": gen_metrics["chrf_pp"],
+                "gen_eval_bleu": gen_metrics["bleu"],
+                "gen_eval_exact_match": gen_metrics["exact_match"],
+                "gen_eval_count": gen_metrics["count"],
+            }
+            append_jsonl(metrics_path, gen_log)
+            tb.log_scalars(gen_log, step=global_step)
+            logger.info(
+                "step=%d gen_eval chrF++=%.2f BLEU=%.2f exact=%.3f",
+                global_step, gen_metrics["chrf_pp"], gen_metrics["bleu"],
+                gen_metrics["exact_match"],
+            )
 
         start_time = time.time()
         lr_mult = max(0.0, 1.0 - (global_step / max(total_steps, 1)))

@@ -61,9 +61,15 @@ def flatten_train_config(raw_config: dict) -> dict:
     # Training hyperparams
     for key in ("lora_rank", "max_length", "batch_size", "learning_rate",
                 "epochs", "save_every", "val_every", "val_max_examples",
+                "gen_eval_every", "gen_eval_parallel", "gen_eval_max_tokens",
                 "seed", "train_on_what", "ttl_seconds"):
         if key in training_sec:
             config[key] = training_sec[key]
+
+    # Gen eval data path
+    eval_sec = raw_config.get("eval", {})
+    if eval_sec.get("test_file"):
+        config["gen_eval_data"] = str(Path(data_output) / eval_sec["test_file"])
 
     # Logs
     if logs_sec.get("base_dir"):
