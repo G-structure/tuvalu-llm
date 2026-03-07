@@ -22,6 +22,8 @@ import httpx
 from bs4 import BeautifulSoup
 from tqdm import tqdm
 
+from clean_article_bodies import clean_body
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 SOURCE_ID = "goal"
 
@@ -88,25 +90,35 @@ def extract_next_data(html: str) -> dict | None:
 
 
 def clean_body_html(body_html: str) -> str:
-    """Strip ads, widgets, and scripts from article body HTML, return plain text."""
+    """Strip ads, widgets, scripts, and promo content from article body HTML."""
     soup = BeautifulSoup(body_html, "html.parser")
 
     # Remove embedded scripts (betting, ads, video players, match widgets)
     for script in soup.find_all("script"):
         script.decompose()
 
+    # Remove Instagram embeds, iframes, and blockquotes (social embeds)
+    for tag in soup.find_all(["iframe", "blockquote"]):
+        tag.decompose()
+
     # Get text, preserving paragraph breaks
     paragraphs = []
     for p in soup.find_all("p"):
         text = p.get_text(strip=True)
-        if text:
-            paragraphs.append(text)
+        if not text:
+            continue
+        # Skip READ MORE: link paragraphs
+        if text.startswith("READ MORE:") or text.startswith("MORE:"):
+            continue
+        paragraphs.append(text)
 
     if paragraphs:
-        return "\n\n".join(paragraphs)
+        body = "\n\n".join(paragraphs)
+    else:
+        body = soup.get_text(separator="\n\n", strip=True)
 
-    # Fallback: just get all text
-    return soup.get_text(separator="\n\n", strip=True)
+    # Apply source-specific cleaning (NordVPN, subscribe CTAs, hashtags, etc.)
+    return clean_body(body, "goal")
 
 
 def map_category(tags: list[dict]) -> str | None:

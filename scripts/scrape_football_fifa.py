@@ -23,6 +23,8 @@ from xml.etree import ElementTree as ET
 import httpx
 from tqdm import tqdm
 
+from clean_article_bodies import clean_body
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 SOURCE_ID = "fifa"
 
@@ -230,6 +232,8 @@ def extract_article(
         body_text = extract_richtext(richtext)
         if not body_text or len(body_text) < 50:
             return None
+        # Normalize NBSP, BOM, narrow spaces
+        body_text = clean_body(body_text, "fifa")
 
         # Published date
         published_at = article_data.get("articlePublishedDate", "")

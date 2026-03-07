@@ -1,9 +1,9 @@
 """Scrape Sky Sports football articles via news sitemap + JSON-LD extraction.
 
 Fetches sitemap-news.xml, filters for football articles (URL contains /football/
-or keywords=soccer), then extracts structured data from JSON-LD NewsArticle blocks.
-The articleBody field provides the full article as clean plain text — no HTML parsing
-needed. Stores in the shared football SQLite database.
+or keywords=soccer), then extracts structured data from JSON-LD NewsArticle blocks
+for metadata, and HTML body (div.sdc-article-body > p) for clean article text.
+Stores in the shared football SQLite database.
 
 Usage:
     uv run python scripts/scrape_football_sky.py                  # full scrape
@@ -22,6 +22,8 @@ from xml.etree import ElementTree as ET
 import httpx
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+
+from clean_article_bodies import clean_body, split_into_paragraphs
 
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 SOURCE_ID = "sky"
@@ -153,24 +155,60 @@ def extract_json_ld(html: str) -> dict | None:
     return None
 
 
-def extract_og_description(html: str) -> str:
+def extract_body_from_html(page_html: str) -> str:
+    """Extract clean article body from Sky Sports HTML.
+
+    Uses direct <p> children of div.sdc-article-body which contain only
+    editorial text — promo blocks, CTAs, and related articles are in
+    separate elements and are excluded.
+
+    Falls back to JSON-LD articleBody if HTML parsing finds nothing.
+    """
+    soup = BeautifulSoup(page_html, "html.parser")
+    body_div = soup.select_one("div.sdc-article-body")
+    if body_div:
+        paragraphs = []
+        for p in body_div.find_all("p", recursive=False):
+            text = p.get_text(strip=True)
+            if text:
+                paragraphs.append(text)
+        if paragraphs:
+            return "\n\n".join(paragraphs)
+
+    # Fallback: JSON-LD articleBody
+    ld = extract_json_ld(page_html)
+    if ld:
+        return ld.get("articleBody", "")
+    return ""
+
+
+def extract_og_description(page_html: str) -> str:
     """Extract og:description from meta tags (better than empty JSON-LD description)."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(page_html, "html.parser")
     tag = soup.find("meta", property="og:description")
     if tag and tag.get("content"):
         return tag["content"]
     return ""
 
 
-def extract_article(html: str, url: str) -> dict | None:
-    """Extract article data from a Sky Sports article page."""
-    ld = extract_json_ld(html)
+def extract_article(page_html: str, url: str) -> dict | None:
+    """Extract article data from a Sky Sports article page.
+
+    Uses HTML body (div.sdc-article-body > p) for clean text,
+    JSON-LD for metadata (headline, author, image, dates).
+    """
+    ld = extract_json_ld(page_html)
     if ld is None:
         return None
 
-    article_body = ld.get("articleBody", "")
+    # Extract body from HTML (clean paragraphs), fallback to JSON-LD
+    article_body = extract_body_from_html(page_html)
     if not article_body or len(article_body) < 50:
         return None
+
+    # Clean promo artifacts and normalize whitespace
+    article_body = clean_body(article_body, "sky")
+    article_body = split_into_paragraphs(article_body)
 
     article_id = extract_article_id(url)
     if not article_id:
@@ -201,15 +239,11 @@ def extract_article(html: str, url: str) -> dict | None:
     # Image alt from JSON-LD (may not exist) or headline as fallback
     image_alt = image_data.get("name", "") or image_data.get("description", "")
 
-    # Word count from JSON-LD
-    word_count_str = ld.get("wordCount", "")
-    try:
-        word_count = int(word_count_str)
-    except (ValueError, TypeError):
-        word_count = len(article_body.split())
+    # Word count from cleaned body
+    word_count = len(article_body.split())
 
     # OG description (JSON-LD description is usually empty)
-    og_description = extract_og_description(html)
+    og_description = extract_og_description(page_html)
 
     # Tags: use genre + section info
     tags = []
