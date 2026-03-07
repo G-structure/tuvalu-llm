@@ -22,12 +22,18 @@
    - `data/raw/wol_en/*.html`
    - Includes per-page saves for resumable re-processing.
 
-2. Aligned canonical pairs (`en`<->`tvl`)
+2. Aligned canonical pairs (`en`<->`tvl`) — **immutable raw data**
    - `data/aligned/bible_verses.jsonl`
    - `data/aligned/articles.jsonl`
    - `data/aligned/daily_text.jsonl`
 
-3. Stage A dataset outputs
+3. Cleaned data (output of `scripts/clean_pipeline.py`)
+   - `data/cleaned/cleaned.jsonl` — deduplicated, filtered pairs
+   - `data/cleaned/rejected.jsonl` — rejected pairs with reasons
+   - `data/cleaned/cleaning_report.json` — statistics
+   - `data/cleaned/rejection_samples.jsonl` — examples per rejection category
+
+5. Stage A dataset outputs
    - `data/finetune/stage_a_mt/train_full.jsonl`
    - `data/finetune/stage_a_mt/train_balanced.jsonl`
    - `data/finetune/stage_a_mt/validation.jsonl`
@@ -36,7 +42,7 @@
    - `data/finetune/stage_a_mt/stats.json`
    - `data/finetune/stage_a_mt/manifest.json`
 
-4. Stage B (presently absent until run)
+6. Stage B (presently absent until run)
    - `data/finetune/stage_b_sources/english_normalized/*.jsonl`
    - `data/finetune/stage_b_synthetic_tvl/accepted/*.jsonl`
    - `data/finetune/stage_b_synthetic_tvl/rejected/*.jsonl`
@@ -178,14 +184,33 @@ Suggested ingestion workflow for external assets:
 
 ## Current dataset state (March 2026)
 
-### Raw aligned data
+### Raw aligned data (`data/aligned/` — immutable, never modify)
 
-| File | Pairs | Source | Coverage |
+| File | Pairs | Chars (both langs) | Est. tokens | Coverage |
+|---|---|---|---|---|
+| `bible_verses.jsonl` | 30,838 | 8.9M | ~2.4M | All 66 books, 1,189 chapters |
+| `articles.jsonl` | 275,430 | 55.6M | ~14.6M | 7,255 docIds (contains ~118k duplicates from overlapping crawls) |
+| `daily_text.jsonl` | 3,432 | 7.0M | ~1.8M | 3,287 dates (2017-2025), 0 gaps |
+| **Total** | **309,700** | **71.6M** | **~18.8M** | |
+
+### Cleaned data (`data/cleaned/` — output of `scripts/clean_pipeline.py`)
+
+| File | Pairs | Chars (both langs) | Est. tokens |
 |---|---|---|---|
-| `bible_verses.jsonl` | 30,838 | All 66 books, 1,189 chapters | Complete |
-| `articles.jsonl` | 275,430 | 7,255 docIds from 6 library categories | Complete (contains ~129k duplicates from overlapping crawls) |
-| `daily_text.jsonl` | 3,432 | 3,287 dates (2017-2025) | Complete, 0 gaps |
-| **Total** | **309,700** | | ~40.9M tokens |
+| `cleaned.jsonl` | 178,371 | 96.1M | ~25.3M |
+| `rejected.jsonl` | 131,329 | — | — |
+
+Cleaning pipeline applies (in order): text normalization, ID dedup, content hash dedup, metadata removal, identical-pair removal, length/ratio filtering.
+
+| Rejection reason | Count | % |
+|---|---|---|
+| `duplicate_id` | 118,553 | 38.3% |
+| `duplicate_content` | 11,075 | 3.6% |
+| `metadata` | 1,049 | 0.3% |
+| `identical_pair` | 406 | 0.1% |
+| `bad_ratio` | 246 | 0.1% |
+
+Run: `uv run python scripts/clean_pipeline.py [--profile balanced|strict|lenient] [--dry-run]`
 
 ### Article sources breakdown
 
@@ -199,12 +224,13 @@ DocIds were harvested from:
   - Ministry (te-tou-galuega-talai): all duplicates of above
   - Brochures (polosiua-ki-te-tama-tusi): all duplicates of above
 
-### Scraping playbook
+### Scraping and cleaning playbook
 
-For complete reproduction instructions, see [docs/SCRAPING_PLAYBOOK.md](SCRAPING_PLAYBOOK.md).
+For complete reproduction instructions (all phases including cleaning), see [docs/SCRAPING_PLAYBOOK.md](SCRAPING_PLAYBOOK.md).
 
 ## Current checked-in state
 
-- Stage A artifacts are present in `data/finetune/stage_a_mt/` (built from earlier ~50k pair snapshot; needs rebuild with full 309k dataset).
+- Raw aligned data at `data/aligned/` is current and complete (309,700 pairs).
+- Cleaned data at `data/cleaned/` is current (178,371 pairs after dedup + filtering).
+- Stage A artifacts in `data/finetune/stage_a_mt/` were built from an earlier ~50k pair snapshot; needs rebuild with full cleaned dataset.
 - Stage B source/synthetic/mix directories are not present until those steps are executed.
-- Raw aligned data at `data/aligned/` is current and complete.

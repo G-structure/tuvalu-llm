@@ -266,7 +266,92 @@ uv run python scripts/scrape_daily_text.py --year 2025
 uv run python scripts/stats.py
 ```
 
-This produces a comprehensive report of dataset statistics and quality issues.
+This produces a comprehensive report of dataset statistics and quality issues across the raw aligned data.
+
+---
+
+## Phase 6: Data Cleaning
+
+**Script**: `scripts/clean_pipeline.py`
+**Input**: `data/aligned/*.jsonl` (immutable — never modified)
+**Output**: `data/cleaned/` (new cleaned copies)
+**Time**: ~2 minutes for all 309k records
+
+The raw aligned data in `data/aligned/` contains duplicates (from overlapping library crawls), metadata contamination, and other quality issues. The cleaning pipeline produces a deduplicated, filtered copy without ever modifying the original scraped data.
+
+### Why cleaning is needed
+
+The 3 library category scrapes (Watchtower, Awake!, Meeting workbooks) discover overlapping sets of docIds — the same article often appears in multiple categories. This results in ~118k duplicate records by ID alone. Additional issues include metadata paragraphs (picture captions, photo credits), untranslated content (TVL == EN), and length ratio extremes.
+
+### Running the pipeline
+
+```bash
+# Dry run — analyze and report without writing files
+uv run python scripts/clean_pipeline.py --dry-run
+
+# Run with balanced profile (default, recommended)
+uv run python scripts/clean_pipeline.py
+
+# Run with strict profile (tighter ratio bounds)
+uv run python scripts/clean_pipeline.py --profile strict
+
+# Run with lenient profile (keep more borderline pairs)
+uv run python scripts/clean_pipeline.py --profile lenient
+```
+
+### Cleaning profiles
+
+| Setting | Lenient | Balanced (default) | Strict |
+|---|---|---|---|
+| `min_chars` | 5 | 10 | 20 |
+| `max_chars` | 16,384 | 8,192 | 4,096 |
+| `ratio_min` | 0.1 | 0.2 | 0.3 |
+| `ratio_max` | 10.0 | 5.0 | 3.0 |
+| `bible_ratio_min` | 0.3 | 0.4 | 0.5 |
+| `bible_ratio_max` | 3.0 | 2.5 | 2.0 |
+
+All profiles apply: metadata stripping, identical-pair removal, truncated daily text detection.
+
+### Cleaning stages (applied in order)
+
+1. **Text normalization**: Unicode NFC, strip zero-width/invisible characters, fix HTML entities, collapse whitespace
+2. **Deduplicate by record ID**: Removes triplication from overlapping library crawls
+3. **Deduplicate by content hash**: Removes cross-source duplicates (same text, different IDs)
+4. **Quality filters**:
+   - Empty text (either side empty after normalization)
+   - Metadata (picture captions, photo credits, copyright, chapter headers, footnote markers)
+   - Identical pairs (TVL == EN, untranslated content)
+   - Too short (both sides below `min_chars`)
+   - Too long (either side above `max_chars`)
+   - Bad length ratio (outside ratio bounds, with tighter bounds for Bible verses)
+   - Truncated daily text (May 2025 TVL texts with only theme, missing commentary)
+
+### Output files
+
+| File | Contents |
+|---|---|
+| `data/cleaned/cleaned.jsonl` | Accepted pairs (same schema as input) |
+| `data/cleaned/rejected.jsonl` | Rejected pairs with `rejection_reason` field |
+| `data/cleaned/cleaning_report.json` | Full statistics (before/after counts, rejection breakdown) |
+| `data/cleaned/rejection_samples.jsonl` | 10 example rejections per reason category |
+
+### Cleaning results (balanced profile, March 2026)
+
+| Rejection reason | Count | % of input |
+|---|---|---|
+| `duplicate_id` | 118,553 | 38.3% |
+| `duplicate_content` | 11,075 | 3.6% |
+| `metadata` | 1,049 | 0.3% |
+| `identical_pair` | 406 | 0.1% |
+| `bad_ratio` | 246 | 0.1% |
+| **Total rejected** | **131,329** | **42.4%** |
+| **Total accepted** | **178,371** | **57.6%** |
+
+### Known data issues
+
+- **May 2025 daily texts**: TVL side contains only the opening theme scripture, missing the commentary body. Sharp boundary at 2025-05-01. 31 affected records are filtered by the `truncated_daily` check.
+- **Zero-width spaces (U+200B)**: Present in ~34% of records from JW.org HTML. Stripped during normalization. Harmless but should be stripped before tokenizer input.
+- **2,132 header/content mismatches**: Section headers like "SECTION 2 • ACTS 6:8–9:43" that are translated but not useful for MT training. Caught by the `metadata` filter.
 
 ---
 
@@ -293,26 +378,41 @@ To resume any interrupted scrape, simply re-run the same command. It will skip a
 
 ## Final Dataset Summary
 
-After running all phases, the dataset contains:
+After running all phases, the dataset exists in two forms:
 
-| Source | Pairs | Unique items | Tokens (est.) |
+### Raw aligned data (`data/aligned/`)
+
+This is the immutable scraped output — never modify these files.
+
+| Source | Pairs | Unique items | Chars (both langs) | Tokens (est.) |
+|---|---|---|---|---|
+| Bible verses | 30,838 | 1,189 chapters | 8.9M | ~2.4M |
+| Articles | 275,430 | 7,255 docIds | 55.6M | ~14.6M |
+| Daily text | 3,432 | 3,287 dates (2017-2025) | 7.0M | ~1.8M |
+| **Total (raw)** | **309,700** | | **71.6M** | **~18.8M** |
+
+> **Note**: The raw article data contains ~118k duplicate records from overlapping library crawls (the same docId appears in multiple library categories). The raw token count of ~18.8M reflects the actual character data; earlier estimates of ~40.9M double-counted by including both sides separately.
+
+### Cleaned data (`data/cleaned/`)
+
+After running `scripts/clean_pipeline.py` (balanced profile):
+
+| Source | Pairs | Chars (both langs) | Tokens (est.) |
 |---|---|---|---|
-| Bible verses | 30,838 | 1,189 chapters | ~2.4M |
-| Articles | 275,430 | 7,255 docIds | ~36.7M |
-| Daily text | 3,432 | 3,287 dates (2017-2025) | ~1.8M |
-| **Total (raw)** | **309,700** | | **~40.9M** |
+| Bible verses | 30,827 | 8.9M | ~2.4M |
+| Article paragraphs | 144,287 | 80.3M | ~21.1M |
+| Daily text | 3,257 | 6.8M | ~1.8M |
+| **Total (cleaned)** | **178,371** | **96.1M** | **~25.3M** |
 
-> **Note**: The raw article data contains ~129k duplicates from overlapping library crawls (the same docId can appear in multiple categories). These are removed during the dataset build step (`scripts/build_stage_a_mt_data.py`) which deduplicates by content hash.
-
-### Post-deduplication estimates
-
-After quality filtering (dedup, min length, ratio bounds):
-
-| Metric | Value |
+| Cleaning metric | Value |
 |---|---|
-| Unique pairs | ~180k |
-| Quality-filtered pairs | ~170k |
-| Total tokens (both languages) | ~25M |
+| Records removed | 131,329 (42.4%) |
+| Duplicate IDs removed | 118,553 |
+| Duplicate content removed | 11,075 |
+| Metadata removed | 1,049 |
+| Identical pairs removed | 406 |
+| Bad ratios removed | 246 |
+| Acceptance rate | 57.6% |
 
 ### WOL content coverage
 
@@ -404,12 +504,17 @@ uv run python scripts/scrape_articles.py --library-cat "faleleoleo-maluga"
 | `scripts/scrape_bible.py` | Scrape Bible chapters, verse-aligned |
 | `scripts/scrape_articles.py` | Scrape WOL articles by docId, paragraph-aligned |
 | `scripts/scrape_daily_text.py` | Scrape daily text pages, date-aligned |
+| `scripts/clean_pipeline.py` | Data cleaning pipeline (dedup, filter, normalize) |
 | `scripts/stats.py` | Dataset statistics and quality report |
 | `data/raw/wol_tvl/*.html` | Cached raw Tuvaluan HTML pages |
 | `data/raw/wol_en/*.html` | Cached raw English HTML pages |
-| `data/aligned/bible_verses.jsonl` | Aligned Bible verse pairs |
-| `data/aligned/articles.jsonl` | Aligned article paragraph pairs |
-| `data/aligned/daily_text.jsonl` | Aligned daily text pairs |
+| `data/aligned/bible_verses.jsonl` | Aligned Bible verse pairs (immutable raw data) |
+| `data/aligned/articles.jsonl` | Aligned article paragraph pairs (immutable raw data) |
+| `data/aligned/daily_text.jsonl` | Aligned daily text pairs (immutable raw data) |
+| `data/cleaned/cleaned.jsonl` | Cleaned, deduplicated pairs (pipeline output) |
+| `data/cleaned/rejected.jsonl` | Rejected pairs with reasons |
+| `data/cleaned/cleaning_report.json` | Cleaning statistics and metadata |
+| `data/cleaned/rejection_samples.jsonl` | Example rejections per category |
 
 ---
 
@@ -425,4 +530,7 @@ uv run python scripts/scrape_articles.py --library-cat "faleleoleo-maluga"
 - [ ] Phase 3c: `uv run python scripts/scrape_articles.py --library-cat "tusi-mō-fakatasiga"`
 - [ ] Phase 4: `uv run python scripts/scrape_daily_text.py --range 2017-01-01 2025-12-31`
 - [ ] Phase 5: `uv run python scripts/stats.py`
-- [ ] Verify: ~309k raw pairs across 3 JSONL files
+- [ ] Verify: ~309k raw pairs across 3 JSONL files in `data/aligned/`
+- [ ] Phase 6: `uv run python scripts/clean_pipeline.py`
+- [ ] Verify: ~178k cleaned pairs in `data/cleaned/cleaned.jsonl`
+- [ ] Review: `data/cleaned/cleaning_report.json` for rejection breakdown

@@ -119,10 +119,15 @@ tv/
 │   │   ├── sitemap_tvl.json       # Parsed + classified sitemap
 │   │   ├── wol_tvl/               # WOL Tuvaluan pages (bible_{bookNo}_{ch}.html)
 │   │   └── wol_en/                # WOL English pages
-│   ├── aligned/                   # Verse/paragraph-aligned pairs (JSONL)
-│   │   ├── bible_verses.jsonl     # Verse-level aligned Bible text
-│   │   ├── articles.jsonl         # Article/paragraph-level aligned text
-│   │   ├── daily_text.jsonl       # Date-keyed daily text pairs
+│   ├── aligned/                   # Verse/paragraph-aligned pairs (JSONL) — IMMUTABLE
+│   │   ├── bible_verses.jsonl     # Verse-level aligned Bible text (30,838 pairs)
+│   │   ├── articles.jsonl         # Article/paragraph-level aligned text (275,430 pairs)
+│   │   ├── daily_text.jsonl       # Date-keyed daily text pairs (3,432 pairs)
+│   ├── cleaned/                   # Quality-cleaned data (output of clean_pipeline.py)
+│   │   ├── cleaned.jsonl          # Accepted pairs (178,371 pairs)
+│   │   ├── rejected.jsonl         # Rejected pairs with reasons
+│   │   ├── cleaning_report.json   # Statistics and metadata
+│   │   └── rejection_samples.jsonl # 10 examples per rejection category
 │   ├── hf_dataset/                # HuggingFace-ready Parquet files
 │   │   ├── README.md              # HF dataset card
 │   │   ├── bible/
@@ -155,6 +160,7 @@ tv/
 │   ├── scrape_bible.py            # Scrape Bible chapters (verse-aligned)
 │   ├── scrape_articles.py         # Scrape WOL articles by docId + library crawl
 │   ├── scrape_daily_text.py       # Scrape date-based daily text
+│   ├── clean_pipeline.py          # Data cleaning (dedup, filter, normalize)
 │   ├── stats.py                   # Dataset statistics and quality report
 │   ├── build_stage_a_mt_data.py    # Build Stage A MT JSONL from aligned pairs
 │   ├── train_stage_a_translation.py# Train Stage A translation LoRA
@@ -376,7 +382,7 @@ task_ids:
   - translation-other-tvl-en
 pretty_name: "Tuvaluan-English Parallel Corpus (JW)"
 size_categories:
-  - 10K<n<100K
+  - 100K<n<1M
 tags:
   - parallel-corpus
   - low-resource
@@ -553,16 +559,31 @@ For articles aligned by docId, paragraph-level alignment uses position matching:
 
 ### 8.3 Quality filtering
 
-After alignment, apply quality filters:
+Quality filtering happens in two layers:
 
-| Filter | Threshold | Rationale |
-|---|---|---|
-| Empty text | Drop if either side is empty | Broken scrape or missing translation |
-| Length ratio | Drop if `tvl_chars/en_chars` outside 0.3–3.0 | Misalignment signal |
-| Duplicate detection | Drop exact duplicates by text hash | Deduplicate repeated content |
-| Language detection | Flag if detected language ≠ expected | Catch scraping errors |
-| Min length | Drop if either side < 10 characters | Too short to be useful |
-| Max length | Truncate at 4096 characters per side | Practical limit for most models |
+**Layer 1: Scrape-time filters** (built into `scrape_articles.py`):
+- Metadata paragraph detection (chapter headers, copyright, photo credits)
+- Both sides < 20 chars → skip
+- Extreme ratios (<0.15 or >7.0) → skip
+
+**Layer 2: Cleaning pipeline** (`scripts/clean_pipeline.py`):
+
+The cleaning pipeline reads immutable raw data from `data/aligned/` and writes cleaned data to `data/cleaned/`. It applies these filters in order:
+
+| Filter | Balanced | Strict | Rationale |
+|---|---|---|---|
+| Duplicate ID | Remove | Remove | Overlapping library crawls produce tripled records |
+| Duplicate content | Hash-based | Hash-based | Same text appearing under different IDs |
+| Empty text | Drop | Drop | Broken scrape or missing translation |
+| Metadata | Strip | Strip | Picture captions, photo credits, copyright, headers |
+| Identical pair | Drop TVL==EN | Drop TVL==EN | Untranslated content (no training signal) |
+| Min length | Both < 10 chars | Both < 20 chars | Too short to be useful |
+| Max length | >8,192 chars | >4,096 chars | Practical limit for most models |
+| Length ratio | 0.2–5.0 | 0.3–3.0 | Misalignment signal |
+| Bible ratio | 0.4–2.5 | 0.5–2.0 | Tighter bounds for verse-aligned data |
+| Truncated daily | Drop | Drop | May 2025 TVL has only theme, missing commentary |
+
+Run with: `uv run python scripts/clean_pipeline.py [--profile balanced|strict|lenient] [--dry-run]`
 
 ### 8.4 Alignment confidence scoring
 
@@ -682,13 +703,25 @@ See [docs/SCRAPING_PLAYBOOK.md](docs/SCRAPING_PLAYBOOK.md) for the full step-by-
 
 ---
 
-### Experiment 6: Dataset assembly — PENDING (data collection complete)
+### Experiment 6: Data cleaning — DONE
 
-**Goal**: Combine all aligned data into HuggingFace Parquet files with proper splits, metadata, and dataset card.
+**Goal**: Deduplicate, filter, and normalize the raw aligned data into a clean corpus ready for dataset assembly and training.
 
-**Depends on**: Experiments 3–5 (all completed). Raw data: 309,700 pairs across 3 JSONL files.
+**Method**: Built `scripts/clean_pipeline.py` — a reusable pipeline that reads immutable data from `data/aligned/` and writes cleaned output to `data/cleaned/`. Pipeline stages: text normalization (NFC, strip invisible chars, fix HTML entities), ID deduplication, content hash deduplication, metadata filtering, identical-pair removal, length/ratio filtering.
 
-**Next steps**: Run deduplication + quality filtering, rebuild Stage A training data with full corpus, then assemble HuggingFace Parquet files.
+**Result**: **178,371 accepted pairs** (57.6% acceptance rate) from 309,700 raw input. Removed 118,553 duplicate IDs (from overlapping library crawls), 11,075 duplicate content pairs, 1,049 metadata records, 406 identical TVL==EN pairs, and 246 bad ratios. Total: ~96.1M chars, ~25.3M tokens.
+
+**Output**: `data/cleaned/cleaned.jsonl`, `data/cleaned/rejected.jsonl`, `data/cleaned/cleaning_report.json`
+
+---
+
+### Experiment 7: Dataset assembly — PENDING
+
+**Goal**: Combine cleaned data into HuggingFace Parquet files with proper splits, metadata, and dataset card.
+
+**Depends on**: Experiment 6 (completed). Cleaned data: 178,371 pairs in `data/cleaned/cleaned.jsonl`.
+
+**Next steps**: Build train/validation/test splits, assemble HuggingFace Parquet files, write dataset card.
 
 ---
 
@@ -723,34 +756,38 @@ uv add pandas pyarrow datasets lingua-py  # add when needed for dataset assembly
 
 ## 12. Dataset size (actual, as of March 2026)
 
-### Raw aligned data (before deduplication)
+### Raw aligned data (`data/aligned/` — immutable)
 
-| Content type | Pairs | Avg TVL chars | Avg EN chars | Median ratio |
-|---|---|---|---|---|
-| Bible verses | 30,838 | 183 | 153 | 1.19 |
-| Article paragraphs | 275,430 | 277 | 224 | 1.24 |
-| Daily text | 3,432 | 1,020 | 1,020 | 1.18 |
-| **Total (raw)** | **309,700** | **277** | **224** | **1.24** |
+| Content type | Pairs | Chars (both langs) | Est. tokens |
+|---|---|---|---|
+| Bible verses | 30,838 | 8.9M | ~2.4M |
+| Article paragraphs | 275,430 | 55.6M | ~14.6M |
+| Daily text | 3,432 | 7.0M | ~1.8M |
+| **Total (raw)** | **309,700** | **71.6M** | **~18.8M** |
 
-Raw character count: ~71.6M chars (~40.9M estimated tokens).
+### Quality issues in raw data
 
-### Quality profile (raw data)
+| Issue | Count | % |
+|---|---|---|
+| Duplicate IDs (overlapping library crawls) | 118,553 | 38.3% |
+| Duplicate content (same text, different IDs) | 11,075 | 3.6% |
+| Metadata (captions, credits, headers) | 1,049 | 0.3% |
+| Identical pairs (TVL == EN, untranslated) | 406 | 0.1% |
+| Extreme length ratios | 246 | 0.1% |
+| **Total issues** | **131,329** | **42.4%** |
 
-- 0 empty text pairs
-- ~129,354 duplicate pairs (from overlapping library crawls — removed during build)
-- ~993 very short pairs (either side < 10 chars)
-- ~2,206 extreme length ratios (outside 0.3–3.0)
-- 76.1% of pairs in ideal 1.0–1.5 length ratio range
+### Cleaned data (`data/cleaned/` — after `clean_pipeline.py`)
 
-### After deduplication and quality filtering
+| Content type | Pairs | Chars (both langs) | Est. tokens |
+|---|---|---|---|
+| Bible verses | 30,827 | 8.9M | ~2.4M |
+| Article paragraphs | 144,287 | 80.3M | ~21.1M |
+| Daily text | 3,257 | 6.8M | ~1.8M |
+| **Total (cleaned)** | **178,371** | **96.1M** | **~25.3M** |
 
-The dataset build step (`scripts/build_stage_a_mt_data.py`) applies:
-- Exact content hash deduplication
-- Minimum character length filter
-- Length ratio bounds filter
-- Low alignment confidence filter
+Cleaned with balanced profile. Acceptance rate: 57.6%. See `data/cleaned/cleaning_report.json` for full statistics.
 
-Expected yield after filtering: ~170k unique quality pairs (~25M tokens).
+Run: `uv run python scripts/clean_pipeline.py [--profile balanced|strict|lenient]`
 
 ### Content coverage (complete)
 
@@ -873,33 +910,33 @@ Notable ties:
 
 ## 16. Current dataset token counts
 
-> **Snapshot as of March 6, 2026 (post full scrape).** Token estimates use the ~3.8 chars/token approximation for mixed TVL/EN text.
+> **Snapshot as of March 6, 2026 (post full scrape + cleaning).** Token estimates use the ~3.8 chars/token approximation for mixed TVL/EN text.
 
-### By source (raw, before dedup)
+### Raw data (before cleaning)
 
 | Source | Pairs | Total chars | Est. tokens |
 |---|---|---|---|
 | Articles | 275,430 | 55.6M | ~14.6M |
 | Bible | 30,838 | 8.9M | ~2.4M |
 | Daily text | 3,432 | 7.0M | ~1.8M |
-| **Total** | **309,700** | **71.6M** | **~18.8M** |
+| **Total (raw)** | **309,700** | **71.6M** | **~18.8M** |
 
-### After dedup (estimated)
+### Cleaned data (after `clean_pipeline.py`, balanced profile)
+
+| Source | Pairs | Total chars | Est. tokens |
+|---|---|---|---|
+| Articles | 144,287 | 80.3M | ~21.1M |
+| Bible | 30,827 | 8.9M | ~2.4M |
+| Daily text | 3,257 | 6.8M | ~1.8M |
+| **Total (cleaned)** | **178,371** | **96.1M** | **~25.3M** |
+
+### For fine-tuning (both directions, from cleaned data)
 
 | Metric | Value |
 |---|---|
-| Unique pairs | ~180k |
-| Quality-filtered pairs | ~170k |
-| Total chars (both languages) | ~45M |
-| Total tokens | ~12M |
-
-### For fine-tuning (both directions, post-dedup)
-
-| Metric | Value |
-|---|---|
-| Training examples (x2 directions) | ~340k |
-| Full sequence tokens (with prompts) | ~30M |
-| Target tokens only | ~12M |
+| Training examples (x2 directions) | ~356k |
+| Full sequence tokens (with prompts) | ~60M |
+| Target tokens only | ~25.3M |
 
 ---
 
