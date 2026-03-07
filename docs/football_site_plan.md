@@ -105,9 +105,13 @@ CREATE TABLE translations (
   og_description_tvl TEXT,        -- translated OG description for share cards
   body_tvl TEXT,                  -- translated body (paragraph-aligned)
   model_path TEXT NOT NULL,       -- tinker:// path used for translation
+  model_id TEXT,                  -- tinker model UUID for tracking
   translated_at TEXT NOT NULL DEFAULT (datetime('now')),
   paragraph_count INTEGER,
-  failed_paragraphs INTEGER DEFAULT 0
+  failed_paragraphs INTEGER DEFAULT 0,
+  is_collapsed BOOLEAN DEFAULT 0, -- model collapse detected
+  collapse_score REAL,            -- 0.0 (clean) to 1.0 (fully collapsed)
+  attempt_number INTEGER DEFAULT 1 -- which retry attempt was used
 );
 
 CREATE TABLE fetch_log (
@@ -1410,38 +1414,59 @@ const CATEGORIES: Record<string, string[]> = {
 - [x] API routes: POST /api/feedback, POST /api/signal, GET /api/stats
 - [x] `feedback` and `implicit_signals` DB tables with indexes
 
-### Phase 3 — polish (next)
+### Phase 2.5 — model collapse detection (2026-03-07) DONE
+
+- [x] `detect_collapse.py`: multi-signal n-gram collapse detector (whole-text, tail,
+  sliding window, per-paragraph, repeated phrase)
+- [x] `translate_football.py`: 3-attempt retry with temperature escalation (0.0→0.3→0.7)
+- [x] All translation attempts saved to `translation_attempts` table for RL training
+- [x] Model ID (`a6453cc0`) tracked on every translation
+- [x] `db.ts`: CASE WHEN hides collapsed translations (site shows English-only)
+- [x] `migrate_collapse_detection.py`: retroactive scan — 41/56 flagged, 0 false positives
+- [x] Root cause analysis documented in `todo.md` #10
+- [x] `--retry-collapsed` CLI flag to retry previously flagged translations
+
+### Phase 3 — translation quality (next)
+
+- [ ] Fix Sky Sports paragraph splitting (no `<p>` tags — use `<br>` / sentence splitting)
+- [ ] Increase MAX_TOKENS from 512 to 1024+ (primary collapse driver)
+- [ ] Sentence-level chunking fallback for paragraphs >100 words
+- [ ] Domain-specific prompt: football glossary terms as loanwords
+- [ ] A/B preference interstitial (needs variant generation infrastructure)
+- [ ] Name guardian prompt (needs NER comparison)
+
+### Phase 4 — polish
 
 - [ ] Search functionality
 - [ ] RSS feed output (in Tuvaluan)
 - [ ] Service Worker / offline support (outer islands have intermittent connectivity)
-- [ ] Error monitoring and retry logic for failed translations
-- [ ] Rate limit handling and backoff
-- [ ] A/B preference interstitial (needs variant generation infrastructure)
-- [ ] Name guardian prompt (needs NER comparison)
+- [ ] Tufuga o te Gagana (Language Experts) elevated contributor role
 
-### Phase 4 — growth
+### Phase 5 — growth
 
 - [ ] Deploy (Cloudflare Pages + Turso / Vercel)
 - [ ] Automated cron jobs (fetch every 30min, translate every 15min)
 - [ ] Add more sources (Guardian if licensed, ESPN if policy changes)
 - [ ] Glossary system for football terms (loanwords vs translated terms)
 - [ ] Retrain Stage A adapter with name-preservation augmentation
-- [ ] Tufuga o te Gagana (Language Experts) elevated contributor role
 
 ## Known issues (2026-03-07)
 
-### Translation quality: degenerate repetition
+### Translation quality: model collapse (MITIGATED)
 
-Some articles have degenerate repetitive translations where the model output
-loops a phrase hundreds of times (e.g. "fakatauavaga i te lotou taimi" repeated
-for the entire body). This is a model output quality issue from the Stage A
-adapter, not a site bug. Observed primarily on longer Sky Sports articles.
+73% of translations (41/56) exhibit model collapse — degenerate repetitive loops.
+Detection and hiding is implemented; collapsed articles show English-only on the site.
 
-**Mitigation:** This is exactly the kind of problem the `[?]` flag button is
-designed to surface. Future work should add a quality filter that detects
-repetitive translations (e.g. n-gram repetition ratio > threshold) and either
-flags them for re-translation or falls back to showing English only.
+**Root causes (see `todo.md` #10 for full analysis):**
+1. **Sky Sports single-paragraph bodies (72% collapse rate)** — no `<p>` tags in HTML,
+   so entire 500-1800 word body sent as one chunk. Model exceeds MAX_TOKENS=512 and loops.
+2. **Out-of-domain content** — football jargon, TV guides, pop culture are maximally far
+   from JW.org training data. FIFA articles (formal/informational) collapse at only 15%.
+3. **MAX_TOKENS=512 too low** — can't finish translating even moderate paragraphs.
+
+**Implemented:** `detect_collapse.py` (6-signal detector), 3-attempt retry with
+temperature escalation, all attempts recorded for RL training, site hides collapsed.
+**Remaining:** Fix paragraph splitting, increase MAX_TOKENS, add sentence chunking.
 
 ### Feedback FK constraint
 
