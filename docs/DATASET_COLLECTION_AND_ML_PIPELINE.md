@@ -6,6 +6,8 @@
   - Collection strategy, scrape notes, aligned JSONL examples, and historical experiment logs.
 - `docs/UNSTRUCTURED_DATA_PIPELINE.md`
   - Unstructured asset inventory (`unstruct_lang_data`), OCR workflow, and integration playbook.
+- `docs/UNSTRUCTURED_DATA_MINING_PLAYBOOK.md`
+  - Reproducible command-level playbook for datamining + seed generation.
 - `tv2en.md`
   - URL mapping and cross-language pairing evidence used in scraper/alignment.
 - `docs/TRAINING_PIPELINE.md`
@@ -16,6 +18,8 @@
   - Structure preservation rules used for synthetic translation.
 - `scripts/` + `training/`
   - Source of truth for exact schema, filters, and transforms.
+- `scripts/run_unstructured_datamining.py`
+  - Reusable one-command pipeline for unstructured asset mining.
 
 ## Source-of-truth structure (actual runtime artifacts)
 
@@ -145,10 +149,17 @@ Split policy:
 
 ## External multilingual assets (`unstruct_lang_data/`)
 
-The folder contains four high-value assets and one low-value pair set for this stage:
+The folder contains four high-value assets and one low-value pair set for this stage.
+Current datamining status:
+
+- `Tatoeba-v2023-04-12-en&tvl.tsv` is represented in Stage A seed artifacts.
+- Dictionary parsing support is implemented in `scripts/build_unstructured_seed.py` and orchestrated by `scripts/run_unstructured_datamining.py`.
+- OCR artifacts exist for the scanned PDFs; term candidates are available when extracted.
+
+Current assets:
 
 - `unstruct_lang_data/Tatoeba-v2023-04-12-en&tvl.tsv`
-  - 15 rows total (14 usable sentence pairs + header).
+  - 14 usable sentence pairs (+ header).
   - Directly usable as aligned en↔tvl pairs after `id` normalization.
   - Best stage: **Stage A seed augmentation** (parallel corpus + potential bilingual glossary extraction from aligned examples).
 - `unstruct_lang_data/DICTIONARY_Tuv_Palagi.pdf` (11,384+ English headwords; 11,553 Tuvaluan definitions)
@@ -159,9 +170,8 @@ The folder contains four high-value assets and one low-value pair set for this s
     - **Stage B**: useful for preservation glossary (names, flora/fauna terms, place terms, tool-domain terms).
   - Suggested metadata if ingested:
     - `metadata.source="unstruct_lang_data/DICTIONARY_Tuv_Palagi.pdf"`
-    - `metadata.source_section="Tuvaluan-English" | "English-Tuvaluan"`
-    - `metadata.source_row` and `metadata.parse_mode` (`dictionary_term`)
-    - `metadata.entry_type` (`single`, `multiple`, `example`, `sense`)
+    - `metadata.source_section="tvl_en" | "en_tvl"`
+    - `metadata.source_row` and `metadata.parse_mode` (`dictionary_splitcell_v1`)
 - `unstruct_lang_data/The_magical_garlands_of_Nukufetau.pdf`
   - Producer indicates scanned capture (`PFU ScanSnap`) and plain text extraction is currently unusable.
   - Utility depends on OCR.
@@ -170,10 +180,24 @@ The folder contains four high-value assets and one low-value pair set for this s
   - Both were created with `AccuSoft ImageGear` and `pdftotext` only returns artifact/noise text.
   - Potentially high name/place/value for named-entity mining if OCR is run.
 
-Suggested ingestion workflow for external assets:
+Suggested / recommended ingestion workflow for external assets:
 
-1. Add a dedicated conversion step under `scripts/` that outputs standardized JSONL entries with provenance metadata.
-2. Keep a strict quality gate for external additions:
+1. Run one-command orchestrator:
+
+```bash
+uv run --extra ocr python scripts/run_unstructured_datamining.py --run-name unstruct-stage-a
+```
+
+2. If you need incremental rebuilds, pass:
+
+```bash
+uv run --extra ocr python scripts/run_unstructured_datamining.py \
+  --no-chunk-large \
+  --extract-ocr-terms \
+  --extract-dictionary-terms
+```
+
+3. Keep a strict quality gate for external additions:
    - de-dup against existing `data/aligned` rows,
    - minimum length checks,
    - enforce minimum lexical fidelity for dictionary-derived lines,

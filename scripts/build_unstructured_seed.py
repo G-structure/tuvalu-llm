@@ -1,0 +1,871 @@
+#!/usr/bin/env python3
+"""Build reproducible unstructured seed artifacts for en↔tvl mining.
+
+This script is intentionally conservative: it only emits high-confidence phrase
+pairs for Stage A and keeps names/term candidates for Stage B separate.
+
+Usage:
+  uv run --extra ocr python scripts/build_unstructured_seed.py
+  uv run --extra ocr python scripts/build_unstructured_seed.py --dry-run
+  uv run --extra ocr python scripts/build_unstructured_seed.py --extract-ocr-terms
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import subprocess
+import sys
+from collections import Counter, defaultdict
+from pathlib import Path
+from typing import Any
+
+# Make repo package imports resilient when running from the scripts directory
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT))
+
+from training.common.io import write_json, write_jsonl
+from training.common.manifests import create_manifest, save_manifest
+
+EXTRACTOR_VERSION = "unstructured-seed-v1"
+
+TATOEBA_MIN_CHARS = 3
+NAME_PATTERN = re.compile(r"\b[A-Z][A-Za-z0-9`ʻ‘’ʹ\-']+(?:\s+[A-Z][A-Za-z0-9`ʻ‘’ʹ\-']+){0,3}\b")
+ENTRY_CELL_SPLIT = re.compile(r"\s{3,}")
+FLORA_FAUNA_KEYWORDS = {
+    "plant",
+    "tree",
+    "flower",
+    "fruit",
+    "bird",
+    "fish",
+    "turtle",
+    "crab",
+    "dog",
+    "cat",
+    "insect",
+    "animal",
+    "flora",
+    "fauna",
+    "pandanus",
+    "sea",
+    "reef",
+    "beach",
+    "ocean",
+    "island",
+}
+
+
+class SectionTracker:
+    def __init__(self) -> None:
+        self.current = None
+
+    def update(self, line: str) -> str | None:
+        text = _normalize(line).lower().replace("—", "-")
+        if "tuvaluan-english dictionary" in text:
+            self.current = "tvl_en"
+            return self.current
+        if "english-tuvaluan dictionary" in text:
+            self.current = "en_tvl"
+            return self.current
+        return None
+
+
+def _normalize(text: str) -> str:
+    return re.sub(r"\s+", " ", text.replace("\f", " ").replace("\r", " ")).strip()
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build unstructured en↔tvl seed artifacts")
+    parser.add_argument(
+        "--asset-dir",
+        default="unstruct_lang_data",
+        help="Directory containing unstructured assets",
+    )
+    parser.add_argument(
+        "--stage-a-output",
+        default="data/external/stage_a_seed",
+        help="Output directory for Stage A seed candidates",
+    )
+    parser.add_argument(
+        "--stage-b-output",
+        default="data/external/stage_b_seed",
+        help="Output directory for Stage B term candidates",
+    )
+    parser.add_argument(
+        "--tatoeba-file",
+        default="Tatoeba-v2023-04-12-en&tvl.tsv",
+        help="Tatoeba file name under --asset-dir",
+    )
+    parser.add_argument(
+        "--dictionary-pdf",
+        default="DICTIONARY_Tuv_Palagi.pdf",
+        help="Dictionary PDF name under --asset-dir",
+    )
+    parser.add_argument(
+        "--dictionary-text",
+        default="data/external/raw/DICTIONARY_Tuv_Palagi.txt",
+        help="Extracted dictionary text path (generated from pdftotext if missing)",
+    )
+    parser.add_argument(
+        "--ocr-dir",
+        default="data/external/ocr_scans",
+        help="Directory with OCR page JSONL files",
+    )
+    parser.add_argument(
+        "--max-dict-entries",
+        type=int,
+        default=None,
+        help="Optional hard cap per dictionary section for debugging",
+    )
+    parser.add_argument(
+        "--ocr-conf-min",
+        type=float,
+        default=65.0,
+        help="Minimum OCR page mean confidence for term mining",
+    )
+    parser.add_argument(
+        "--ocr-term-min-freq",
+        type=int,
+        default=2,
+        help="Minimum frequency threshold for OCR term candidates",
+    )
+    parser.add_argument(
+        "--extract-ocr-terms",
+        action="store_true",
+        help="Mine conservative name/term candidates from OCR output",
+    )
+    parser.add_argument(
+        "--extract-terms",
+        action="store_true",
+        help="Emit conservative dictionary-derived flora/fauna/name candidates",
+    )
+    parser.add_argument(
+        "--run-name",
+        default=None,
+        help="Optional run label used in manifest metadata only",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Parse and print stats without writing artifacts",
+    )
+    parser.add_argument(
+        "--dry-run-limit",
+        type=int,
+        default=20,
+        help="When --dry-run, print sample candidate rows from each source",
+    )
+    return parser.parse_args()
+
+
+def _run_pdftotext(pdf_path: Path, out_path: Path) -> None:
+    """Generate plain-text dictionary input via pdftotext."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    result = subprocess.run(
+        ["pdftotext", "-layout", str(pdf_path), str(out_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"pdftotext failed for {pdf_path}: {result.stderr.strip() or result.stdout.strip()}"
+        )
+
+
+def _looks_like_noise_line(line: str) -> bool:
+    text = line.strip()
+    if not text:
+        return True
+    if text in {"TUVALUAN", "ENGLISH", "DICTIONARY", "TUVALUAN—ENGLISH", "ENGLISH—TUVALUAN"}:
+        return True
+    if re.fullmatch(r"[\-]+", text):
+        return True
+    if re.fullmatch(r"\d+", text):
+        return True
+    if re.search(r"^Page\b|\bTable of Contents\b", text, re.IGNORECASE):
+        return True
+    if text.startswith("Eng") and "Dictionary" in text:
+        return True
+    return False
+
+
+def _parse_entry_cell(cell: str) -> tuple[str, str] | None:
+    cell = _normalize(cell)
+    if not cell:
+        return None
+
+    # Common front-matter and table line artifacts are dropped early.
+    if _looks_like_noise_line(cell):
+        return None
+
+    # Keep conservative: headword then one definition block.
+    # We split only on first whitespace after the headword.
+    m = re.match(r"^(?P<lemma>[^\s]{1,120})\s+(?P<body>.+)$", cell)
+    if not m:
+        return None
+
+    lemma = m.group("lemma")
+    body = _normalize(m.group("body"))
+
+    if not lemma or not body:
+        return None
+    if len(body) < 6:
+        return None
+    if len(lemma) > 160:
+        return None
+    if lemma.startswith("(") or lemma.endswith(")"):
+        return None
+    if re.fullmatch(r"[\d\-]+", lemma):
+        return None
+    if not any(ch.isalpha() for ch in lemma):
+        return None
+
+    # Heuristic quality scoring for parser confidence.
+    if any(tok in body.lower() for tok in {"see", "see also", "index", "publisher"}):
+        return None
+
+    return lemma, body
+
+
+def _is_name_like(text: str) -> bool:
+    words = [w for w in re.findall(r"[A-Za-z`ʻ‘’ʹ]+", text)]
+    if not words:
+        return False
+    if len(words) > 3:
+        return False
+    return all(w.istitle() for w in words)
+
+
+def _is_flora_fauna_like(text: str) -> bool:
+    tokens = set(re.findall(r"[a-z']+", text.lower()))
+    return bool(tokens & FLORA_FAUNA_KEYWORDS)
+
+
+def extract_tatoeba(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
+    rows: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    stats: dict[str, int] = Counter()
+    stats["lines_total"] = 0
+
+    if not path.exists():
+        stats["missing_file"] = 1
+        return rows, rejected, dict(stats)
+
+    source_name = path.as_posix()
+    with path.open(encoding="utf-8", errors="replace") as f:
+        for idx, raw in enumerate(f, start=1):
+            stats["lines_total"] += 1
+            line = raw.strip("\n")
+            if not line:
+                stats["empty"] += 1
+                continue
+            parts = line.split("\t")
+            if len(parts) < 2:
+                stats["invalid_columns"] += 1
+                rejected.append(
+                    {
+                        "source_file": source_name,
+                        "source_row": idx,
+                        "reason": "invalid_tsv_columns",
+                        "raw": line[:200],
+                    }
+                )
+                continue
+
+            en = _normalize(parts[0])
+            tvl = _normalize(parts[1])
+            if len(en) < TATOEBA_MIN_CHARS or len(tvl) < TATOEBA_MIN_CHARS:
+                stats["too_short"] += 1
+                rejected.append(
+                    {
+                        "source_file": source_name,
+                        "source_row": idx,
+                        "reason": "too_short",
+                        "en": en,
+                        "tvl": tvl,
+                    }
+                )
+                continue
+
+            tvl_chars = len(tvl)
+            en_chars = len(en)
+            rows.append(
+                {
+                    "id": f"unstruct:tatoeba:{idx:04d}",
+                    "tvl": tvl,
+                    "en": en,
+                    "content_type": "translation_phrase",
+                    "domain": "tatoeba",
+                    "alignment_method": "dictionary_entry",
+                    "alignment_confidence": 1.0,
+                    "doc_id": None,
+                    "source_url_tvl": source_name,
+                    "source_url_en": source_name,
+                    "book_num": None,
+                    "chapter": None,
+                    "verse": None,
+                    "date": None,
+                    "pub_code": "unstruct_tatoeba",
+                    "tvl_chars": tvl_chars,
+                    "en_chars": en_chars,
+                    "length_ratio": tvl_chars / en_chars if en_chars else 0,
+                    "metadata": {
+                        "source_file": path.name,
+                        "source_row": idx,
+                        "source_table_row": idx,
+                        "parse_mode": "tatoeba_seed",
+                        "ocr_conf_mean": None,
+                        "ocr_conf_p50": None,
+                        "text_confidence": "high",
+                        "extractor_version": EXTRACTOR_VERSION,
+                    },
+                }
+            )
+
+    return rows, rejected, dict(stats)
+
+
+def extract_dictionary(
+    asset_dir: Path,
+    dictionary_pdf: Path,
+    dictionary_text: Path,
+    max_entries: int | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, int]]:
+    if not dictionary_text.exists():
+        if not dictionary_pdf.exists():
+            raise FileNotFoundError(f"Missing dictionary PDF: {dictionary_pdf}")
+        dictionary_text.parent.mkdir(parents=True, exist_ok=True)
+        _run_pdftotext(dictionary_pdf, dictionary_text)
+
+    text = dictionary_text.read_text(encoding="utf-8", errors="replace").splitlines()
+    section = SectionTracker()
+    current_section: str | None = None
+
+    rows: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
+    stats: dict[str, int] = Counter()
+
+    counters = {
+        "tvl_en": 0,
+        "en_tvl": 0,
+    }
+
+    for line_no, line in enumerate(text, start=1):
+        switched = section.update(line)
+        if switched:
+            current_section = switched
+            stats[f"section_switch_{current_section}"] += 1
+            continue
+
+        if current_section is None:
+            continue
+
+        if _looks_like_noise_line(line):
+            continue
+
+        cells = [p for p in ENTRY_CELL_SPLIT.split(line.strip()) if p.strip()]
+        if not cells:
+            continue
+
+        # Typical dictionary line format in pdftotext is dual column.
+        # Keep first two chunks to avoid accidental spillover from trailing metadata.
+        for cell_idx, cell in enumerate(cells[:2], start=1):
+            parsed = _parse_entry_cell(cell)
+            if not parsed:
+                stats["unparsed_cells"] += 1
+                continue
+
+            lemma, body = parsed
+            stats["entries_parsed"] += 1
+
+            if current_section == "tvl_en":
+                counters["tvl_en"] += 1
+                if max_entries and counters["tvl_en"] > max_entries:
+                    continue
+                row_id = f"unstruct:dict_tvl_en:{counters['tvl_en']:06d}"
+                tvl = lemma
+                en = body
+                conf = 0.82
+            else:
+                counters["en_tvl"] += 1
+                if max_entries and counters["en_tvl"] > max_entries:
+                    continue
+                row_id = f"unstruct:dict_en_tvl:{counters['en_tvl']:06d}"
+                en = lemma
+                tvl = body
+                conf = 0.72
+
+            tvl_chars = len(_normalize(tvl))
+            en_chars = len(_normalize(en))
+
+            if tvl_chars < 3 or en_chars < 3:
+                stats["too_short"] += 1
+                rejected.append(
+                    {
+                        "source_file": dictionary_text.name,
+                        "source_row": line_no,
+                        "cell": cell_idx,
+                        "source_section": current_section,
+                        "reason": "too_short",
+                        "lemma": lemma,
+                        "body": body,
+                    }
+                )
+                continue
+
+            rows.append(
+                {
+                    "id": row_id,
+                    "tvl": _normalize(tvl),
+                    "en": _normalize(en),
+                    "content_type": "translation_phrase",
+                    "domain": "dictionary",
+                    "alignment_method": "dictionary_entry",
+                    "alignment_confidence": conf,
+                    "doc_id": None,
+                    "source_url_tvl": dictionary_pdf.as_posix(),
+                    "source_url_en": dictionary_pdf.as_posix(),
+                    "book_num": None,
+                    "chapter": None,
+                    "verse": None,
+                    "date": None,
+                    "pub_code": "unstruct_dictionary",
+                    "tvl_chars": tvl_chars,
+                    "en_chars": en_chars,
+                    "length_ratio": tvl_chars / en_chars if en_chars else 0,
+                    "metadata": {
+                        "source_file": dictionary_text.name,
+                        "source_row": line_no,
+                        "source_section": current_section,
+                        "source_cell": cell_idx,
+                        "source_pdf_page": None,
+                        "parse_mode": "dictionary_splitcell_v1",
+                        "ocr_conf_mean": None,
+                        "ocr_conf_p50": None,
+                        "text_confidence": "medium",
+                        "extractor_version": EXTRACTOR_VERSION,
+                    },
+                }
+            )
+
+    stats["entries_tvl_en"] = counters["tvl_en"]
+    stats["entries_en_tvl"] = counters["en_tvl"]
+    return rows, rejected, dict(stats)
+
+
+def _iter_ocr_pages(ocr_dir: Path) -> list[dict[str, Any]]:
+    page_rows: list[dict[str, Any]] = []
+    for jsonl_path in sorted(ocr_dir.glob("*.jsonl")):
+        with jsonl_path.open(encoding="utf-8", errors="replace") as f:
+            for raw in f:
+                raw = raw.strip()
+                if not raw:
+                    continue
+                try:
+                    row = json.loads(raw)
+                except json.JSONDecodeError:
+                    continue
+                row["_source_file"] = jsonl_path.name
+                page_rows.append(row)
+    return page_rows
+
+
+def extract_ocr_terms(
+    ocr_dir: Path,
+    conf_min: float,
+    min_freq: int,
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    if not ocr_dir.exists():
+        return [], {"ocr_dir_missing": 1}
+
+    rows: list[dict[str, Any]] = []
+    stats: dict[str, int] = Counter()
+    candidate_counts: dict[tuple[str, str], dict[str, Any]] = {}
+
+    for row in _iter_ocr_pages(ocr_dir):
+        stats["ocr_pages_scanned"] += 1
+        if row.get("status") != "ok":
+            continue
+
+        conf = float(row.get("conf_mean") or 0.0)
+        if conf < conf_min:
+            stats["ocr_pages_low_conf"] += 1
+            continue
+
+        raw_text = _normalize(str(row.get("text", "")))
+        if len(raw_text) < 40:
+            continue
+
+        source_pdf = row.get("pdf", "")
+        page = row.get("page")
+
+        for match in NAME_PATTERN.finditer(raw_text):
+            term = match.group(0).strip()
+            if len(term) < 3:
+                continue
+            lowered = term.lower()
+            if lowered in {"the", "and", "for", "from", "with", "this", "that", "they", "there"}:
+                continue
+
+            if term[0].islower():
+                continue
+
+            if _is_flora_fauna_like(lowered):
+                term_type = "flora_fauna"
+            elif _is_name_like(term):
+                term_type = "person_place"
+            else:
+                term_type = "other"
+
+            key = (term, term_type)
+            bucket = candidate_counts.setdefault(
+                key,
+                {
+                    "count": 0,
+                    "max_conf": 0.0,
+                    "first_source": source_pdf,
+                    "first_page": page,
+                },
+            )
+            bucket["count"] += 1
+            if conf > bucket["max_conf"]:
+                bucket["max_conf"] = conf
+
+    for (term, term_type), data in candidate_counts.items():
+        if data["count"] < min_freq:
+            continue
+        rows.append(
+            {
+                "id": f"unstruct:ocr_term:{len(rows):05d}",
+                "term": term,
+                "term_type": term_type,
+                "content_type": "unstructured_term",
+                "domain": "news_term_mining",
+                "alignment_method": "ocr_term_candidate",
+                "alignment_confidence": min(0.95, data["max_conf"] / 100),
+                "source": data["first_source"],
+                "source_page": data["first_page"],
+                "evidence_count": data["count"],
+                "evidence_max_conf": data["max_conf"],
+                "metadata": {
+                    "source_file": data["first_source"],
+                    "source_page_hint": data["first_page"],
+                    "candidate_count": data["count"],
+                    "extractor_version": EXTRACTOR_VERSION,
+                },
+            }
+        )
+
+    stats["ocr_terms_kept"] = len(rows)
+    stats["ocr_terms_candidate_cells"] = len(candidate_counts)
+    return rows, dict(stats)
+
+
+def _build_dictionary_term_rows(dict_rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    seen = set()
+
+    for row in dict_rows:
+        en = row.get("en", "")
+        tvl = row.get("tvl", "")
+        section = row.get("metadata", {}).get("source_section")
+
+        term_type = None
+        term = None
+
+        if _is_name_like(en):
+            term_type = "person_place"
+            term = en
+        elif _is_flora_fauna_like(en):
+            term_type = "flora_fauna"
+            term = en
+        elif _is_flora_fauna_like(tvl):
+            term_type = "flora_fauna"
+            term = tvl
+
+        if not term_type:
+            continue
+
+        key = (term_type, term.lower())
+        if key in seen:
+            continue
+        seen.add(key)
+
+        rows.append(
+            {
+                "id": f"unstruct:dict_term:{len(rows):05d}",
+                "term": term,
+                "term_type": term_type,
+                "source_section": section,
+                "alignment_method": "dictionary_term_candidate",
+                "alignment_confidence": row.get("alignment_confidence", 0.7),
+                "source_url_tvl": row.get("source_url_tvl"),
+                "source_url_en": row.get("source_url_en"),
+                "metadata": {
+                    "source_file": row.get("metadata", {}).get("source_file"),
+                    "source_row": row.get("metadata", {}).get("source_row"),
+                    "alignment_confidence_source": row.get("alignment_confidence", 0.7),
+                    "extractor_version": EXTRACTOR_VERSION,
+                },
+            }
+        )
+
+    return rows
+
+
+def _dedupe_rows(rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int]:
+    seen: set[tuple[str, str]] = set()
+    deduped: list[dict[str, Any]] = []
+    dropped = 0
+
+    for row in rows:
+        key = (_normalize(row["tvl"]), _normalize(row["en"]))
+        if key in seen:
+            dropped += 1
+            continue
+        seen.add(key)
+        deduped.append(row)
+
+    return deduped, dropped
+
+
+def main() -> None:
+    args = _parse_args()
+    asset_dir = Path(args.asset_dir).expanduser()
+    stage_a_output = Path(args.stage_a_output).expanduser()
+    stage_b_output = Path(args.stage_b_output).expanduser()
+
+    tatoeba_path = asset_dir / args.tatoeba_file
+    dictionary_pdf = asset_dir / args.dictionary_pdf
+    dictionary_text = Path(args.dictionary_text).expanduser()
+
+    seed_rows: dict[str, list[dict[str, Any]]] = {
+        "unstruct_tatoeba": [],
+        "unstruct_dictionary_tvl_en": [],
+        "unstruct_dictionary_en_tvl": [],
+    }
+    stage_a_rejected: list[dict[str, Any]] = []
+    summary: dict[str, Any] = {}
+
+    # 1) Tatoeba
+    print("[1/3] building Tatoeba seed")
+    tatoeba_rows, tatoeba_rej, tatoeba_stats = extract_tatoeba(tatoeba_path)
+    seed_rows["unstruct_tatoeba"] = tatoeba_rows
+    stage_a_rejected.extend(tatoeba_rej)
+    summary["tatoeba"] = {
+        "rows": len(tatoeba_rows),
+        "rejected": len(tatoeba_rej),
+        **tatoeba_stats,
+    }
+
+    # 2) Dictionary parse
+    print("[2/3] parsing dictionary text")
+    dict_rows, dict_rej, dict_stats = extract_dictionary(
+        asset_dir=asset_dir,
+        dictionary_pdf=dictionary_pdf,
+        dictionary_text=dictionary_text,
+        max_entries=args.max_dict_entries,
+    )
+
+    seed_rows["unstruct_dictionary_tvl_en"] = [r for r in dict_rows if r["metadata"]["source_section"] == "tvl_en"]
+    seed_rows["unstruct_dictionary_en_tvl"] = [r for r in dict_rows if r["metadata"]["source_section"] == "en_tvl"]
+    stage_a_rejected.extend(dict_rej)
+
+    summary["dictionary"] = {
+        "rows": len(dict_rows),
+        "rejected": len(dict_rej),
+        **dict_stats,
+    }
+
+    # 3) Optional OCR term mining
+    ocr_rows: list[dict[str, Any]] = []
+    if args.extract_ocr_terms:
+        print("[3/3] mining OCR term candidates")
+        ocr_rows, ocr_stats = extract_ocr_terms(
+            ocr_dir=Path(args.ocr_dir).expanduser(),
+            conf_min=args.ocr_conf_min,
+            min_freq=args.ocr_term_min_freq,
+        )
+        summary["ocr_terms"] = ocr_stats
+
+    # Optional dictionary term extraction for Stage B name / flora/fauna support
+    dict_term_rows: list[dict[str, Any]] = []
+    if args.extract_terms:
+        dict_term_rows = _build_dictionary_term_rows(dict_rows)
+        summary["dictionary_terms"] = {
+            "rows": len(dict_term_rows),
+        }
+
+    # Deduplicate Stage A rows by normalized pair
+    all_stage_a = []
+    for key in seed_rows:
+        all_stage_a.extend(seed_rows[key])
+    deduped_stage_a, dropped_pairs = _dedupe_rows(all_stage_a)
+
+    final_stage_a = defaultdict(list)
+    for row in deduped_stage_a:
+        sec = row["metadata"].get("source_section", "misc")
+        if sec == "tvl_en":
+            final_stage_a["unstruct_dictionary_tvl_en"].append(row)
+        elif sec == "en_tvl":
+            final_stage_a["unstruct_dictionary_en_tvl"].append(row)
+        else:
+            final_stage_a["unstruct_tatoeba"].append(row)
+
+    for source in list(seed_rows.keys()):
+        if source not in final_stage_a:
+            final_stage_a[source] = seed_rows[source]
+
+    stage_a_summary = {
+        "rows_input": len(all_stage_a),
+        "rows_deduped": len(deduped_stage_a),
+        "rows_dedropped_pair": dropped_pairs,
+    }
+
+    total_stage_b = len(ocr_rows) + len(dict_term_rows)
+
+    print("[summary]")
+    print(json.dumps({
+        "stage_a": stage_a_summary,
+        "sources": summary,
+        "dict_term_rows": len(dict_term_rows),
+        "ocr_term_rows": len(ocr_rows),
+        "total_stage_b_rows": total_stage_b,
+    }, indent=2))
+
+    if args.dry_run:
+        for name, rows in final_stage_a.items():
+            print(f"\n{name}: {len(rows)} rows (sample {args.dry_run_limit})")
+            for row in rows[: args.dry_run_limit]:
+                print(f"  - {row['id']} :: {row['tvl']} || {row['en']}")
+        if ocr_rows:
+            print(f"\nocr_terms: {len(ocr_rows)} rows")
+            for row in ocr_rows[: args.dry_run_limit]:
+                print(f"  - {row['id']} :: {row['term']} :: {row['term_type']}")
+        if dict_term_rows:
+            print(f"\ndictionary_terms: {len(dict_term_rows)} rows")
+            for row in dict_term_rows[: args.dry_run_limit]:
+                print(f"  - {row['id']} :: {row['term']} :: {row['term_type']}")
+        return
+
+    # Write Stage A outputs
+    stage_a_output.mkdir(parents=True, exist_ok=True)
+    for name, rows in final_stage_a.items():
+        out_path = stage_a_output / f"{name}.jsonl"
+        write_jsonl(out_path, rows)
+    rejected_path = stage_a_output / "rejected.jsonl"
+    write_jsonl(rejected_path, stage_a_rejected)
+
+    stage_a_stats = {
+        "stage": "unstructured_stage_a_seed",
+        "version": EXTRACTOR_VERSION,
+        "rows": {
+            "tatoeba": len(final_stage_a["unstruct_tatoeba"]),
+            "dictionary_tvl_en": len(final_stage_a["unstruct_dictionary_tvl_en"]),
+            "dictionary_en_tvl": len(final_stage_a["unstruct_dictionary_en_tvl"]),
+            "deduped_total": len(deduped_stage_a),
+            "rejected": len(stage_a_rejected),
+            "dropped_duplicate_pairs": dropped_pairs,
+        },
+        "source_summary": summary,
+        "run_name": args.run_name,
+    }
+
+    write_json(stage_a_output / "stats.json", stage_a_stats)
+
+    manifest_output_files: dict[str, str] = {
+        "unstruct_tatoeba": str(stage_a_output / "unstruct_tatoeba.jsonl"),
+        "unstruct_dictionary_tvl_en": str(
+            stage_a_output / "unstruct_dictionary_tvl_en.jsonl"
+        ),
+        "unstruct_dictionary_en_tvl": str(
+            stage_a_output / "unstruct_dictionary_en_tvl.jsonl"
+        ),
+        "rejected": str(rejected_path),
+    }
+    data_files = [
+        stage_a_output / "unstruct_tatoeba.jsonl",
+        stage_a_output / "unstruct_dictionary_tvl_en.jsonl",
+        stage_a_output / "unstruct_dictionary_en_tvl.jsonl",
+        rejected_path,
+        stage_a_output / "stats.json",
+    ]
+
+    manifest = create_manifest(
+        stage="stage_a_seed_build",
+        config={
+            "asset_dir": str(asset_dir),
+            "tatoeba_file": tatoeba_path.name,
+            "dictionary_pdf": str(dictionary_pdf),
+            "dictionary_text": str(dictionary_text),
+            "extract_terms": args.extract_terms,
+            "extract_ocr_terms": args.extract_ocr_terms,
+            "max_dict_entries": args.max_dict_entries,
+            "run_name": args.run_name,
+        },
+        extra={
+            "output_summary": stage_a_stats,
+            "output_files": manifest_output_files,
+        },
+        data_files=data_files,
+    )
+    save_manifest(manifest, stage_a_output / "manifest.json")
+
+    # Write Stage B term outputs (if requested)
+    if args.extract_ocr_terms or args.extract_terms:
+        stage_b_output.mkdir(parents=True, exist_ok=True)
+        out_rows = []
+        if args.extract_ocr_terms:
+            out_rows.extend(ocr_rows)
+            write_jsonl(stage_b_output / "unstruct_ocr_terms.jsonl", ocr_rows)
+        if args.extract_terms:
+            out_rows.extend(dict_term_rows)
+            write_jsonl(stage_b_output / "unstruct_dictionary_terms.jsonl", dict_term_rows)
+
+        stage_b_stats = {
+            "stage": "unstructured_stage_b_terms",
+            "version": EXTRACTOR_VERSION,
+            "rows": {
+                "ocr_terms": len(ocr_rows),
+                "dictionary_terms": len(dict_term_rows),
+                "total": total_stage_b,
+            },
+            "source_summary": summary,
+            "run_name": args.run_name,
+        }
+        write_json(stage_b_output / "stats.json", stage_b_stats)
+        manifest_output_files: dict[str, Path] = {}
+        if args.extract_ocr_terms:
+            manifest_output_files["ocr_terms"] = stage_b_output / "unstruct_ocr_terms.jsonl"
+        if args.extract_terms:
+            manifest_output_files["dictionary_terms"] = (
+                stage_b_output / "unstruct_dictionary_terms.jsonl"
+            )
+
+        manifest = create_manifest(
+            stage="stage_b_seed_build",
+            config={
+                "ocr_dir": str(Path(args.ocr_dir).expanduser()),
+                "ocr_conf_min": args.ocr_conf_min,
+                "ocr_term_min_freq": args.ocr_term_min_freq,
+                "extract_ocr_terms": args.extract_ocr_terms,
+                "extract_terms": args.extract_terms,
+                "run_name": args.run_name,
+            },
+            extra={
+                "output_summary": stage_b_stats,
+                "output_files": {k: str(v) for k, v in manifest_output_files.items()},
+            },
+            data_files=[*manifest_output_files.values(), stage_b_output / "stats.json"],
+        )
+        save_manifest(manifest, stage_b_output / "manifest.json")
+
+    print("\nWrote Stage A seed artifacts:", stage_a_output)
+    if args.extract_ocr_terms or args.extract_terms:
+        print("Wrote Stage B term artifacts:", stage_b_output)
+
+
+if __name__ == "__main__":
+    main()

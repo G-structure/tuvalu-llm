@@ -26,3 +26,8 @@ training = [
     "tensorboard",
     "setuptools<81",
 ]
+ocr = [
+    "pdf2image>=1.17.0",
+    "pytesseract>=0.3.13",
+    "pillow>=11.0.0",
+]
