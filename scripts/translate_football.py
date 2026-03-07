@@ -3,10 +3,17 @@
 Picks untranslated articles from the database, translates title + body + OG
 description paragraph-by-paragraph, and stores results in the translations table.
 
+Features:
+- 3-attempt retry with escalating temperature (0.0 → 0.3 → 0.7) on collapse
+- Model collapse detection (n-gram repetition ratio)
+- All attempts recorded in translation_attempts table for RL training
+- Model ID tracking for each translation
+
 Usage:
     uv run python scripts/translate_football.py                 # translate all untranslated
     uv run python scripts/translate_football.py --limit 10      # translate up to 10
     uv run python scripts/translate_football.py --article ID    # translate a specific article
+    uv run python scripts/translate_football.py --retry-collapsed  # retry previously collapsed
 """
 
 import argparse
@@ -20,11 +27,14 @@ from pathlib import Path
 import httpx
 from tqdm import tqdm
 
+from detect_collapse import is_collapsed, collapse_score
+
 DB_PATH = Path(__file__).resolve().parent.parent / "data" / "football" / "football.db"
 
 # Tinker API config
 TINKER_BASE = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
 TINKER_MODEL = "tinker://a6453cc0-d0d8-5168-996a-c9b9ee3b8582:train:0/sampler_weights/final"
+TINKER_MODEL_ID = "a6453cc0-d0d8-5168-996a-c9b9ee3b8582"
 
 SYSTEM_PROMPT = (
     "You are a careful translator between Tuvaluan and English. Translate "
@@ -38,9 +48,11 @@ USER_PROMPT_TEMPLATE = (
 )
 
 MAX_TOKENS = 512
-TEMPERATURE = 0.0
 STOP_SEQUENCES = ["\n\nUser:"]
 REQUEST_DELAY = 0.5  # seconds between API calls
+
+# Temperature escalation for retry on collapse
+TEMPERATURE_SCHEDULE = [0.0, 0.3, 0.7]
 
 
 def get_api_key() -> str:
@@ -76,7 +88,8 @@ def split_paragraphs(body: str) -> list[str]:
 
 
 def translate_text(
-    client: httpx.Client, api_key: str, text: str, max_retries: int = 3
+    client: httpx.Client, api_key: str, text: str,
+    temperature: float = 0.0, max_retries: int = 3
 ) -> str | None:
     """Translate a single piece of text via Tinker completions API."""
     prompt = (
@@ -94,7 +107,7 @@ def translate_text(
                     "model": TINKER_MODEL,
                     "prompt": prompt,
                     "max_tokens": MAX_TOKENS,
-                    "temperature": TEMPERATURE,
+                    "temperature": temperature,
                     "stop": STOP_SEQUENCES,
                 },
                 timeout=60,
@@ -134,11 +147,12 @@ def translate_text(
 
 
 def translate_article(
-    client: httpx.Client, api_key: str, article: sqlite3.Row
+    client: httpx.Client, api_key: str, article: sqlite3.Row,
+    temperature: float = 0.0,
 ) -> dict | None:
     """Translate an entire article (title + body + OG description)."""
     # Translate title
-    title_tvl = translate_text(client, api_key, article["title_en"])
+    title_tvl = translate_text(client, api_key, article["title_en"], temperature)
     time.sleep(REQUEST_DELAY)
 
     if not title_tvl:
@@ -148,7 +162,7 @@ def translate_article(
     # Translate OG description if present
     og_desc_tvl = None
     if article["og_description_en"]:
-        og_desc_tvl = translate_text(client, api_key, article["og_description_en"])
+        og_desc_tvl = translate_text(client, api_key, article["og_description_en"], temperature)
         time.sleep(REQUEST_DELAY)
 
     # Translate body paragraphs
@@ -161,7 +175,7 @@ def translate_article(
             translated_paragraphs.append(para)
             continue
 
-        tvl = translate_text(client, api_key, para)
+        tvl = translate_text(client, api_key, para, temperature)
         time.sleep(REQUEST_DELAY)
 
         if tvl:
@@ -173,13 +187,117 @@ def translate_article(
 
     body_tvl = "\n\n".join(translated_paragraphs)
 
+    # Compute collapse metrics
+    body_collapsed = is_collapsed(body_tvl)
+    title_collapsed = is_collapsed(title_tvl)
+    score = max(collapse_score(body_tvl), collapse_score(title_tvl))
+
     return {
         "title_tvl": title_tvl,
         "body_tvl": body_tvl,
         "og_description_tvl": og_desc_tvl,
         "paragraph_count": len(paragraphs),
         "failed_paragraphs": failed_count,
+        "is_collapsed": body_collapsed or title_collapsed,
+        "collapse_score": score,
+        "temperature": temperature,
     }
+
+
+def save_attempt(conn: sqlite3.Connection, article_id: str, translation: dict, attempt_num: int):
+    """Record a translation attempt (for RL training data)."""
+    conn.execute(
+        """INSERT INTO translation_attempts
+           (article_id, attempt_number, title_tvl, body_tvl, og_description_tvl,
+            model_path, model_id, temperature, is_collapsed, collapse_score,
+            paragraph_count, failed_paragraphs)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            article_id,
+            attempt_num,
+            translation["title_tvl"],
+            translation["body_tvl"],
+            translation["og_description_tvl"],
+            TINKER_MODEL,
+            TINKER_MODEL_ID,
+            translation["temperature"],
+            1 if translation["is_collapsed"] else 0,
+            round(translation["collapse_score"], 4),
+            translation["paragraph_count"],
+            translation["failed_paragraphs"],
+        ),
+    )
+    conn.commit()
+
+
+def save_translation(conn: sqlite3.Connection, article_id: str, translation: dict, attempt_num: int):
+    """Insert or replace translation in the database."""
+    conn.execute(
+        """INSERT OR REPLACE INTO translations
+           (article_id, title_tvl, body_tvl, og_description_tvl,
+            model_path, model_id, paragraph_count, failed_paragraphs,
+            is_collapsed, collapse_score, attempt_number)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            article_id,
+            translation["title_tvl"],
+            translation["body_tvl"],
+            translation["og_description_tvl"],
+            TINKER_MODEL,
+            TINKER_MODEL_ID,
+            translation["paragraph_count"],
+            translation["failed_paragraphs"],
+            1 if translation["is_collapsed"] else 0,
+            round(translation["collapse_score"], 4),
+            attempt_num,
+        ),
+    )
+    conn.commit()
+
+
+def translate_with_retry(
+    client: httpx.Client, api_key: str, conn: sqlite3.Connection,
+    article: sqlite3.Row,
+) -> bool:
+    """Translate an article with up to 3 attempts using escalating temperature.
+
+    All attempts are recorded. The best non-collapsed attempt (or last attempt
+    if all collapse) is saved as the active translation.
+    """
+    best_translation = None
+    best_attempt = 0
+
+    for attempt_idx, temperature in enumerate(TEMPERATURE_SCHEDULE):
+        attempt_num = attempt_idx + 1
+        tqdm.write(f"  Attempt {attempt_num}/3 (temp={temperature})...")
+
+        translation = translate_article(client, api_key, article, temperature)
+        if translation is None:
+            tqdm.write(f"  Attempt {attempt_num} failed completely")
+            continue
+
+        # Record every attempt for RL training
+        save_attempt(conn, article["id"], translation, attempt_num)
+
+        if translation["is_collapsed"]:
+            score = translation["collapse_score"]
+            tqdm.write(f"  Attempt {attempt_num} COLLAPSED (score={score:.2f})")
+            # Keep as fallback if nothing better comes
+            if best_translation is None or best_translation["is_collapsed"]:
+                best_translation = translation
+                best_attempt = attempt_num
+        else:
+            tqdm.write(f"  Attempt {attempt_num} OK (score={translation['collapse_score']:.2f})")
+            best_translation = translation
+            best_attempt = attempt_num
+            break  # good translation, stop retrying
+
+    if best_translation:
+        save_translation(conn, article["id"], best_translation, best_attempt)
+        if best_translation["is_collapsed"]:
+            tqdm.write(f"  WARNING: All attempts collapsed, saving best (flagged)")
+        return True
+    return False
 
 
 def get_untranslated_articles(
@@ -204,30 +322,22 @@ def get_untranslated_articles(
     return list(conn.execute(query).fetchall())
 
 
-def save_translation(conn: sqlite3.Connection, article_id: str, translation: dict):
-    """Insert or replace translation in the database."""
-    conn.execute(
-        """INSERT OR REPLACE INTO translations
-           (article_id, title_tvl, body_tvl, og_description_tvl,
-            model_path, paragraph_count, failed_paragraphs)
-           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-        (
-            article_id,
-            translation["title_tvl"],
-            translation["body_tvl"],
-            translation["og_description_tvl"],
-            TINKER_MODEL,
-            translation["paragraph_count"],
-            translation["failed_paragraphs"],
-        ),
-    )
-    conn.commit()
+def get_collapsed_articles(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Get articles whose current translation is flagged as collapsed."""
+    return list(conn.execute(
+        """SELECT a.* FROM articles a
+           JOIN translations t ON t.article_id = a.id
+           WHERE t.is_collapsed = 1
+           ORDER BY a.published_at DESC"""
+    ).fetchall())
 
 
 def main():
     parser = argparse.ArgumentParser(description="Translate football articles to Tuvaluan")
     parser.add_argument("--limit", type=int, help="Max articles to translate")
     parser.add_argument("--article", type=str, help="Translate a specific article ID")
+    parser.add_argument("--retry-collapsed", action="store_true",
+                        help="Retry articles with collapsed translations")
     args = parser.parse_args()
 
     if not DB_PATH.exists():
@@ -237,12 +347,18 @@ def main():
     api_key = get_api_key()
     conn = get_db()
 
-    articles = get_untranslated_articles(conn, args.limit, args.article)
-    if not articles:
-        print("No untranslated articles found.")
-        return
-
-    print(f"Found {len(articles)} articles to translate")
+    if args.retry_collapsed:
+        articles = get_collapsed_articles(conn)
+        if not articles:
+            print("No collapsed translations found.")
+            return
+        print(f"Found {len(articles)} collapsed translations to retry")
+    else:
+        articles = get_untranslated_articles(conn, args.limit, args.article)
+        if not articles:
+            print("No untranslated articles found.")
+            return
+        print(f"Found {len(articles)} articles to translate")
 
     client = httpx.Client(http2=True)
     translated = 0
@@ -252,15 +368,8 @@ def main():
         title_preview = article["title_en"][:60]
         tqdm.write(f"  Translating: {title_preview}...")
 
-        translation = translate_article(client, api_key, article)
-
-        if translation:
-            save_translation(conn, article["id"], translation)
+        if translate_with_retry(client, api_key, conn, article):
             translated += 1
-            if translation["failed_paragraphs"] > 0:
-                tqdm.write(
-                    f"  Warning: {translation['failed_paragraphs']}/{translation['paragraph_count']} paragraphs failed"
-                )
         else:
             failed += 1
             tqdm.write(f"  Failed to translate article")

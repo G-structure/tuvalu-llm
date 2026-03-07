@@ -43,9 +43,30 @@ CREATE TABLE IF NOT EXISTS translations (
   og_description_tvl TEXT,
   body_tvl TEXT,
   model_path TEXT NOT NULL,
+  model_id TEXT,
   translated_at TEXT NOT NULL DEFAULT (datetime('now')),
   paragraph_count INTEGER,
-  failed_paragraphs INTEGER DEFAULT 0
+  failed_paragraphs INTEGER DEFAULT 0,
+  is_collapsed BOOLEAN DEFAULT 0,
+  collapse_score REAL,
+  attempt_number INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS translation_attempts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id TEXT NOT NULL,
+  attempt_number INTEGER NOT NULL,
+  title_tvl TEXT,
+  body_tvl TEXT,
+  og_description_tvl TEXT,
+  model_path TEXT NOT NULL,
+  model_id TEXT,
+  temperature REAL NOT NULL,
+  is_collapsed BOOLEAN DEFAULT 0,
+  collapse_score REAL,
+  paragraph_count INTEGER,
+  failed_paragraphs INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS fetch_log (
@@ -85,6 +106,8 @@ CREATE INDEX IF NOT EXISTS idx_feedback_article ON feedback(article_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
 CREATE INDEX IF NOT EXISTS idx_signals_article ON implicit_signals(article_id);
 CREATE INDEX IF NOT EXISTS idx_signals_created ON implicit_signals(created_at);
+CREATE INDEX IF NOT EXISTS idx_attempts_article ON translation_attempts(article_id);
+CREATE INDEX IF NOT EXISTS idx_translations_collapsed ON translations(is_collapsed);
 """
 
 SEED_SOURCES = [

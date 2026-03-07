@@ -31,7 +31,9 @@ const ARTICLE_SELECT = `
     a.published_at, a.category, a.tags,
     a.image_url, a.image_alt, a.image_width, a.image_height,
     a.og_description_en, a.word_count,
-    t.title_tvl, t.body_tvl, t.og_description_tvl
+    CASE WHEN t.is_collapsed = 1 THEN NULL ELSE t.title_tvl END AS title_tvl,
+    CASE WHEN t.is_collapsed = 1 THEN NULL ELSE t.body_tvl END AS body_tvl,
+    CASE WHEN t.is_collapsed = 1 THEN NULL ELSE t.og_description_tvl END AS og_description_tvl
   FROM articles a
   LEFT JOIN translations t ON t.article_id = a.id
 `;

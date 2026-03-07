@@ -118,3 +118,107 @@ for the JW.org parallel corpus:
 - Length ratio filtering (reject extreme ratios)
 - Duplicate detection
 - Metadata detection (headers, footers, navigation text)
+
+10. ### Model collapse in football translation pipeline
+
+**Status:** Detection + hiding implemented. Root cause identified. Fix pending.
+
+**Stats:** 31/56 translations (55%) flagged as collapsed.
+
+#### Root cause analysis
+
+Three factors drive collapse, in order of impact:
+
+**1. Single-paragraph body (primary cause — 72% collapse rate)**
+
+All 25 Sky Sports articles have `paragraph_count=1` because Sky's HTML has no
+`<p>` tags — the scraper's `split_paragraphs()` falls back to `\n\n`-splitting
+and finds nothing, so the entire 500-1800 word body is sent as a single chunk.
+With `MAX_TOKENS=512`, the model can't finish the translation and loops.
+
+- paras=1 articles: 18/25 collapsed (72%)
+- paras>1 articles: 13/31 collapsed (42%)
+- Sky Sports: 18/25 collapsed (72%)
+- FIFA.com: 2/13 collapsed (15%)
+- Goal.com: 11/18 collapsed (61%)
+
+**2. Out-of-domain content (secondary cause)**
+
+The Tinker model was trained on JW.org religious/educational text. Football
+jargon, TV guide listings, subscription pricing, and pop culture content
+("Ted Lasso", "Fubo Review") are maximally out of domain. The model has no
+anchoring vocabulary and resorts to repetitive paraphrasing.
+
+Collapse rate by content type:
+- Football match analysis: ~60% collapse
+- TV/streaming guides: ~50% collapse (mixed — short ones survive)
+- FIFA World Cup articles: ~15% collapse (closer to training domain: formal, informational)
+- Player interviews: ~20% collapse (narrative structure similar to training data)
+
+**3. Text length (correlated with #1)**
+
+Longer articles collapse more, but this is confounded by #1 — long articles
+from Sky are all single-paragraph. Among multi-paragraph articles, length
+alone is not a strong predictor.
+
+Collapse rate by EN word count:
+- 0-200 words: 29%
+- 200-400: 53%
+- 400-600: 43%
+- 600-800: 67%
+- 800-1000: 62%
+- 1000+: 69%
+
+#### Detection system
+
+Implemented in `scripts/detect_collapse.py`. Multi-signal approach:
+1. Whole-text 4-gram uniqueness ratio (threshold < 0.3)
+2. Max single 4-gram frequency (threshold > 0.4)
+3. Tail collapse: last 80 words checked with 3-gram and 4-gram (catches mid-text degeneration)
+4. Per-paragraph collapse (catches one bad paragraph diluted by good ones)
+5. Dominant n-gram check (any phrase > 10% of tail)
+
+The `is_collapsed` flag in `translations` table hides affected articles on the
+site via `CASE WHEN t.is_collapsed = 1 THEN NULL` in the SQL query.
+
+#### Fixes to implement
+
+1. **Fix Sky Sports paragraph splitting** — Sky uses `<br>` tags or bare
+   newlines instead of `<p>` tags. Update `split_paragraphs()` to handle this.
+   This alone should cut collapse rate from 55% to ~25%.
+
+2. **Increase MAX_TOKENS** — 512 is too low for even single paragraphs of
+   200+ words. Increase to 1024 or 2048 (check Tinker API limits).
+
+3. **Add sentence-level chunking fallback** — if a paragraph exceeds ~100
+   words, split on sentence boundaries before translating. Reassemble after.
+
+4. **Domain-specific prompt tuning** — add football glossary terms to the
+   system prompt. Instruct the model to preserve loanwords for terms without
+   Tuvaluan equivalents.
+
+5. **Temperature + retry is already implemented** — 3 attempts with
+   temperature escalation (0.0 → 0.3 → 0.7). All attempts saved to
+   `translation_attempts` table for RL training.
+
+11. ### Unstructured language assets (unstruct_lang_data) are not yet in the training graph
+
+The following assets are present but not yet integrated:
+
+- `unstruct_lang_data/Tatoeba-v2023-04-12-en&tvl.tsv` (14 aligned en↔tvl rows)
+- `unstruct_lang_data/DICTIONARY_Tuv_Palagi.pdf` (dictionary entries, parseable by `pdftotext`)
+- `unstruct_lang_data/Tuvalu_News_Sheets_66-99.pdf` (image-based scan)
+- `unstruct_lang_data/Tuvalu_News_Sheets_Part 2.pdf` (image-based scan)
+- `unstruct_lang_data/The_magical_garlands_of_Nukufetau.pdf` (image-based scan)
+
+Action plan:
+
+1. Add a new external ingestion script path (`data/external` + loader + manifest).
+2. Normalize Tatoeba rows into Stage A-compatible translation pairs.
+3. Parse `DICTIONARY_Tuv_Palagi.pdf` into lexical pairs + plant/animal/name term lists and route:
+   - small, high-fidelity bilingual term rows to Stage A seed,
+   - larger glossary list to Stage B preservation checks.
+4. Build an OCR pipeline for scanned PDFs and extract only high-confidence text blocks.
+5. Run a name/place/fauna/flora extraction pass to create anti-hallucination test set.
+6. Add metadata fields (`source_file`, `source_section`, `source_row`, `quality_score`) to all injected rows.
+7. Track each batch in `todo.md` and in stage manifests as a separate artifact source.
