@@ -264,6 +264,7 @@ Current docs covering dataset and collection work:
 - `README.md`: project plan, crawler constraints, alignment methodology, and experiment log for collection.
 - `docs/SCRAPING_PLAYBOOK.md`: **step-by-step reproduction guide** for all data collection (scripts, commands, troubleshooting).
 - `docs/DATASET_COLLECTION_AND_ML_PIPELINE.md`: dataset schema, alignment contracts, quality gates, and Stage A/B data lineage.
+- `docs/UNSTRUCTURED_DATA_PIPELINE.md`: unstructured data extraction (`unstruct_lang_data`) and OCR/playbook for supplemental training assets.
 - `tv2en.md`: URL mapping and cross-language pairing notes used by scraping/alignment.
 - `docs/TVL_EN_TINKER_PLAN.md`: staged training strategy, model choices, and open TODOs for synthetic loaders.
 - `docs/SELECTIVE_TRANSLATION_SPEC.md`: how selective translation preserves code/JSON/tool structure.

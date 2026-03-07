@@ -2,6 +2,9 @@
 
 A step-by-step guide to reproduce the full data collection pipeline. This playbook documents every script, command, and decision made to build the corpus from scratch.
 
+For scanned or PDF-only external assets (`unstruct_lang_data/`), use
+`docs/UNSTRUCTURED_DATA_PIPELINE.md` for OCR, parsing, and staging commands.
+
 ## Prerequisites
 
 ### System requirements

@@ -4,6 +4,8 @@
 
 - `README.md`
   - Collection strategy, scrape notes, aligned JSONL examples, and historical experiment logs.
+- `docs/UNSTRUCTURED_DATA_PIPELINE.md`
+  - Unstructured asset inventory (`unstruct_lang_data`), OCR workflow, and integration playbook.
 - `tv2en.md`
   - URL mapping and cross-language pairing evidence used in scraper/alignment.
 - `docs/TRAINING_PIPELINE.md`

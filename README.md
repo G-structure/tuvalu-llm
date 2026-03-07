@@ -21,6 +21,7 @@ Tuvaluan (ISO 639-3: `tvl`) is a Polynesian language with ~11,000 speakers. It i
 For a single practical map of dataset/datacollection docs, and exact pair/split contracts for the active pipeline, see:
 
 - [docs/DATASET_COLLECTION_AND_ML_PIPELINE.md](docs/DATASET_COLLECTION_AND_ML_PIPELINE.md)
+- [docs/UNSTRUCTURED_DATA_PIPELINE.md](docs/UNSTRUCTURED_DATA_PIPELINE.md) — unstructured asset ingest, OCR workflow, and reproducible external-data playbook
 
 ---
 
@@ -151,6 +152,7 @@ tv/
 ├── docs/
 │   ├── SCRAPING_PLAYBOOK.md       # Step-by-step data collection guide
 │   ├── DATASET_COLLECTION_AND_ML_PIPELINE.md  # Schema + lineage
+│   ├── UNSTRUCTURED_DATA_PIPELINE.md  # Unstructured TVL/EN assets and OCR ingest playbook
 │   ├── TRAINING_PIPELINE.md       # Stage A/B training commands
 │   ├── TVL_EN_TINKER_PLAN.md      # Strategic training plan
 │   └── SELECTIVE_TRANSLATION_SPEC.md  # Selective translation rules
