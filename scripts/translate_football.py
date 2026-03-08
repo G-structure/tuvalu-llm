@@ -52,7 +52,7 @@ USER_PROMPT_TEMPLATE = (
 )
 
 MAX_TOKENS = 1024
-STOP_SEQUENCES = ["\n\nUser:"]
+STOP_SEQUENCES = ["\n\nUser:", "\nUser:", "User:"]
 REQUEST_DELAY = 0.5  # seconds between API calls
 MAX_PARAGRAPH_WORDS = 150  # sub-chunk paragraphs longer than this
 
@@ -177,10 +177,14 @@ def translate_text(
                 return None
 
             translated = choices[0].get("text", "").strip()
-            # Clean up any trailing stop sequences
+            # Clean up any trailing stop sequences and repeated prompts
             for stop in STOP_SEQUENCES:
-                if translated.endswith(stop.strip()):
-                    translated = translated[: -len(stop.strip())].strip()
+                stop_clean = stop.strip()
+                if translated.endswith(stop_clean):
+                    translated = translated[: -len(stop_clean)].strip()
+            # Also strip any "User:" that appears mid-text (model looping)
+            if "\nUser:" in translated:
+                translated = translated.split("\nUser:")[0].strip()
 
             return translated if translated else None
 
