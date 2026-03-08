@@ -574,8 +574,10 @@ Additional JSON-LD blocks: `Organization` (Sky Sports), `WebSite`, `VideoObject`
 (one per embedded video, with `thumbnailUrl` at 150x150, 768x432, 800x600, plus
 `duration` and `embedUrl`).
 
-**`articleBody` is the easiest extraction path** — full article as clean plain text,
-no HTML parsing needed.
+**`articleBody` contains promo blocks, CTAs, and emoji** — do NOT use for article text.
+Instead, use HTML body extraction (`div.sdc-article-body > p` direct children) which
+contains only clean editorial text. JSON-LD is still used for metadata (headline, author,
+image, dates). The `clean_article_bodies.py` pipeline handles remaining artifacts.
 
 #### 3.4 Extraction — HTML body (for structured paragraphs)
 
@@ -1426,12 +1428,21 @@ const CATEGORIES: Record<string, string[]> = {
 - [x] Root cause analysis documented in `todo.md` #10
 - [x] `--retry-collapsed` CLI flag to retry previously flagged translations
 
-### Phase 3 — translation quality (next)
+### Phase 3 — translation quality (in progress)
 
-- [ ] Fix Sky Sports paragraph splitting (no `<p>` tags — use `<br>` / sentence splitting)
-- [ ] Increase MAX_TOKENS from 512 to 1024+ (primary collapse driver)
-- [ ] Sentence-level chunking fallback for paragraphs >100 words
-- [ ] Domain-specific prompt: football glossary terms as loanwords
+- [x] Fix Sky Sports body extraction — switched from JSON-LD `articleBody` (promo-filled
+  blob) to HTML `div.sdc-article-body > p` (clean editorial paragraphs only)
+- [x] Article body cleaning pipeline (`clean_article_bodies.py`): source-specific
+  cleaners for Sky (CTAs, emoji, promo blocks), Goal (NordVPN, READ MORE, subscribe),
+  FIFA (NBSP/BOM). 0/145 articles have promo artifacts.
+- [x] Sentence-boundary paragraph splitting for single-blob texts — 22/25 Sky articles
+  now have proper paragraph breaks (was 0/25)
+- [x] Increase MAX_TOKENS from 512 to 1024
+- [x] Sentence-level sub-chunking for paragraphs >150 words at translation time
+- [x] Domain-specific prompt: preserve proper nouns verbatim, use English football
+  terms as loanwords when no Tuvaluan equivalent exists
+- [x] Fix stop sequence looping: model was echoing "User:" prompts past `\n\nUser:` stop
+- [ ] Re-translate 41 collapsed articles with improved pipeline (in progress)
 - [ ] A/B preference interstitial (needs variant generation infrastructure)
 - [ ] Name guardian prompt (needs NER comparison)
 
@@ -1452,21 +1463,22 @@ const CATEGORIES: Record<string, string[]> = {
 
 ## Known issues (2026-03-07)
 
-### Translation quality: model collapse (MITIGATED)
+### Translation quality: model collapse (FIXING)
 
-73% of translations (41/56) exhibit model collapse — degenerate repetitive loops.
-Detection and hiding is implemented; collapsed articles show English-only on the site.
+41/56 translations (73%) were flagged as collapsed. Detection, hiding, article cleaning,
+and pipeline improvements are all done. Re-translation of collapsed articles is in progress.
 
 **Root causes (see `todo.md` #10 for full analysis):**
-1. **Sky Sports single-paragraph bodies (72% collapse rate)** — no `<p>` tags in HTML,
-   so entire 500-1800 word body sent as one chunk. Model exceeds MAX_TOKENS=512 and loops.
-2. **Out-of-domain content** — football jargon, TV guides, pop culture are maximally far
-   from JW.org training data. FIFA articles (formal/informational) collapse at only 15%.
-3. **MAX_TOKENS=512 too low** — can't finish translating even moderate paragraphs.
+1. **Sky Sports single-paragraph bodies (72% collapse rate)** — JSON-LD `articleBody`
+   was a promo-filled blob. FIXED: now uses HTML `div.sdc-article-body > p` for clean text.
+2. **Out-of-domain content** — football jargon far from JW.org training data. MITIGATED:
+   domain-specific prompt preserves loanwords and proper nouns.
+3. **MAX_TOKENS=512 too low** — FIXED: increased to 1024 + sentence-level sub-chunking.
+4. **Stop sequence looping** — model echoed "User:" past stop. FIXED: added `User:` stop.
 
-**Implemented:** `detect_collapse.py` (6-signal detector), 3-attempt retry with
-temperature escalation, all attempts recorded for RL training, site hides collapsed.
-**Remaining:** Fix paragraph splitting, increase MAX_TOKENS, add sentence chunking.
+**All fixes implemented.** Re-translation in progress — first re-translated article
+scored 0.14 collapse (was 0.81). Expected: most collapsed articles will now translate
+cleanly.
 
 ### Feedback FK constraint
 
