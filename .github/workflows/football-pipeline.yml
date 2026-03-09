@@ -65,5 +65,6 @@ jobs:
         if: ${{ github.event_name == 'schedule' || !inputs.scrape_only }}
         env:
           TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
-        run: python scripts/translate_football.py --limit ${{ inputs.limit > 0 && inputs.limit || '5' }}
+        run: python scripts/translate_football.py --limit ${{ inputs.limit > 0 && inputs.limit || '2' }}
         timeout-minutes: 15
+        continue-on-error: true
