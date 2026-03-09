@@ -52,7 +52,7 @@ USER_PROMPT_TEMPLATE = (
 
 MAX_TOKENS = 1024
 STOP_SEQUENCES = ["\n\nUser:", "\nUser:", "User:"]
-REQUEST_DELAY = 0.5  # seconds between API calls
+REQUEST_DELAY = 0.2  # seconds between API calls
 MAX_PARAGRAPH_WORDS = 150  # sub-chunk paragraphs longer than this
 
 # Temperature escalation for retry on collapse
@@ -140,6 +140,7 @@ def translate_text(
 
     for attempt in range(max_retries):
         try:
+            print(f"    API call (attempt {attempt+1}, temp={temperature})...", end="", flush=True)
             resp = client.post(
                 f"{TINKER_BASE}/completions",
                 headers={"X-Api-Key": api_key, "Content-Type": "application/json"},
@@ -150,8 +151,10 @@ def translate_text(
                     "temperature": temperature,
                     "stop": STOP_SEQUENCES,
                 },
-                timeout=60,
+                timeout=30,
             )
+
+            print(f" {resp.status_code}", flush=True)
 
             if resp.status_code == 429:
                 wait = 2 ** (attempt + 1)
@@ -322,11 +325,11 @@ def translate_with_retry(
 
     for attempt_idx, temperature in enumerate(TEMPERATURE_SCHEDULE):
         attempt_num = attempt_idx + 1
-        tqdm.write(f"  Attempt {attempt_num}/3 (temp={temperature})...")
+        print(f"  Attempt {attempt_num}/3 (temp={temperature})...", flush=True)
 
         translation = translate_article(client, api_key, article, temperature)
         if translation is None:
-            tqdm.write(f"  Attempt {attempt_num} failed completely")
+            print(f"  Attempt {attempt_num} failed completely")
             continue
 
         # Record every attempt for RL training
@@ -334,13 +337,13 @@ def translate_with_retry(
 
         if translation["is_collapsed"]:
             score = translation["collapse_score"]
-            tqdm.write(f"  Attempt {attempt_num} COLLAPSED (score={score:.2f})")
+            print(f"  Attempt {attempt_num} COLLAPSED (score={score:.2f})")
             # Keep as fallback if nothing better comes
             if best_translation is None or best_translation["is_collapsed"]:
                 best_translation = translation
                 best_attempt = attempt_num
         else:
-            tqdm.write(f"  Attempt {attempt_num} OK (score={translation['collapse_score']:.2f})")
+            print(f"  Attempt {attempt_num} OK (score={translation['collapse_score']:.2f})")
             best_translation = translation
             best_attempt = attempt_num
             break  # good translation, stop retrying
@@ -348,7 +351,7 @@ def translate_with_retry(
     if best_translation:
         save_translation(conn, article["id"], best_translation, best_attempt)
         if best_translation["is_collapsed"]:
-            tqdm.write(f"  WARNING: All attempts collapsed, saving best (flagged)")
+            print(f"  WARNING: All attempts collapsed, saving best (flagged)")
         return True
     return False
 
@@ -415,13 +418,13 @@ def main():
 
     for article in tqdm(articles, desc="Translating"):
         title_preview = article["title_en"][:60]
-        tqdm.write(f"  Translating: {title_preview}...")
+        print(f"\n  Translating: {title_preview}...", flush=True)
 
         if translate_with_retry(client, api_key, conn, article):
             translated += 1
         else:
             failed += 1
-            tqdm.write(f"  Failed to translate article")
+            print(f"  Failed to translate article")
 
     client.close()
     conn.close()
