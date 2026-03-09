@@ -7,7 +7,7 @@ import OGMeta from "~/components/OGMeta";
 
 const loadFatele = cache(async () => {
   "use server";
-  return getFateleStats();
+  return await getFateleStats();
 }, "fatele");
 
 export const route = {

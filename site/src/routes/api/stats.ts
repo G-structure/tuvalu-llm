@@ -2,7 +2,7 @@ import { getFateleStats } from "~/lib/db";
 
 export async function GET() {
   try {
-    const stats = getFateleStats();
+    const stats = await getFateleStats();
     return new Response(JSON.stringify(stats), {
       status: 200,
       headers: { "Content-Type": "application/json" },

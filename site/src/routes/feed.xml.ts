@@ -10,7 +10,7 @@ function escapeXml(s: string): string {
 }
 
 export async function GET() {
-  const articles = getArticles(20, 0);
+  const articles = await getArticles(20, 0);
 
   const items = articles
     .map((a) => {

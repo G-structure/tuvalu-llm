@@ -9,7 +9,7 @@ import LanguageToggle from "~/components/LanguageToggle";
 
 const loadArticle = cache(async (id: string) => {
   "use server";
-  return getArticle(id) || null;
+  return (await getArticle(id)) || null;
 }, "article");
 
 export const route = {

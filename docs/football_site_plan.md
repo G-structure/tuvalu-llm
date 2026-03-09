@@ -34,7 +34,7 @@ own language would be the first of its kind.
 
 ```
                     +-------------------+
-                    |   Cron / Worker   |
+                    |  Cloudflare Cron  |
                     |  (fetch + xlate)  |
                     +--------+----------+
                              |
@@ -45,7 +45,7 @@ own language would be the first of its kind.
               |              |              |
               v              v              v
          +---------------------------------+
-         |        SQLite / Turso DB        |
+         |        Cloudflare D1 (SQLite)   |
          |  articles, translations, meta   |
          +---------------------------------+
                          |
@@ -55,7 +55,12 @@ own language would be the first of its kind.
                     +---------+
                     SSR + API routes
                          |
-                    Cloudflare / Vercel
+                  Cloudflare Pages
+                (Suva, Fiji edge PoP)
+                         |
+               ~~~ Vaka cable (688 km) ~~~
+                         |
+                    Tuvalu (~14 ms)
 ```
 
 ### Stack choices
@@ -63,8 +68,8 @@ own language would be the first of its kind.
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | Framework | SolidJS (SolidStart) | Fast, small bundle, SSR built-in, good for content sites |
-| Database | SQLite via Turso (libSQL) | Edge-compatible, zero-ops, free tier generous |
-| ORM | Drizzle | Type-safe, lightweight, SQLite-native |
+| Database | Cloudflare D1 (SQLite at edge) | On the same edge as Pages, zero-ops, 5 GB free |
+| ORM | Drizzle | Type-safe, lightweight, SQLite-native, D1-compatible |
 | Styling | UnoCSS or Tailwind | Utility-first, small footprint |
 | Deployment | Cloudflare Pages | Free, edge SSR, cron triggers via Workers |
 | Translation API | Tinker OpenAI-compatible endpoint | Already working, tested |
@@ -1321,16 +1326,21 @@ POST https://graph.facebook.com/?id={url}&scrape=true
 
 ### Performance budget
 
-| Metric | Target | Why |
-|--------|--------|-----|
-| First Contentful Paint | <1.5s on 3G | Outer islands are 3G |
-| Largest Contentful Paint | <2.5s on 3G | Hero image lazy-loads |
-| Total page weight | <100KB (no images) | Metered mobile data |
-| JS bundle | <30KB gzipped | SolidJS is already tiny (~7KB) |
-| Image format | WebP with JPEG fallback | Smaller than PNG/JPEG |
-| Image size | Max 400px wide | No phone screen is wider |
-| Fonts | System fonts only | Zero font download cost |
-| Service Worker | Cache last 20 articles | Offline reading on boats/outer islands |
+| Metric | Target | Status | Why |
+|--------|--------|--------|-----|
+| First Contentful Paint | <1.5s on 3G | TBD | Outer islands may still be on satellite |
+| Largest Contentful Paint | <2.5s on 3G | TBD | Hero image lazy-loads |
+| Total page weight | <100KB (no images) | ~60 KB | Metered mobile data |
+| JS bundle | <30KB gzipped | ~22 KB | SolidJS is already tiny (~7KB) |
+| Image format | WebP with JPEG fallback | Source images | Smaller than PNG/JPEG |
+| Image size | Max 400px wide | Source sizes | No phone screen is wider |
+| Fonts | System fonts only | Done | Zero font download cost |
+| Service Worker | Cache key pages + offline | Done | Offline reading on boats/outer islands |
+
+With the Vaka cable (Oct 2025), Funafuti users now get ~14 ms RTT to
+Cloudflare's Suva PoP instead of 500-600 ms via satellite. Outer islands
+without cable access still benefit from the service worker's offline-first
+strategy. See [Deployment](#deployment) for full network analysis.
 
 ### Technical implications
 
@@ -1446,22 +1456,174 @@ const CATEGORIES: Record<string, string[]> = {
 - [ ] A/B preference interstitial (needs variant generation infrastructure)
 - [ ] Name guardian prompt (needs NER comparison)
 
-### Phase 4 — polish
+### Phase 4 — polish (2026-03-07) DONE
 
-- [ ] Search functionality
-- [ ] RSS feed output (in Tuvaluan)
-- [ ] Service Worker / offline support (outer islands have intermittent connectivity)
+- [x] Search functionality (`/search` with full-text LIKE across EN/TVL)
+- [x] RSS feed output in Tuvaluan (`/feed.xml`, RSS 2.0, 20 latest articles)
+- [x] Service Worker / offline support (network-first HTML, cache-first assets,
+  precaches `/`, `/fatele`, `/search`, offline fallback in Tuvaluan)
 - [ ] Tufuga o te Gagana (Language Experts) elevated contributor role
 
-### Phase 5 — growth
+### Phase 5 — deployment (2026-03-09) DONE
 
-- [ ] Deploy (Cloudflare Pages + Turso / Vercel)
-- [ ] Automated cron jobs (fetch every 30min, translate every 15min)
+- [x] Deploy to Cloudflare Pages — live at https://talafutipolo.pages.dev
+- [x] Migrate SQLite to Cloudflare D1 (edge SQLite, replaces better-sqlite3)
+- [ ] Set up Cloudflare Workers cron triggers (fetch every 30min, translate every 15min)
+- [ ] PWA manifest for installability on mobile
+- [ ] Pre-compress all assets with Brotli at build time
+- [ ] Connect GitHub repo for auto-deploy on push
+
+### Phase 6 — growth
+
 - [ ] Add more sources (Guardian if licensed, ESPN if policy changes)
 - [ ] Glossary system for football terms (loanwords vs translated terms)
 - [ ] Retrain Stage A adapter with name-preservation augmentation
 
-## Known issues (2026-03-07)
+## Deployment
+
+### Target: Cloudflare Pages (free tier)
+
+**Why Cloudflare is the only real option for Tuvalu:**
+
+Cloudflare has a PoP (Point of Presence) in **Suva, Fiji** — exactly where
+Tuvalu's new **Vaka submarine cable** lands (activated October 2025, 688 km,
+4 fiber pairs, 10+ Gbps capacity). No other free-tier CDN has an edge node
+anywhere near Tuvalu.
+
+| Platform | Nearest edge to Tuvalu | RTT estimate | Free bandwidth |
+|---|---|---|---|
+| **Cloudflare Pages** | **Suva, Fiji (SUV)** | **~14-20 ms** | **Unlimited** |
+| Vercel | Sydney, AU | ~60-80 ms | 100 GB/mo |
+| Netlify | Sydney, AU | ~60-80 ms | 100 GB/mo |
+| GitHub Pages | US/EU | ~150+ ms | 100 GB/mo |
+
+Before the Vaka cable (pre-Oct 2025), Tuvalu relied on satellite with 500-600+ ms
+RTT. The cable reduces this to ~14 ms to Fiji, making a Fiji-based edge node
+transformational for page load times.
+
+### What Cloudflare provides on free tier
+
+- **HTTP/3 + QUIC** — multiplexed requests, 0-RTT reconnection, handles packet
+  loss better than TCP (critical for outer islands still on satellite)
+- **Automatic Zstandard compression** (Brotli on Pro tier)
+- **Git-triggered deploys** from GitHub — push to `main` → auto-deploy
+- **Preview URLs** per commit/PR
+- **Unlimited bandwidth** — no credit card required
+- **100,000 function invocations/day** (for API routes)
+
+### Migration completed: SSR + SQLite → Cloudflare Pages + D1
+
+The site originally used SolidStart SSR with `better-sqlite3` (native Node addon).
+Cloudflare Workers run on V8 isolates and do not support native Node modules.
+Migration was completed on 2026-03-09.
+
+#### What changed
+
+1. **Database: `better-sqlite3` → Cloudflare D1**
+   - Created D1 database `talafutipolo` (id: `7087ac6b-6417-48a4-9c7f-1d108057cd51`)
+   - Exported local SQLite via Python script (not `.dump` — D1 doesn't support `unistr()`)
+   - Imported 682 queries, 2723 rows, 4.87 MB into D1
+   - Rewrote `site/src/lib/db.ts`: all functions changed from sync to async,
+     `better-sqlite3` API replaced with D1 prepared statement API (`.prepare().bind().all()`)
+   - D1 binding name: `DB` (configured in `wrangler.toml`, set on project via API)
+
+2. **All route handlers updated to `await` DB calls**
+   - `index.tsx`, `articles/[id].tsx`, `category/[slug].tsx`, `search.tsx`, `fatele.tsx`
+   - `feed.xml.ts`, `api/feedback.ts`, `api/signal.ts`, `api/stats.ts`
+
+3. **SolidStart preset changed to `cloudflare-pages`**
+   ```typescript
+   // app.config.ts
+   export default defineConfig({
+     server: { preset: "cloudflare-pages" },
+   });
+   ```
+
+4. **`wrangler.toml` added** (`site/wrangler.toml`)
+   ```toml
+   name = "talafutipolo"
+   compatibility_date = "2024-12-01"
+   compatibility_flags = ["nodejs_compat"]
+   pages_build_output_dir = ".output/public"
+
+   [[d1_databases]]
+   binding = "DB"
+   database_name = "talafutipolo"
+   database_id = "7087ac6b-6417-48a4-9c7f-1d108057cd51"
+   ```
+
+5. **`package.json` updated**
+   - Removed: `better-sqlite3`
+   - Added: `@cloudflare/workers-types`, `wrangler` (devDependencies)
+
+6. **Build output**: Vinxi builds to `dist/` with Nitro `cloudflare-pages` preset.
+   Total worker bundle: 307 KB (41 modules). Client assets: ~60 KB.
+
+#### D1 data import gotchas
+
+- SQLite `.dump` on macOS produces `unistr()` calls for text with special chars —
+  D1 doesn't support `unistr()`. Workaround: Python script that dumps rows as
+  plain `INSERT INTO ... VALUES(...)` with escaped string literals.
+- D1 enforces foreign key constraints during import. Tables must be inserted in
+  dependency order (sources → articles → translations → etc.) or use
+  `PRAGMA foreign_keys = OFF` at the top of the SQL file.
+
+#### Deploy command
+
+```bash
+cd site
+npm run build                                          # vinxi build → dist/
+npx wrangler pages deploy dist --project-name talafutipolo --commit-dirty=true
+```
+
+#### Remaining deployment tasks
+
+- [ ] Connect GitHub repo (`G-structure/tv`) for auto-deploy on push
+- [ ] Set up Cloudflare Workers cron triggers for content pipeline
+- [ ] Add Web App Manifest (`manifest.json`) for PWA installability
+- [ ] Set environment variables (TINKER_API_KEY, TINKER_MODEL_PATH) for Workers
+- [ ] Test on simulated 3G / high-latency connection
+- [ ] Verify service worker caching works on Cloudflare (scope, headers)
+
+### Network topology: Tuvalu → site
+
+```
+User (Funafuti)
+    │
+    │ ~14 ms (Vaka submarine cable, 688 km)
+    ▼
+Cloudflare Suva PoP (Fiji)  ← cached HTML/JS/CSS served here
+    │
+    │ ~30-50 ms (existing Pacific cables)
+    ▼
+Cloudflare origin / D1 (if cache miss)
+```
+
+Outer islands without cable access still use satellite (~500-600 ms RTT).
+The service worker's offline-first strategy handles this — after first visit,
+all navigation is served from cache.
+
+### Performance budget (already met)
+
+| Metric | Target | Current |
+|---|---|---|
+| Total page weight (no images) | <100 KB | ~60 KB (18 KB CSS + 22 KB JS + HTML) |
+| JS bundle | <30 KB gzipped | ~22 KB |
+| Fonts | System only | System only |
+| Service Worker | Cache key pages | Precaches `/`, `/fatele`, `/search` |
+| Offline fallback | Tuvaluan message | "Seki isi te initaneti" |
+
+### Cloudflare resource IDs
+
+| Resource | ID |
+|---|---|
+| Account | `8f86f0b518afefff58d515fe2a253b33` |
+| Pages project | `talafutipolo` |
+| D1 database | `7087ac6b-6417-48a4-9c7f-1d108057cd51` |
+| Production URL | https://talafutipolo.pages.dev |
+| GitHub repo | `G-structure/tv` (private) |
+
+## Known issues (2026-03-09)
 
 ### Translation quality: model collapse (FIXING)
 
@@ -1491,8 +1653,7 @@ testing with fake IDs requires using a real article ID from the DB.
 ## Environment variables
 
 ```env
-TURSO_DATABASE_URL=libsql://your-db.turso.io
-TURSO_AUTH_TOKEN=your-turso-token
+# Cloudflare D1 — configured via wrangler.toml binding, no URL/token needed
 TINKER_API_KEY=your-tinker-key
 TINKER_MODEL_PATH=tinker://a6453cc0-d0d8-5168-996a-c9b9ee3b8582:train:0/sampler_weights/final
 FETCH_INTERVAL_MINUTES=30
@@ -1804,10 +1965,11 @@ The name correction feature alone could fix the hallucination problem with
 
 | Component | Cost |
 |-----------|------|
-| Cloudflare Pages + Workers | Free tier (100k req/day) |
-| Turso DB | Free tier (9GB storage, 500M rows read/month) |
+| Cloudflare Pages + Workers | Free tier (100k req/day, unlimited bandwidth) |
+| Cloudflare D1 | Free tier (5 GB storage, 5M rows read/day, 100k writes/day) |
 | Tinker API | Free during beta (check current status) |
 | Domain | ~$10/year |
 | **Total** | **~$10/year** |
 
 The entire stack runs on free tiers. The only real cost is a domain name.
+Current DB is 3.6 MB — well within D1's 5 GB free limit.

@@ -12,7 +12,7 @@ export async function POST(event: APIEvent) {
       });
     }
 
-    insertFeedback({
+    await insertFeedback({
       article_id: body.article_id,
       paragraph_idx: body.paragraph_idx,
       feedback_type: body.feedback_type,

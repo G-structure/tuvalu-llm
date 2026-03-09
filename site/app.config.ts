@@ -6,10 +6,6 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
   server: {
-    // Externalize better-sqlite3 native module from nitro bundling
-    externals: {
-      inline: [],
-      external: ["better-sqlite3"],
-    },
+    preset: "cloudflare-pages",
   },
 });

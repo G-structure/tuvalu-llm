@@ -14,7 +14,7 @@ export async function POST(event: APIEvent) {
       });
     }
 
-    insertSignal({
+    await insertSignal({
       article_id: body.article_id,
       signal_type: body.signal_type,
       paragraph_index: body.paragraph_index,

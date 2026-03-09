@@ -7,7 +7,7 @@ import OGMeta from "~/components/OGMeta";
 const loadSearch = cache(async (q: string) => {
   "use server";
   if (!q || q.length < 2) return [];
-  return searchArticles(q, 30);
+  return await searchArticles(q, 30);
 }, "search");
 
 export const route = {

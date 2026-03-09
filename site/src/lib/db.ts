@@ -1,27 +1,8 @@
-import Database from "better-sqlite3";
-import { join, resolve } from "path";
 import type { Article, Category, FeedbackSubmission, SignalSubmission, FateleStats } from "./types";
 
-// process.cwd() is site/ in both dev and production
-const DB_PATH = resolve(join(process.cwd(), "..", "data", "football", "football.db"));
-
-let db: Database.Database | null = null;
-let dbWrite: Database.Database | null = null;
-
-function getDb(): Database.Database {
-  if (!db) {
-    db = new Database(DB_PATH, { readonly: true });
-    db.pragma("journal_mode = WAL");
-  }
-  return db;
-}
-
-function getWriteDb(): Database.Database {
-  if (!dbWrite) {
-    dbWrite = new Database(DB_PATH, { readonly: false });
-    dbWrite.pragma("journal_mode = WAL");
-  }
-  return dbWrite;
+// D1 binding is injected by Cloudflare Workers runtime
+function getDb(): D1Database {
+  return (process.env as any).DB || (globalThis as any).__env__?.DB;
 }
 
 const ARTICLE_SELECT = `
@@ -38,104 +19,131 @@ const ARTICLE_SELECT = `
   LEFT JOIN translations t ON t.article_id = a.id
 `;
 
-export function getArticles(
+export async function getArticles(
   limit = 20,
   offset = 0,
   category?: string
-): Article[] {
-  const conn = getDb();
+): Promise<Article[]> {
+  const db = getDb();
   if (category) {
-    const stmt = conn.prepare(
+    const { results } = await db
+      .prepare(
+        `${ARTICLE_SELECT}
+         WHERE a.category = ?
+         ORDER BY a.published_at DESC
+         LIMIT ? OFFSET ?`
+      )
+      .bind(category, limit, offset)
+      .all();
+    return results as unknown as Article[];
+  }
+  const { results } = await db
+    .prepare(
       `${ARTICLE_SELECT}
-       WHERE a.category = ?
        ORDER BY a.published_at DESC
        LIMIT ? OFFSET ?`
-    );
-    return stmt.all(category, limit, offset) as Article[];
-  }
-  const stmt = conn.prepare(
-    `${ARTICLE_SELECT}
-     ORDER BY a.published_at DESC
-     LIMIT ? OFFSET ?`
-  );
-  return stmt.all(limit, offset) as Article[];
+    )
+    .bind(limit, offset)
+    .all();
+  return results as unknown as Article[];
 }
 
-export function getArticle(id: string): Article | undefined {
-  const conn = getDb();
-  const stmt = conn.prepare(`${ARTICLE_SELECT} WHERE a.id = ?`);
-  return stmt.get(id) as Article | undefined;
+export async function getArticle(id: string): Promise<Article | undefined> {
+  const db = getDb();
+  const result = await db
+    .prepare(`${ARTICLE_SELECT} WHERE a.id = ?`)
+    .bind(id)
+    .first();
+  return (result as unknown as Article) || undefined;
 }
 
-export function getCategories(): Category[] {
-  const conn = getDb();
-  const stmt = conn.prepare(`
-    SELECT category AS slug, COUNT(*) AS count
-    FROM articles
-    WHERE category IS NOT NULL AND category != ''
-    GROUP BY category
-    ORDER BY count DESC
-  `);
-  return stmt.all() as Category[];
+export async function getCategories(): Promise<Category[]> {
+  const db = getDb();
+  const { results } = await db
+    .prepare(
+      `SELECT category AS slug, COUNT(*) AS count
+       FROM articles
+       WHERE category IS NOT NULL AND category != ''
+       GROUP BY category
+       ORDER BY count DESC`
+    )
+    .all();
+  return results as unknown as Category[];
 }
 
-export function getArticleCount(category?: string): number {
-  const conn = getDb();
+export async function getArticleCount(category?: string): Promise<number> {
+  const db = getDb();
   if (category) {
-    const stmt = conn.prepare(
-      "SELECT COUNT(*) AS cnt FROM articles WHERE category = ?"
-    );
-    return (stmt.get(category) as { cnt: number }).cnt;
+    const row = await db
+      .prepare("SELECT COUNT(*) AS cnt FROM articles WHERE category = ?")
+      .bind(category)
+      .first();
+    return (row as any)?.cnt ?? 0;
   }
-  const stmt = conn.prepare("SELECT COUNT(*) AS cnt FROM articles");
-  return (stmt.get() as { cnt: number }).cnt;
+  const row = await db
+    .prepare("SELECT COUNT(*) AS cnt FROM articles")
+    .first();
+  return (row as any)?.cnt ?? 0;
 }
 
-export function searchArticles(query: string, limit = 20): Article[] {
-  const conn = getDb();
+export async function searchArticles(query: string, limit = 20): Promise<Article[]> {
+  const db = getDb();
   const pattern = `%${query}%`;
-  const stmt = conn.prepare(
-    `${ARTICLE_SELECT}
-     WHERE a.title_en LIKE ? OR t.title_tvl LIKE ?
-        OR a.body_en LIKE ? OR t.body_tvl LIKE ?
-     ORDER BY a.published_at DESC
-     LIMIT ?`
-  );
-  return stmt.all(pattern, pattern, pattern, pattern, limit) as Article[];
+  const { results } = await db
+    .prepare(
+      `${ARTICLE_SELECT}
+       WHERE a.title_en LIKE ?1 OR t.title_tvl LIKE ?1
+          OR a.body_en LIKE ?1 OR t.body_tvl LIKE ?1
+       ORDER BY a.published_at DESC
+       LIMIT ?2`
+    )
+    .bind(pattern, limit)
+    .all();
+  return results as unknown as Article[];
 }
 
-export function insertFeedback(fb: FeedbackSubmission): void {
-  const conn = getWriteDb();
-  conn.prepare(
-    `INSERT INTO feedback (article_id, paragraph_idx, feedback_type, island, session_id)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(fb.article_id, fb.paragraph_idx, fb.feedback_type, fb.island ?? null, fb.session_id ?? null);
+export async function insertFeedback(fb: FeedbackSubmission): Promise<void> {
+  const db = getDb();
+  await db
+    .prepare(
+      `INSERT INTO feedback (article_id, paragraph_idx, feedback_type, island, session_id)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .bind(fb.article_id, fb.paragraph_idx, fb.feedback_type, fb.island ?? null, fb.session_id ?? null)
+    .run();
 }
 
-export function insertSignal(sig: SignalSubmission): void {
-  const conn = getWriteDb();
-  conn.prepare(
-    `INSERT INTO implicit_signals (article_id, signal_type, paragraph_index, session_id, island)
-     VALUES (?, ?, ?, ?, ?)`
-  ).run(sig.article_id, sig.signal_type, sig.paragraph_index ?? null, sig.session_id ?? null, sig.island ?? null);
+export async function insertSignal(sig: SignalSubmission): Promise<void> {
+  const db = getDb();
+  await db
+    .prepare(
+      `INSERT INTO implicit_signals (article_id, signal_type, paragraph_index, session_id, island)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .bind(sig.article_id, sig.signal_type, sig.paragraph_index ?? null, sig.session_id ?? null, sig.island ?? null)
+    .run();
 }
 
-export function getFateleStats(): FateleStats {
-  const conn = getDb();
-  const total = conn.prepare(
-    `SELECT COUNT(*) AS cnt FROM implicit_signals
-     WHERE created_at >= date('now', 'start of month')`
-  ).get() as { cnt: number };
+export async function getFateleStats(): Promise<FateleStats> {
+  const db = getDb();
+  const total = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM implicit_signals
+       WHERE created_at >= date('now', 'start of month')`
+    )
+    .first();
 
-  const islands = conn.prepare(
-    `SELECT island, COUNT(*) AS count FROM implicit_signals
-     WHERE island IS NOT NULL
-     GROUP BY island
-     ORDER BY count DESC`
-  ).all() as { island: string; count: number }[];
+  const { results: islands } = await db
+    .prepare(
+      `SELECT island, COUNT(*) AS count FROM implicit_signals
+       WHERE island IS NOT NULL
+       GROUP BY island
+       ORDER BY count DESC`
+    )
+    .all();
 
   return {
-    total_this_month: total.cnt,
-    islands,
+    total_this_month: (total as any)?.cnt ?? 0,
+    islands: islands as unknown as { island: string; count: number }[],
   };
 }
