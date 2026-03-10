@@ -121,9 +121,9 @@ for the JW.org parallel corpus:
 
 10. ### Model collapse in football translation pipeline
 
-**Status:** Detection + hiding + article cleaning DONE. Existing translations still collapsed — need re-translation.
+**Status:** Detection + hiding + article cleaning DONE. Re-translation complete.
 
-**Stats:** 41/56 translations (73%) flagged as collapsed. 0/145 articles have promo artifacts.
+**Stats:** 145/145 translated (118 clean, 27 collapsed/hidden). 0/145 articles have promo artifacts.
 
 #### Root cause analysis
 
@@ -179,8 +179,8 @@ Implemented in `scripts/clean_article_bodies.py`:
 
 #### Remaining fixes
 
-1. **Re-translate collapsed articles** — IN PROGRESS. Running `--retry-collapsed`
-   on 36 flagged articles with cleaned/paragraphed source + improved pipeline.
+1. ~~**Re-translate collapsed articles**~~ DONE — retried 36 flagged articles.
+   26 still collapse on all 3 temperature attempts (out-of-domain content).
 
 2. ~~**Increase MAX_TOKENS**~~ DONE — increased from 512 to 1024.
 
@@ -193,7 +193,9 @@ Implemented in `scripts/clean_article_bodies.py`:
 5. ~~**Stop sequence fix**~~ DONE — added `"\nUser:"` and `"User:"` stop
    sequences to prevent model looping.
 
-6. **Translate remaining 89 untranslated articles** — after collapsed retries.
+6. ~~**Translate remaining articles**~~ DONE — 145/145 translated (118 clean,
+   27 collapsed/hidden). Collapsed articles are out-of-domain content (TV
+   listings, subscription pricing, pop culture) that the model can't handle.
 
 11. ### Unstructured language assets (unstruct_lang_data) are not yet in the training graph
 

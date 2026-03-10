@@ -28,13 +28,13 @@ sys.path.insert(0, str(REPO_ROOT))
 from training.common.io import write_json, write_jsonl
 from training.common.manifests import create_manifest, save_manifest
 
-EXTRACTOR_VERSION = "unstructured-seed-v2"
+EXTRACTOR_VERSION = "unstructured-seed-v3"
 
 TATOEBA_MIN_CHARS = 3
 NAME_PATTERN = re.compile(r"\b[A-Z][A-Za-z0-9`ʻ’’ʹ\-’]+(?:\s+[A-Z][A-Za-z0-9`ʻ’’ʹ\-’]+){0,3}\b")
 
 # Part-of-speech markers used to detect new dictionary entries
-_POS_MARKERS = r"(?:n\.|v\.|adj\.|adv\.|prep\.|conj\.|pron\.|int\.|excl\.|num\.|aux\.|art\.)"
+_POS_MARKERS = r"(?:n\.|v\.|adj\.|adv\.|prep\.|conj\.|pron\.|int\.|excl\.|num\.|aux\.|art\.|abbr\.)"
 # A line starts a new entry if first word is followed by a POS marker, source bracket, or numbered def
 _ENTRY_START_RE = re.compile(
     r"^(?P<headword>[`\u02bb\-]?[a-zA-Z\u0101\u0113\u012b\u014d\u016b\u0100\u0112\u012a\u014c\u016a\u0300-\u0301`\u02bb’\u02b9\-]+(?:,\s*[`\u02bb\-]?[a-zA-Z\u0101\u0113\u012b\u014d\u016b\u0100\u0112\u012a\u014c\u016a`\u02bb’\u02b9\-]+)*)"
@@ -56,6 +56,178 @@ _ENTRY_START_RE = re.compile(
 _NAME_PAIR_RE = re.compile(
     r"^(?P<headword>[A-Z][a-zA-Z\u0101\u0113\u012b\u014d\u016b\-]+)\s+(?P<body>[A-Z][a-zA-Z\u0101\u0113\u012b\u014d\u016b\-]+)$"
 )
+# "(Bible name)" entry pattern: "Bethany (Bible name) Petania"
+_BIBLE_NAME_ENTRY_RE = re.compile(
+    r"^(?P<headword>[A-Z][a-zA-Z]+)\s+\(Bible\s+name\)\s+(?P<body>\S+.*)$"
+)
+
+# --- Body parsing helpers (v3) ---
+
+# Regex to strip POS prefix from body text
+_POS_STRIP_RE = re.compile(
+    r"^(?:n\.|v\.|adj\.|adv\.|prep\.|conj\.|pron\.|int\.|excl\.|num\.|aux\.|art\.|abbr\.)\s*"
+)
+
+# Source/dialect bracket at start of body: [Bib.], [Eng.], [Sam.], [O], [N.B.], [Gr.], etc.
+# Matches any bracket at position 0 that is ≤40 chars and doesn't look like a
+# cross-reference (cf., pl., biblical refs) — those are handled by _REF_BRACKET_RE.
+_SOURCE_BRACKET_RE = re.compile(
+    r"^\[(?!cf\.|pl\.|Lit\.\s|Toke\.\s|It'?s\b)[^\]]{1,40}\]\s*"
+)
+
+# Reference brackets to remove: [cf. ...], [biblical refs], [pl. ...], [Lit. "..."], [Toke. ...]
+_REF_BRACKET_RE = re.compile(
+    r"\[(?:cf\.|pl\.|Lit\.\s|Toke\.\s|It'?s\b|[^\]]*\d+:\d+)[^\]]*\]"
+)
+
+# Parenthetical English glosses in en_tvl bodies: (concerning), (of speech), etc.
+_ENGLISH_PAREN_RE = re.compile(r"\([^)]*\)")
+
+# Detect TVL text via strong markers (macron vowels, stress-mark backtick, distinctive function words)
+_TVL_STRONG_RE = re.compile(r"[\u0101\u0113\u012b\u014d\u016b\u0100\u0112\u012a\u014c\u016a]|`[a-zA-Z]")
+_TVL_FUNC_WORD_RE = re.compile(
+    r"\b(?:ne|ko|te|ki|se|ke|ei|mai|atu|toku|taku|tena|koe|koutou|ten[āa]|tenei|kon[āa]|pel[āa]|fua|eiloa|faka\w{3,})\b",
+    re.IGNORECASE,
+)
+
+# Lines that signal appendix / non-dictionary content
+_APPENDIX_MARKERS = {
+    "an introduction to tuvaluan",
+    "bible book abbreviations",
+    "the calendar",
+    "days of the week:",
+    "months of the year:",
+    "everyday expressions",
+    "books of the bible",
+}
+
+
+def _looks_like_tvl(text: str) -> bool:
+    """Heuristic: does this text look like Tuvaluan rather than English?
+
+    Uses density-based thresholds: longer text needs more TVL markers to avoid
+    false positives from English definitions that embed a single TVL word
+    (e.g. "conversion (much more than `fuliga)").
+    """
+    strong = len(_TVL_STRONG_RE.findall(text))
+    func = len(_TVL_FUNC_WORD_RE.findall(text))
+    words = len(text.split())
+    if words == 0:
+        return False
+    # For longer text (>10 words), require higher density of TVL markers
+    # to avoid flagging English definitions with embedded TVL words
+    if words > 10:
+        if strong >= 2:
+            return True
+        if func >= 3:
+            return True
+        if strong >= 1 and func >= 2:
+            return True
+        return False
+    # For shorter text, 1 strong marker or 2 function words is enough
+    if strong >= 1:
+        return True
+    if func >= 2:
+        return True
+    if func >= 1 and words <= 4:
+        return True
+    return False
+
+
+def _strip_ref_brackets(text: str) -> str:
+    """Remove cross-reference and biblical citation brackets."""
+    return _REF_BRACKET_RE.sub("", text)
+
+
+def _split_numbered_senses(text: str) -> list[str]:
+    """Split '1. def one 2. def two 3. def three' into individual senses."""
+    parts = re.split(r"(?:^|\s)(\d+)\.\s", text)
+    if len(parts) <= 1:
+        return [text.strip()] if text.strip() else []
+    senses = []
+    for i in range(2, len(parts), 2):
+        sense = parts[i].strip()
+        if sense:
+            senses.append(sense)
+    return senses if senses else [text.strip()]
+
+
+def _extract_definition_text(text: str) -> str:
+    """Extract the English definition, removing TVL example sentences and their translations."""
+    parts = re.split(r"(?<=[.!?:;])\s+", text)
+    definition_parts: list[str] = []
+    for part in parts:
+        part = part.strip()
+        if not part:
+            continue
+        if _looks_like_tvl(part):
+            break
+        definition_parts.append(part)
+    result = " ".join(definition_parts)
+    result = result.rstrip(".,;: ")
+    result = re.sub(r"\s+", " ", result).strip()
+    return result
+
+
+def _clean_en_tvl_body(body: str) -> str:
+    """Clean an en_tvl body: strip POS, English parens, ref brackets."""
+    cleaned = body.strip()
+    # Strip leading POS markers iteratively — handles compound (v.adj.) and sequential (n. v.)
+    prev = None
+    while prev != cleaned:
+        prev = cleaned
+        cleaned = _POS_STRIP_RE.sub("", cleaned).strip()
+    # Strip POS markers that appear after semicolons in multi-POS entries
+    # e.g. "fakaūsu; adj. ūsu" → "fakaūsu; ūsu"
+    cleaned = re.sub(
+        r";\s*(?:n\.|v\.|adj\.|adv\.|prep\.|conj\.|pron\.|int\.|excl\.|num\.|aux\.|art\.|abbr\.)\s*",
+        "; ",
+        cleaned,
+    )
+    # Remove English parentheticals
+    cleaned = _ENGLISH_PAREN_RE.sub("", cleaned)
+    # Re-strip POS after paren removal — e.g. "n. (bring to a halt) v. fakatu" → "v. fakatu" → "fakatu"
+    prev = None
+    while prev != cleaned:
+        prev = cleaned
+        cleaned = _POS_STRIP_RE.sub("", cleaned).strip()
+    cleaned = _strip_ref_brackets(cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    cleaned = cleaned.rstrip(".,;: ")
+    return cleaned
+
+
+def _parse_tvl_en_body(body: str) -> list[str]:
+    """Parse a tvl_en body into a list of clean English definitions.
+
+    Handles source brackets, numbered senses, POS markers, example
+    sentences, and cross-references.
+    """
+    cleaned = _SOURCE_BRACKET_RE.sub("", body).strip()
+    cleaned = _strip_ref_brackets(cleaned)
+
+    senses = _split_numbered_senses(cleaned)
+    definitions: list[str] = []
+    for sense in senses:
+        sense = sense.strip()  # strip whitespace before POS removal (e.g. after bracket removal)
+        # Strip POS markers and source brackets iteratively — handles:
+        # - compound POS: adj./v.  - sequential POS: adj. v.
+        # - POS before bracket: n. [O] armpit  - bracket before POS: [Eng.] n. Easter
+        prev = None
+        while prev != sense:
+            prev = sense
+            sense = re.sub(
+                r"^/?" + _POS_MARKERS + r"\s*", "", sense
+            ).strip()
+            sense = _SOURCE_BRACKET_RE.sub("", sense).strip()
+        if not sense:
+            continue
+        defn = _extract_definition_text(sense)
+        if defn and len(defn) >= 2:
+            definitions.append(defn)
+    return definitions
+
+
 FLORA_FAUNA_KEYWORDS = {
     "plant",
     "tree",
@@ -241,6 +413,26 @@ def _looks_like_noise_line(line: str) -> bool:
     # "Tuvaluan-English" or "English-Tuvaluan" section headers
     if re.fullmatch(r"(?:Tuvaluan|English)[\-—](?:Tuvaluan|English)", text):
         return True
+    # Appendix / non-dictionary content boundaries
+    low = text.lower()
+    if low in _APPENDIX_MARKERS:
+        return True
+    if text.startswith("An Introduction to Tuvaluan"):
+        return True
+    if text.startswith("Bible Book Abbreviation"):
+        return True
+    # Appendix title fragments (appear as separate uppercase lines)
+    if text in {"AN", "INTRODUCTION", "TO TUVALUAN", "AN INTRODUCTION"}:
+        return True
+    # Bible abbreviation table lines: "Genesis: Gen.", "Exodus: Ex.", etc.
+    if re.fullmatch(r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*:\s+\S.*", text):
+        return True
+    # Digit-prefixed Bible abbreviation lines: "1 Samuel: 1 Sam.", "2 Kings: 1 Ki."
+    if re.fullmatch(r"\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*:\s+\S.*", text):
+        return True
+    # Digit-prefixed standalone book names: "1 Samuelu", "2 Tupu", "3 Ioane"
+    if re.fullmatch(r"\d+\s+[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*", text):
+        return True
     return False
 
 
@@ -265,6 +457,11 @@ def _try_parse_entry_start(line: str) -> tuple[str, str] | None:
 
     # Try name pair pattern: "Abraham Apelaamo"
     m = _NAME_PAIR_RE.match(text)
+    if m:
+        return m.group("headword"), m.group("body")
+
+    # Try (Bible name) pattern: "Bethany (Bible name) Petania"
+    m = _BIBLE_NAME_ENTRY_RE.match(text)
     if m:
         return m.group("headword"), m.group("body")
 
@@ -318,6 +515,10 @@ def extract_tatoeba(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
 
             en = _normalize(parts[0])
             tvl = _normalize(parts[1])
+
+            # Fix known OCR typo in Tatoeba source
+            tvl = tvl.replace("tamaflne", "tamafine")
+
             if len(en) < TATOEBA_MIN_CHARS or len(tvl) < TATOEBA_MIN_CHARS:
                 stats["too_short"] += 1
                 rejected.append(
@@ -340,7 +541,7 @@ def extract_tatoeba(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, An
                     "en": en,
                     "content_type": "translation_phrase",
                     "domain": "tatoeba",
-                    "alignment_method": "dictionary_entry",
+                    "alignment_method": "tatoeba_pair",
                     "alignment_confidence": 1.0,
                     "doc_id": None,
                     "source_url_tvl": source_name,
@@ -391,7 +592,9 @@ def extract_dictionary(
         nolayout_text.parent.mkdir(parents=True, exist_ok=True)
         _run_pdftotext(dictionary_pdf, nolayout_text, layout=False)
 
-    lines = nolayout_text.read_text(encoding="utf-8", errors="replace").splitlines()
+    # Use split('\n') not splitlines() — the latter splits on \f (form feed)
+    # creating 509 phantom empty lines that shift all line numbers.
+    lines = nolayout_text.read_text(encoding="utf-8", errors="replace").split("\n")
     section = SectionTracker()
     current_section: str | None = None
 
@@ -406,65 +609,21 @@ def extract_dictionary(
     current_body_parts: list[str] = []
     current_start_line: int = 0
 
-    def _emit_entry() -> None:
-        """Emit the accumulated entry as a row."""
-        nonlocal current_headword, current_body_parts, current_start_line
-        if current_headword is None or current_section is None:
-            return
-
-        body = _normalize(" ".join(current_body_parts))
-        lemma = current_headword
-
-        if not body or len(body) < 6:
-            stats["too_short"] += 1
-            rejected.append({
-                "source_file": nolayout_text.name,
-                "source_row": current_start_line,
-                "source_section": current_section,
-                "reason": "too_short",
-                "lemma": lemma,
-                "body": body,
-            })
-            return
-
-        if any(tok in body.lower() for tok in {"see also", "index", "publisher"}):
-            stats["noise_body"] += 1
-            return
-
-        stats["entries_parsed"] += 1
-
-        if current_section == "tvl_en":
-            counters["tvl_en"] += 1
-            if max_entries and counters["tvl_en"] > max_entries:
-                return
-            row_id = f"unstruct:dict_tvl_en:{counters['tvl_en']:06d}"
-            tvl = lemma
-            en = body
-            conf = 0.82
-        else:
-            counters["en_tvl"] += 1
-            if max_entries and counters["en_tvl"] > max_entries:
-                return
-            row_id = f"unstruct:dict_en_tvl:{counters['en_tvl']:06d}"
-            en = lemma
-            tvl = body
-            conf = 0.72
-
+    def _append_row(
+        row_id: str,
+        tvl: str,
+        en: str,
+        conf: float,
+        parse_mode: str = "dictionary_stream_v3",
+    ) -> None:
+        """Append a single cleaned row to the output."""
         tvl_n = _normalize(tvl)
         en_n = _normalize(en)
         tvl_chars = len(tvl_n)
         en_chars = len(en_n)
 
         if tvl_chars < 3 or en_chars < 3:
-            stats["too_short"] += 1
-            rejected.append({
-                "source_file": nolayout_text.name,
-                "source_row": current_start_line,
-                "source_section": current_section,
-                "reason": "too_short",
-                "lemma": lemma,
-                "body": body,
-            })
+            stats["too_short_cleaned"] += 1
             return
 
         rows.append({
@@ -492,7 +651,7 @@ def extract_dictionary(
                 "source_section": current_section,
                 "source_cell": None,
                 "source_pdf_page": None,
-                "parse_mode": "dictionary_stream_v2",
+                "parse_mode": parse_mode,
                 "ocr_conf_mean": None,
                 "ocr_conf_p50": None,
                 "text_confidence": "medium",
@@ -500,7 +659,129 @@ def extract_dictionary(
             },
         })
 
+    def _emit_entry() -> None:
+        """Emit the accumulated entry as one or more cleaned rows."""
+        nonlocal current_headword, current_body_parts, current_start_line
+        if current_headword is None or current_section is None:
+            return
+
+        body = _normalize(" ".join(current_body_parts))
+        lemma = current_headword
+
+        if not body or len(body) < 3:
+            stats["too_short"] += 1
+            rejected.append({
+                "source_file": nolayout_text.name,
+                "source_row": current_start_line,
+                "source_section": current_section,
+                "reason": "too_short",
+                "lemma": lemma,
+                "body": body,
+            })
+            return
+
+        if any(tok in body.lower() for tok in {"see also", "index", "publisher"}):
+            stats["noise_body"] += 1
+            return
+
+        # Reject excessively long bodies (appendix contamination)
+        if len(body) > 2000:
+            stats["body_too_long"] += 1
+            rejected.append({
+                "source_file": nolayout_text.name,
+                "source_row": current_start_line,
+                "source_section": current_section,
+                "reason": "body_too_long",
+                "lemma": lemma,
+                "body": body[:200],
+            })
+            return
+
+        stats["entries_parsed"] += 1
+
+        if current_section == "en_tvl":
+            # --- English headword → Tuvaluan translations ---
+            cleaned_tvl = _clean_en_tvl_body(body)
+            if not cleaned_tvl or len(cleaned_tvl) < 2:
+                stats["empty_after_clean"] += 1
+                return
+
+            counters["en_tvl"] += 1
+            if max_entries and counters["en_tvl"] > max_entries:
+                return
+
+            # Confidence: name pairs get lower score
+            is_name = _is_name_like(lemma) and _is_name_like(cleaned_tvl)
+            conf = 0.65 if is_name else 0.80
+
+            _append_row(
+                row_id=f"unstruct:dict_en_tvl:{counters['en_tvl']:06d}",
+                tvl=cleaned_tvl,
+                en=lemma,
+                conf=conf,
+            )
+        else:
+            # --- Tuvaluan headword → English definitions ---
+            definitions = _parse_tvl_en_body(body)
+            if not definitions:
+                # Fallback: strip brackets and POS iteratively
+                fallback = _SOURCE_BRACKET_RE.sub("", body).strip()
+                fallback = _strip_ref_brackets(fallback).strip()
+                prev = None
+                while prev != fallback:
+                    prev = fallback
+                    fallback = re.sub(
+                        r"^/?" + _POS_MARKERS + r"\s*", "", fallback
+                    ).strip()
+                    fallback = _SOURCE_BRACKET_RE.sub("", fallback).strip()
+                fallback = fallback.rstrip(".,;: ")
+                if fallback and len(fallback) >= 2:
+                    definitions = [fallback]
+                else:
+                    stats["empty_after_clean"] += 1
+                    return
+
+            for defn in definitions:
+                counters["tvl_en"] += 1
+                if max_entries and counters["tvl_en"] > max_entries:
+                    return
+
+                is_name = _is_name_like(lemma) and _is_name_like(defn)
+                conf = 0.65 if is_name else 0.85
+
+                _append_row(
+                    row_id=f"unstruct:dict_tvl_en:{counters['tvl_en']:06d}",
+                    tvl=lemma,
+                    en=defn,
+                    conf=conf,
+                )
+
+    in_appendix = False
+
     for line_no, line in enumerate(lines, start=1):
+        # Detect appendix boundaries — stop parsing dictionary entries
+        line_clean = line.replace("\f", " ").strip()
+        if (
+            line_clean.startswith("An Introduction to Tuvaluan")
+            or line_clean == "Bible Book Abbreviations"
+            or (current_section == "tvl_en" and re.match(r"^Genesis:\s+Gen\b", line_clean))
+        ):
+            if current_section is not None:
+                _emit_entry()
+                current_headword = None
+                current_body_parts = []
+                in_appendix = True
+                stats["appendix_boundary_hit"] += 1
+
+        if in_appendix:
+            # Check if we've switched back to a dictionary section
+            switched = section.update(line, line_no=line_no)
+            if switched:
+                in_appendix = False
+                current_section = switched
+                stats[f"section_switch_{current_section}"] += 1
+            continue
+
         switched = section.update(line, line_no=line_no)
         if switched:
             _emit_entry()
@@ -514,6 +795,13 @@ def extract_dictionary(
             continue
 
         if _looks_like_noise_line(line):
+            # Letter dividers (single uppercase letter) mark entry boundaries —
+            # emit the current entry so it doesn't absorb text from the next letter.
+            text_stripped = line.strip()
+            if re.fullmatch(r"[A-Z]", text_stripped):
+                _emit_entry()
+                current_headword = None
+                current_body_parts = []
             continue
 
         # Try to detect a new entry start

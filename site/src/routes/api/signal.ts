@@ -1,7 +1,7 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { insertSignal } from "~/lib/db";
 
-const VALID_TYPES = new Set(["share", "reveal", "flag"]);
+const VALID_TYPES = new Set(["share", "reveal", "thumbs_up", "thumbs_down"]);
 
 export async function POST(event: APIEvent) {
   try {

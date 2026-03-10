@@ -5,7 +5,8 @@ export async function POST(event: APIEvent) {
   try {
     const body = await event.request.json();
 
-    if (!body.article_id || typeof body.paragraph_idx !== "number" || body.feedback_type !== "flag") {
+    const validTypes = new Set(["thumbs_up", "thumbs_down"]);
+    if (!body.article_id || typeof body.paragraph_idx !== "number" || !validTypes.has(body.feedback_type)) {
       return new Response(JSON.stringify({ error: "Invalid feedback" }), {
         status: 400,
         headers: { "Content-Type": "application/json" },

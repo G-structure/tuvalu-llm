@@ -79,12 +79,14 @@ export default function FatelePage() {
       <div class="mt-8 p-4 bg-white rounded-xl text-sm text-gray-600 leading-relaxed border border-[var(--sky-dark)]">
         <p class="font-medium text-gray-900 mb-2">Pefea e fesoasoani ai?</p>
         <p>
-          Faitau tala i te gagana Tuvalu. Kapiti te [?] pe afai e seki tonu te
-          kupu. Tou fakailoga e fesoasoani ki te fakalelei o te masini liliu.
+          Faitau tala i te gagana Tuvalu. Kapiti te 👍🏾 pe afai e tonu te
+          kupu, pe te 👎🏾 pe afai e seki tonu. Tou fakailoga e fesoasoani ki
+          te fakalelei o te masini liliu.
         </p>
         <p class="mt-2 text-gray-400">
-          Read articles in Tuvaluan. Tap [?] if a translation sounds wrong.
-          Your feedback helps improve the translation model.
+          Read articles in Tuvaluan. Tap 👍🏾 if a translation sounds good, or
+          👎🏾 if it sounds wrong. Your feedback helps improve the translation
+          model.
         </p>
       </div>
     </main>

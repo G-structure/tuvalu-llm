@@ -28,14 +28,14 @@ export interface Category {
 export interface FeedbackSubmission {
   article_id: string;
   paragraph_idx: number;
-  feedback_type: "flag";
+  feedback_type: "thumbs_up" | "thumbs_down";
   island?: string;
   session_id?: string;
 }
 
 export interface SignalSubmission {
   article_id: string;
-  signal_type: "share" | "reveal" | "flag";
+  signal_type: "share" | "reveal" | "thumbs_up" | "thumbs_down";
   paragraph_index?: number;
   session_id?: string;
   island?: string;

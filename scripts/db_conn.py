@@ -27,6 +27,7 @@ def get_db():
         return get_d1()
     else:
         conn = sqlite3.connect(str(DB_PATH))
+        conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 

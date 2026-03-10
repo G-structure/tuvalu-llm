@@ -64,11 +64,11 @@ function BilingualParagraph(props: {
   articleId: string;
 }) {
   const [showEn, setShowEn] = createSignal(false);
-  const [flagged, setFlagged] = createSignal(false);
+  const [vote, setVote] = createSignal<"thumbs_up" | "thumbs_down" | null>(null);
 
-  const handleFlag = () => {
-    if (flagged()) return;
-    setFlagged(true);
+  const handleVote = (type: "thumbs_up" | "thumbs_down") => {
+    if (vote() === type) return;
+    setVote(type);
     const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
     const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
     fetch("/api/feedback", {
@@ -77,7 +77,7 @@ function BilingualParagraph(props: {
       body: JSON.stringify({
         article_id: props.articleId,
         paragraph_idx: props.index,
-        feedback_type: "flag",
+        feedback_type: type,
         island,
         session_id: session,
       }),
@@ -97,16 +97,28 @@ function BilingualParagraph(props: {
       <Show when={props.mode === "tv" || props.mode === "tv+en"}>
         <div class="flex items-start gap-2">
           <p class="flex-1 text-base leading-relaxed text-gray-900">{props.tvl}</p>
-          <button
-            onClick={handleFlag}
-            class={`shrink-0 mt-0.5 text-xs cursor-pointer bg-transparent border-none p-1 min-h-0 rounded ${
-              flagged() ? "text-amber-500" : "text-gray-300 hover:text-gray-500"
-            }`}
-            title="Seki tonu? (Doesn't sound right?)"
-            aria-label="Flag this paragraph"
-          >
-            [?]
-          </button>
+          <div class="shrink-0 flex gap-1 mt-0.5">
+            <button
+              onClick={() => handleVote("thumbs_up")}
+              class={`cursor-pointer bg-transparent border-none p-0.5 min-h-0 rounded text-base leading-none ${
+                vote() === "thumbs_up" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
+              }`}
+              title="Tonu! (Good translation)"
+              aria-label="Good translation"
+            >
+              👍🏾
+            </button>
+            <button
+              onClick={() => handleVote("thumbs_down")}
+              class={`cursor-pointer bg-transparent border-none p-0.5 min-h-0 rounded text-base leading-none ${
+                vote() === "thumbs_down" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
+              }`}
+              title="Seki tonu (Bad translation)"
+              aria-label="Bad translation"
+            >
+              👎🏾
+            </button>
+          </div>
         </div>
       </Show>
 
