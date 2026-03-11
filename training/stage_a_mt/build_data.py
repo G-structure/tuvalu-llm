@@ -15,6 +15,7 @@ Outputs:
 
 Design:
 - Keeps aligned JSONL files as canonical source of truth.
+- Applies macron correction and glottal normalization from clean_pipeline.
 - Generates BOTH directions from each accepted pair.
 - Deterministic splits (Bible by book, articles by doc_id, daily text by date,
   everything else by hash).
@@ -86,10 +87,164 @@ def _normalize_for_hash(text: str) -> str:
     return text
 
 
+# Zero-width and invisible characters to strip
+_INVISIBLE_CHARS = re.compile(
+    "[\u200b\u200c\u200d\u200e\u200f"   # zero-width spaces/joiners/marks
+    "\ufeff"                              # BOM / zero-width no-break space
+    "\u00ad"                              # soft hyphen
+    "\u2060"                              # word joiner
+    "\u2028\u2029"                        # line/paragraph separator
+    "]"
+)
+
+# HTML entities that might survive scraping
+_HTML_ENTITIES = {
+    "&amp;": "&", "&lt;": "<", "&gt;": ">",
+    "&nbsp;": " ", "&quot;": '"', "&#39;": "'",
+    "&apos;": "'",
+    "&mdash;": "—", "&ndash;": "–", "&hellip;": "…",
+    "&lsquo;": "\u2018", "&rsquo;": "\u2019",
+    "&ldquo;": "\u201c", "&rdquo;": "\u201d",
+    "&prime;": "\u2032", "&Prime;": "\u2033",
+    "&trade;": "\u2122", "&reg;": "\u00ae",
+    "&copy;": "\u00a9", "&para;": "\u00b6",
+    "&sect;": "\u00a7", "&deg;": "\u00b0",
+    "&frac12;": "\u00bd", "&frac14;": "\u00bc",
+    "&frac34;": "\u00be", "&times;": "\u00d7",
+}
+
+# Inline publication cross-references: (;w18.067 ¶16) or trailing —w16.0718 ¶4-5.
+_INLINE_PUB_REF_RE = re.compile(
+    r"\s*\(;?[a-z]{1,15}[\-.]?[^)]{0,80}¶[\d\-]+[^)]{0,40}\)"
+    r"|[—\-]\s*[a-z]{1,6}\d{2}\.\d+\s*¶[\d\-]+\.?"
+)
+
+# Scripture reference stubs: () empty parens, (Faitau te.) / (Read.)
+_SCRIPTURE_STUB_RE = re.compile(
+    r"\s*\((?:Faitau\s+te|Read)\.\)"
+    r"|\s*\(\)"
+)
+
+# Trailing reference stubs: —. / —;read. / —Compare. / bare —
+_TRAILING_REF_STUB_RE = re.compile(
+    r"—[\s;,]*(?:"
+    r"[Ff]aitau(?:\s+te)?|[Rr]ead"
+    r"|[Ff]akatusa(?:\s+ki\s+te)?|[Cc]ompare"
+    r"|[Oo]noono(?:\s+ki\s+te)?|[Ss]ee"
+    r"|,?\s*(?:ftn|footnote|fml)"
+    r"|,?\s*(?:NW;?|Tusi\s+Paia[^.]*)"
+    r")?\.?\s*$"
+)
+
+# Inline ",NW." translation edition markers
+_INLINE_NW_RE = re.compile(r",\s*NW\.?")
+
+# Fix missing spaces at sentence boundaries (e.g., "Night.And" → "Night. And")
+_MISSING_SPACE_RE = re.compile(r"([.!?])([A-ZĀĒĪŌŪÀa-z])")
+
+
 def _normalize_preserve_structure(text: str) -> str:
     text = unicodedata.normalize("NFC", text)
+    text = _INVISIBLE_CHARS.sub("", text)
+    for entity, replacement in _HTML_ENTITIES.items():
+        text = text.replace(entity, replacement)
+    # Strip pub refs, scripture stubs, trailing refs, NW markers
+    text = _INLINE_PUB_REF_RE.sub("", text)
+    text = _SCRIPTURE_STUB_RE.sub("", text)
+    text = _TRAILING_REF_STUB_RE.sub("", text)
+    text = _TRAILING_REF_STUB_RE.sub("", text)  # apply twice for chained stubs
+    text = _INLINE_NW_RE.sub("", text)
+    text = text.replace(" ()", "").replace("()", "")
+    text = _MISSING_SPACE_RE.sub(r"\1 \2", text)
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
-    return "\n".join(lines).strip()
+    text = "\n".join(lines).strip()
+    text = text.lstrip(". ")
+    return text
+
+
+# ── Glottal stop normalization ───────────────────────────────────────────────
+# Normalize variant glottal marks to U+2035 (reversed prime, corpus standard)
+_GLOTTAL_VARIANTS = str.maketrans({
+    "\u02cb": "\u2035",  # modifier letter grave accent
+    "\u02bb": "\u2035",  # modifier letter turned comma
+    "\u0060": "\u2035",  # grave accent
+    "\u2019": "\u2035",  # right single quotation mark
+    "\u0027": "\u2035",  # ASCII apostrophe
+})
+
+
+# ── Dictionary-guided macron correction ──────────────────────────────────────
+_MACRON_MAP: dict[str, str] | None = None
+_MACRON_TO_BARE = str.maketrans("āēīōūĀĒĪŌŪ", "aeiouAEIOU")
+
+
+def _load_macron_map() -> dict[str, str]:
+    """Build macron correction map from dictionary data.
+
+    Only includes corrections where:
+    - The bare (macron-stripped) form does NOT appear as a separate dictionary entry
+    - There is exactly one macronized form (unambiguous)
+    - The word is at least 3 characters (skip short function words)
+    """
+    global _MACRON_MAP
+    if _MACRON_MAP is not None:
+        return _MACRON_MAP
+
+    import json
+
+    repo_root = get_repo_root()
+    aligned_dir = repo_root / "data" / "aligned"
+
+    all_entries: set[str] = set()
+    macron_words: dict[str, set[str]] = {}
+
+    for fname in ("tuvalu_dictionary.jsonl", "tuvalu_app.jsonl"):
+        fpath = aligned_dir / fname
+        if not fpath.exists():
+            continue
+        for line in open(fpath):
+            r = json.loads(line)
+            tvl = r["tvl"].strip()
+            if " " in tvl or "/" in tvl or "volume_up" in tvl:
+                continue
+            all_entries.add(tvl.lower())
+            if any(c in tvl for c in "āēīōūĀĒĪŌŪ"):
+                bare = tvl.lower().translate(_MACRON_TO_BARE)
+                if bare != tvl.lower():
+                    macron_words.setdefault(bare, set()).add(tvl.lower())
+
+    _MACRON_MAP = {}
+    for bare, forms in macron_words.items():
+        if len(forms) == 1 and len(bare) >= 3 and bare not in all_entries:
+            _MACRON_MAP[bare] = next(iter(forms))
+
+    return _MACRON_MAP
+
+
+def _apply_macron_correction(text: str) -> str:
+    """Apply dictionary-guided macron corrections to TVL text."""
+    macron_map = _load_macron_map()
+    if not macron_map:
+        return text
+
+    words = text.split()
+    corrected = False
+    for i, word in enumerate(words):
+        prefix = word[:len(word) - len(word.lstrip(".,;:!?()\"—‵\u201c\u201d\u2018\u2019"))]
+        suffix = word[len(word) - len(word.rstrip(".,;:!?()\"—‵\u201c\u201d\u2018\u2019")):] if word.rstrip(".,;:!?()\"—‵\u201c\u201d\u2018\u2019") != word else ""
+        core = word[len(prefix):len(word) - len(suffix)] if suffix else word[len(prefix):]
+        lookup = core.lower()
+
+        if lookup in macron_map:
+            replacement = macron_map[lookup]
+            if core[0].isupper():
+                replacement = replacement[0].upper() + replacement[1:]
+            if core.isupper():
+                replacement = replacement.upper()
+            words[i] = prefix + replacement + suffix
+            corrected = True
+
+    return " ".join(words) if corrected else text
 
 
 def _row_quality_reasons(
@@ -111,7 +266,12 @@ def _row_quality_reasons(
 
     tvl_chars = int(row.get("tvl_chars") or len(tvl))
     en_chars = int(row.get("en_chars") or len(en))
-    if tvl_chars < min_chars or en_chars < min_chars:
+    content_type = row.get("content_type", "")
+    is_dict = content_type in ("word", "expression")
+
+    # Dictionary entries are naturally short — use relaxed bounds
+    effective_min_chars = 1 if is_dict else min_chars
+    if tvl_chars < effective_min_chars or en_chars < effective_min_chars:
         reasons.append("too_short")
     if tvl_chars > max_chars or en_chars > max_chars:
         reasons.append("too_long")
@@ -120,7 +280,9 @@ def _row_quality_reasons(
     if ratio is None or ratio == 0:
         if en_chars > 0:
             ratio = tvl_chars / en_chars
-    if ratio and (ratio < ratio_min or ratio > ratio_max):
+    effective_ratio_min = 0.005 if is_dict else ratio_min
+    effective_ratio_max = 20.0 if is_dict else ratio_max
+    if ratio and (ratio < effective_ratio_min or ratio > effective_ratio_max):
         reasons.append("bad_length_ratio")
 
     confidence = float(row.get("alignment_confidence") or 0.0)
@@ -329,9 +491,19 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     rejected: list[dict[str, Any]] = []
     seen_pair_hashes: set[str] = set()
 
+    macron_corrections = 0
     for row in raw_rows:
         row = dict(row)
-        row["tvl"] = _normalize_preserve_structure(str(row.get("tvl", "")))
+        tvl = _normalize_preserve_structure(str(row.get("tvl", "")))
+        # Glottal stop normalization
+        tvl = tvl.translate(_GLOTTAL_VARIANTS)
+        # Macron correction for non-dictionary text
+        if row.get("content_type") not in ("word", "expression"):
+            tvl_corrected = _apply_macron_correction(tvl)
+            if tvl_corrected != tvl:
+                macron_corrections += 1
+                tvl = tvl_corrected
+        row["tvl"] = tvl
         row["en"] = _normalize_preserve_structure(str(row.get("en", "")))
 
         reasons = _row_quality_reasons(
@@ -358,6 +530,9 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
             rejected.append({"row": row, "reasons": reasons})
             continue
         accepted.append(row)
+
+    if macron_corrections:
+        print(f"  Macron corrections applied to {macron_corrections:,} rows")
 
     # Config-driven holdout books (fall back to module defaults)
     test_books = set(cfg["test_books"]) if "test_books" in cfg else None

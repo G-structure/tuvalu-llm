@@ -11,6 +11,7 @@ All scripts in the tv2en project. Run everything with `uv run` unless noted othe
 | **Splits** | `build_splits.py` → `validate_splits.py` | Leak-proof train/val/test splits |
 | **Training data** | `render_training_data.py` | Chat-formatted JSONL for Tinker |
 | **Training** | `train_stage_a_translation.py` | Fine-tune translation LoRA |
+| **Local MLX prep** | `prepare_local_mlx_training.py` | Export Stage A / Stage B runs for local MLX-LM |
 | **Eval** | `eval_stage_a_translation.py` | chrF++/BLEU on test set |
 | **Football** | `pipeline_football.py` | Scrape → translate → deploy football news |
 
@@ -212,6 +213,17 @@ uv run scripts/train_stage_b_agent.py --config configs/stage_b_agent.json --pilo
 ```
 
 Requires: `TINKER_API_KEY` env var.
+
+### `prepare_local_mlx_training.py`
+Builds a local MLX-LM run directory for either Stage A or Stage B using the existing repo configs and datasets.
+
+```bash
+uv run python scripts/prepare_local_mlx_training.py \
+  --config configs/stage_a_translation_qwen30b_base.json \
+  --mlx-model mlx-community/Qwen3-30B-A3B-Base-4bit
+```
+
+See `docs/LOCAL_MLX_TRAINING.md` for the local workflow and model-specific notes.
 
 ---
 

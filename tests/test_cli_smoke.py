@@ -10,6 +10,7 @@ SCRIPTS = [
     "scripts/train_stage_a_translation.py",
     "scripts/eval_stage_a_translation.py",
     "scripts/export_stage_a_translation.py",
+    "scripts/prepare_local_mlx_training.py",
     "scripts/build_stage_b_sources.py",
     "scripts/generate_stage_b_synthetic_tvl.py",
     "scripts/build_stage_b_mix.py",
@@ -70,6 +71,11 @@ def test_eval_stage_b_help():
 
 def test_export_stage_a_help():
     result = _run_help("scripts/export_stage_a_translation.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_prepare_local_mlx_help():
+    result = _run_help("scripts/prepare_local_mlx_training.py")
     assert result.returncode == 0, result.stderr
 
 
