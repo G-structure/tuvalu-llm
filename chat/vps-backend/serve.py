@@ -158,8 +158,8 @@ def main():
 
     state.init()
 
-    server = HTTPServer(("127.0.0.1", args.port), Handler)
-    logger.info("TVL Chat backend on http://127.0.0.1:%d", args.port)
+    server = HTTPServer(("0.0.0.0", args.port), Handler)
+    logger.info("TVL Chat backend on http://0.0.0.0:%d", args.port)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
