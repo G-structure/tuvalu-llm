@@ -90,7 +90,7 @@ The script prints a JSON summary with the generated run directory. Inside that d
 The generated launcher runs:
 
 ```bash
-python -m mlx_lm.lora --config /path/to/mlx_lora_config.yaml --mask-prompt
+python -m mlx_lm lora --config /path/to/mlx_lora_config.yaml --mask-prompt
 ```
 
 Run the generated script directly:

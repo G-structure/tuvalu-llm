@@ -125,16 +125,19 @@ uv run scripts/build_stage_a_mt_data.py --config configs/stage_a_translation_qwe
 
 ### `build_stage_b_sources.py`
 Downloads and normalizes English capability datasets (GSM8K, XLAM, MBPP, SQuAD, CNN/DailyMail, UltraChat, etc.) for Stage B synthetic generation with token budgeting.
+It can also normalize local private chat JSONL into a separate Stage B pool when configured with the `private_tvl_chat` loader and `output_subdir: "real_tvl_chat"`.
 
 ```bash
 uv run scripts/build_stage_b_sources.py --list                # list available datasets
 uv run scripts/build_stage_b_sources.py --config configs/...  # build all
 uv run scripts/build_stage_b_sources.py --datasets gsm8k mbpp # specific datasets only
 # Output: data/finetune/stage_b_sources/english_normalized/*.jsonl
+#         data/finetune/stage_b_sources/real_tvl_chat/*.jsonl (optional local TVL chat)
 ```
 
 ### `build_stage_b_mix.py`
 Builds the Stage B mixed training dataset by combining anchor translation data with synthetic TVL capability data at configured mix ratios.
+Supports an optional fourth `real_tvl_chat` pool sourced from `data/finetune/stage_b_sources/real_tvl_chat/`.
 
 ```bash
 uv run scripts/build_stage_b_mix.py --config configs/stage_b_agent.json

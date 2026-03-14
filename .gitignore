@@ -3,7 +3,7 @@
 
 # Claude Code
 .claude/
-
+.venv-mlx-smoke
 # Data (large, not tracked)
 data/
 logs/

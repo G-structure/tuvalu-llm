@@ -408,7 +408,7 @@ def _build_mlx_config(
 
 
 def _write_run_script(path: Path, *, config_path: Path, mask_prompt: bool) -> None:
-    cmd = f'python -m mlx_lm.lora --config "{config_path}"'
+    cmd = f'python -m mlx_lm lora --config "{config_path}"'
     if mask_prompt:
         cmd += " --mask-prompt"
     script = "#!/usr/bin/env bash\nset -euo pipefail\n\n" + cmd + "\n"

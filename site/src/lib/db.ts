@@ -1,8 +1,20 @@
 import type { Article, Category, FeedbackSubmission, SignalSubmission, FateleStats } from "./types";
 
 // D1 binding is injected by Cloudflare Workers runtime
-function getDb(): D1Database {
-  return (process.env as any).DB || (globalThis as any).__env__?.DB;
+// In dev mode, lazily initialize via wrangler's getPlatformProxy()
+let _devProxy: any = null;
+
+async function getDb(): Promise<D1Database> {
+  const db = (process.env as any).DB || (globalThis as any).__env__?.DB;
+  if (db) return db;
+
+  // Dev fallback: use wrangler's local D1 emulation
+  if (!_devProxy) {
+    const { getPlatformProxy } = await import("wrangler");
+    _devProxy = await getPlatformProxy({ persist: { path: ".wrangler/state/v3" } });
+    (globalThis as any).__env__ = _devProxy.env;
+  }
+  return _devProxy.env.DB;
 }
 
 const ARTICLE_SELECT = `
@@ -24,7 +36,7 @@ export async function getArticles(
   offset = 0,
   category?: string
 ): Promise<Article[]> {
-  const db = getDb();
+  const db = await getDb();
   if (category) {
     const { results } = await db
       .prepare(
@@ -49,7 +61,7 @@ export async function getArticles(
 }
 
 export async function getArticle(id: string): Promise<Article | undefined> {
-  const db = getDb();
+  const db = await getDb();
   const result = await db
     .prepare(`${ARTICLE_SELECT} WHERE a.id = ?`)
     .bind(id)
@@ -58,7 +70,7 @@ export async function getArticle(id: string): Promise<Article | undefined> {
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const db = getDb();
+  const db = await getDb();
   const { results } = await db
     .prepare(
       `SELECT category AS slug, COUNT(*) AS count
@@ -72,7 +84,7 @@ export async function getCategories(): Promise<Category[]> {
 }
 
 export async function getArticleCount(category?: string): Promise<number> {
-  const db = getDb();
+  const db = await getDb();
   if (category) {
     const row = await db
       .prepare("SELECT COUNT(*) AS cnt FROM articles WHERE category = ?")
@@ -87,7 +99,7 @@ export async function getArticleCount(category?: string): Promise<number> {
 }
 
 export async function searchArticles(query: string, limit = 20): Promise<Article[]> {
-  const db = getDb();
+  const db = await getDb();
   const pattern = `%${query}%`;
   const { results } = await db
     .prepare(
@@ -103,7 +115,7 @@ export async function searchArticles(query: string, limit = 20): Promise<Article
 }
 
 export async function insertFeedback(fb: FeedbackSubmission): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
   await db
     .prepare(
       `INSERT INTO feedback (article_id, paragraph_idx, feedback_type, island, session_id)
@@ -114,7 +126,7 @@ export async function insertFeedback(fb: FeedbackSubmission): Promise<void> {
 }
 
 export async function insertSignal(sig: SignalSubmission): Promise<void> {
-  const db = getDb();
+  const db = await getDb();
   await db
     .prepare(
       `INSERT INTO implicit_signals (article_id, signal_type, paragraph_index, session_id, island)
@@ -125,7 +137,7 @@ export async function insertSignal(sig: SignalSubmission): Promise<void> {
 }
 
 export async function getFateleStats(): Promise<FateleStats> {
-  const db = getDb();
+  const db = await getDb();
   const total = await db
     .prepare(
       `SELECT COUNT(*) AS cnt FROM implicit_signals
