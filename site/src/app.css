@@ -39,3 +39,104 @@ button {
 .category-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Chat theme (dark) ─── */
+.chat-theme {
+  --color-bg: #080f1a;
+  --color-surface: #0c1520;
+  --color-surface-2: #111c2a;
+  --color-surface-hover: #162535;
+  --color-border: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+  --color-primary: #2ec4b6;
+  --color-primary-hover: #20a89c;
+  --color-text: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.55);
+  --color-text-muted: rgba(255, 255, 255, 0.35);
+  --color-input-bg: #111c2a;
+  --color-accent: #2ec4b6;
+
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+}
+
+.chat-theme a,
+.chat-theme button {
+  min-height: auto;
+}
+
+/* Chat scrollbar */
+.chat-theme ::-webkit-scrollbar { width: 5px; }
+.chat-theme ::-webkit-scrollbar-track { background: transparent; }
+.chat-theme ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+.chat-theme ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }
+
+/* Typing dots */
+@keyframes pulse-dot {
+  0%, 80%, 100% { opacity: 0.3; }
+  40% { opacity: 1; }
+}
+.typing-dot {
+  animation: pulse-dot 1.4s infinite ease-in-out;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Tabular nums for data */
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Markdown content styling */
+.markdown-content p { margin-bottom: 0.75rem; }
+.markdown-content p:last-child { margin-bottom: 0; }
+.markdown-content ul, .markdown-content ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+.markdown-content ul { list-style-type: disc; }
+.markdown-content ol { list-style-type: decimal; }
+.markdown-content li { margin-bottom: 0.25rem; }
+.markdown-content h1, .markdown-content h2, .markdown-content h3 {
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+}
+.markdown-content h1 { font-size: 1.25rem; }
+.markdown-content h2 { font-size: 1.125rem; }
+.markdown-content h3 { font-size: 1rem; }
+.markdown-content blockquote {
+  border-left: 2px solid rgba(255,255,255,0.12);
+  padding-left: 1rem;
+  color: var(--color-text-secondary);
+  margin: 0.75rem 0;
+}
+.markdown-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown-content table {
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+  width: 100%;
+}
+.markdown-content th, .markdown-content td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem;
+  text-align: left;
+}
+.markdown-content th {
+  background: var(--color-surface-2);
+  font-weight: 500;
+}
+.markdown-content pre {
+  border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
+}
+
+/* Progress bar shimmer */
+@keyframes progress-shine {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.progress-bar-animated {
+  background: linear-gradient(90deg, #1a9e92, #2ec4b6, #1a9e92);
+  background-size: 200% 100%;
+  animation: progress-shine 2.5s linear infinite;
+}

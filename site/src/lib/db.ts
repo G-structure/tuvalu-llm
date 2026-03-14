@@ -17,6 +17,7 @@ async function getDb(): Promise<D1Database> {
   return _devProxy.env.DB;
 }
 
+// Full select (with bodies) — for single article detail page
 const ARTICLE_SELECT = `
   SELECT
     a.id, a.source_id, a.url,
@@ -31,6 +32,18 @@ const ARTICLE_SELECT = `
   LEFT JOIN translations t ON t.article_id = a.id
 `;
 
+// Lightweight select (no bodies) — for list/search pages
+const ARTICLE_LIST_SELECT = `
+  SELECT
+    a.id, a.source_id, a.url,
+    a.title_en, a.author,
+    a.published_at, a.category,
+    a.image_url, a.image_alt,
+    CASE WHEN t.is_collapsed = 1 THEN NULL ELSE t.title_tvl END AS title_tvl
+  FROM articles a
+  LEFT JOIN translations t ON t.article_id = a.id
+`;
+
 export async function getArticles(
   limit = 20,
   offset = 0,
@@ -40,7 +53,7 @@ export async function getArticles(
   if (category) {
     const { results } = await db
       .prepare(
-        `${ARTICLE_SELECT}
+        `${ARTICLE_LIST_SELECT}
          WHERE a.category = ?
          ORDER BY a.published_at DESC
          LIMIT ? OFFSET ?`
@@ -51,7 +64,7 @@ export async function getArticles(
   }
   const { results } = await db
     .prepare(
-      `${ARTICLE_SELECT}
+      `${ARTICLE_LIST_SELECT}
        ORDER BY a.published_at DESC
        LIMIT ? OFFSET ?`
     )
@@ -103,7 +116,7 @@ export async function searchArticles(query: string, limit = 20): Promise<Article
   const pattern = `%${query}%`;
   const { results } = await db
     .prepare(
-      `${ARTICLE_SELECT}
+      `${ARTICLE_LIST_SELECT}
        WHERE a.title_en LIKE ?1 OR t.title_tvl LIKE ?1
           OR a.body_en LIKE ?1 OR t.body_tvl LIKE ?1
        ORDER BY a.published_at DESC

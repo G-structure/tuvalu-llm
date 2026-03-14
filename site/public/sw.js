@@ -3,7 +3,7 @@ const STATIC_CACHE = CACHE_VERSION + "-static";
 const PAGES_CACHE = CACHE_VERSION + "-pages";
 
 // Static assets to pre-cache on install
-const PRECACHE_URLS = ["/", "/fatele", "/search"];
+const PRECACHE_URLS = ["/", "/fatele", "/search", "/chat"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

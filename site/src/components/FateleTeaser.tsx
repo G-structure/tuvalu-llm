@@ -4,7 +4,7 @@ import { getFateleStats } from "~/lib/db";
 
 const loadTeaser = cache(async () => {
   "use server";
-  const stats = getFateleStats();
+  const stats = await getFateleStats();
   return stats.total_this_month;
 }, "fatele-teaser");
 
