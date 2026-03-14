@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import json
 import logging
+from pathlib import Path
 from typing import Any, Iterator
 
+from training.common.config import get_repo_root, resolve_path
+from training.common.io import read_jsonl
 from training.common.schema import make_example
 
 from .normalize import generate_translate_mask, normalize_messages
@@ -33,6 +36,14 @@ def _load_hf(
 def _limit_iter(ds: Any, limit: int | None) -> Iterator[Any]:
     """Iterate over a (possibly streaming) HF dataset, stopping after *limit* rows."""
     for i, row in enumerate(ds):
+        if limit is not None and i >= limit:
+            break
+        yield row
+
+
+def _iter_local_jsonl(path: Path, limit: int | None) -> Iterator[dict[str, Any]]:
+    """Read local JSONL rows with the same limit contract as HF loaders."""
+    for i, row in enumerate(read_jsonl(path)):
         if limit is not None and i >= limit:
             break
         yield row
@@ -95,6 +106,74 @@ def load_ultrachat(
             task_family="chat",
             messages=messages,
             metadata={"source": "HuggingFaceH4/ultrachat_200k"},
+            translate_mask=mask,
+        )
+
+
+@register("private_tvl_chat")
+def load_private_tvl_chat(
+    input_path: str,
+    limit: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """Normalize local private TVL/mixed chat JSONL into Stage B source schema.
+
+    Expected input is either already in chat-style JSONL (`messages`) or a simpler
+    two-turn form (`prompt`/`completion`, `user`/`assistant`).
+    """
+    repo_root = get_repo_root()
+    path = resolve_path(input_path, repo_root)
+    if not path.exists():
+        raise FileNotFoundError(f"private_tvl_chat input not found: {path}")
+
+    for i, row in enumerate(_iter_local_jsonl(path, limit)):
+        raw_messages = row.get("messages")
+        if raw_messages:
+            messages = normalize_messages(raw_messages)
+        elif row.get("prompt") and row.get("completion"):
+            messages = [
+                {"role": "user", "content": str(row["prompt"])},
+                {"role": "assistant", "content": str(row["completion"])},
+            ]
+        elif row.get("user") and row.get("assistant"):
+            messages = [
+                {"role": "user", "content": str(row["user"])},
+                {"role": "assistant", "content": str(row["assistant"])},
+            ]
+        else:
+            logger.warning("Skipping private_tvl_chat row %d: no supported message fields", i)
+            continue
+
+        if not messages or messages[-1].get("role") != "assistant":
+            logger.warning("Skipping private_tvl_chat row %d: final turn is not assistant", i)
+            continue
+
+        metadata = dict(row.get("metadata") or {})
+        metadata.setdefault("source", "private_tvl_chat")
+        metadata.setdefault("source_dataset", "private_tvl_chat")
+
+        language_mode = (
+            row.get("language_mode")
+            or metadata.get("language_mode")
+            or "tvl"
+        )
+        metadata["language_mode"] = language_mode
+
+        split_group = (
+            row.get("thread_id")
+            or row.get("conversation_id")
+            or metadata.get("thread_id")
+            or metadata.get("conversation_id")
+        )
+        if split_group:
+            metadata.setdefault("split_group", str(split_group))
+
+        example_id = str(row.get("id") or f"private-tvl-chat-{i}")
+        mask = generate_translate_mask(messages, "chat")
+        yield make_example(
+            id=example_id,
+            task_family="chat",
+            messages=messages,
+            metadata=metadata,
             translate_mask=mask,
         )
 
@@ -305,6 +384,42 @@ def load_cnn_dailymail(
             task_family="summarization",
             messages=messages,
             metadata={"source": "ccdv/cnn_dailymail"},
+            translate_mask=mask,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Story loaders
+# ---------------------------------------------------------------------------
+
+
+@register("roneneldan/TinyStories")
+def load_tinystories(
+    split: str = "train",
+    limit: int | None = None,
+) -> Iterator[dict[str, Any]]:
+    """roneneldan/TinyStories -> task_family='chat'.
+
+    Schema: {"text": str}
+    Simple short stories (GPT-3.5/4 generated, small vocabulary).
+    We frame as user asks for a story, assistant tells it.
+    """
+    ds = _load_hf("roneneldan/TinyStories", split=split)
+    for i, row in enumerate(_limit_iter(ds, limit)):
+        text = row.get("text", "").strip()
+        if not text or len(text) < 50:
+            continue
+        messages = [
+            {"role": "user", "content": "Tell me a short story."},
+            {"role": "assistant", "content": text},
+        ]
+        # User prompt is simple/generic — translate both
+        mask = [{"translate": True}, {"translate": True}]
+        yield make_example(
+            id=f"tinystories-{i}",
+            task_family="chat",
+            messages=messages,
+            metadata={"source": "roneneldan/TinyStories"},
             translate_mask=mask,
         )
 

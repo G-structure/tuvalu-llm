@@ -104,7 +104,56 @@ class BudgetTracker:
         }
 
 
-def create_translate_fn(
+SYSTEM_PROMPT = (
+    "You are a careful translator between English and Tuvaluan. "
+    "Translate faithfully. Preserve names, numbers, punctuation, line breaks, "
+    "and structure when possible. Output only the translation."
+)
+
+
+class TranslationEngine:
+    """Wraps a Tinker sampling client for both sync and fire-all translation."""
+
+    def __init__(self, sampling_client: Any, renderer: Any, sampling_params: Any):
+        self.sampling_client = sampling_client
+        self.renderer = renderer
+        self.sampling_params = sampling_params
+
+    def _build_prompt(self, text: str) -> Any:
+        prompt_messages = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": f"Translate from English to Tuvaluan:\n\n{text}"},
+        ]
+        return self.renderer.build_generation_prompt(prompt_messages)
+
+    def _parse_result(self, result: Any) -> str:
+        output_tokens = result.sequences[0].tokens
+        response_message, _parse_ok = self.renderer.parse_response(output_tokens)
+        if isinstance(response_message, dict):
+            return str(response_message.get("content", ""))
+        return str(response_message)
+
+    def translate(self, text: str) -> str:
+        """Synchronous single translation (for backward compat)."""
+        prompt = self._build_prompt(text)
+        result = self.sampling_client.sample(
+            prompt, sampling_params=self.sampling_params, num_samples=1
+        ).result()
+        return self._parse_result(result)
+
+    def fire(self, text: str) -> Any:
+        """Fire a translation request, return future (don't block)."""
+        prompt = self._build_prompt(text)
+        return self.sampling_client.sample(
+            prompt, sampling_params=self.sampling_params, num_samples=1
+        )
+
+    def collect(self, future: Any) -> str:
+        """Block on a future and parse the result."""
+        return self._parse_result(future.result())
+
+
+def create_translation_engine(
     service_client: Any,
     renderer: Any,
     *,
@@ -112,11 +161,8 @@ def create_translate_fn(
     base_model: str | None = None,
     max_tokens: int = 1024,
     temperature: float = 0.3,
-) -> Callable[[str], str]:
-    """Create a translation function using a Tinker sampling client.
-
-    Returns a callable that translates text using the Stage A model.
-    """
+) -> TranslationEngine:
+    """Create a TranslationEngine from a Tinker service client."""
     from ..common.tinker_runtime import create_sampling_client, get_sampling_params
 
     sampling_client = create_sampling_client(
@@ -127,32 +173,25 @@ def create_translate_fn(
     sampling_params = get_sampling_params(
         renderer, max_tokens=max_tokens, temperature=temperature
     )
+    return TranslationEngine(sampling_client, renderer, sampling_params)
 
-    system_prompt = (
-        "You are a careful translator between English and Tuvaluan. "
-        "Translate faithfully. Preserve names, numbers, punctuation, line breaks, "
-        "and structure when possible. Output only the translation."
+
+def create_translate_fn(
+    service_client: Any,
+    renderer: Any,
+    *,
+    model_path: str | None = None,
+    base_model: str | None = None,
+    max_tokens: int = 1024,
+    temperature: float = 0.3,
+) -> Callable[[str], str]:
+    """Create a sync translation function (backward compat wrapper)."""
+    engine = create_translation_engine(
+        service_client, renderer,
+        model_path=model_path, base_model=base_model,
+        max_tokens=max_tokens, temperature=temperature,
     )
-
-    def translate(text: str) -> str:
-        prompt_messages = [
-            {"role": "system", "content": system_prompt},
-            {
-                "role": "user",
-                "content": f"Translate from English to Tuvaluan:\n\n{text}",
-            },
-        ]
-        prompt = renderer.build_generation_prompt(prompt_messages)
-        result = sampling_client.sample(
-            prompt, sampling_params=sampling_params, num_samples=1
-        ).result()
-        output_tokens = result.sequences[0].tokens
-        response_message, _parse_ok = renderer.parse_response(output_tokens)
-        if isinstance(response_message, dict):
-            return str(response_message.get("content", ""))
-        return str(response_message)
-
-    return translate
+    return engine.translate
 
 
 def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
@@ -226,7 +265,7 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
                 logger.warning("Could not resolve Stage A model path, using base model")
 
     translation_config = config.get("translation", {})
-    translate_fn = create_translate_fn(
+    engine = create_translation_engine(
         service_client,
         renderer,
         model_path=model_path,
@@ -235,9 +274,14 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
         temperature=translation_config.get("temperature", 0.3),
     )
     tool_mode = translation_config.get("tool_mode", "safe")
+    batch_size = config.get("output", {}).get("batch_size", 512)
 
-    # Import selective translation (lazy to avoid circular deps)
-    from .selective_translate import selective_translate_example
+    # Import selective translation helpers
+    from .selective_translate import (
+        classify_message_content,
+        mask_protected_spans,
+        unmask_protected_spans,
+    )
     from .quality import validate_translation
 
     # Process each dataset
@@ -272,60 +316,148 @@ def generate_synthetic_data(config: dict[str, Any]) -> dict[str, Any]:
         accepted_path = accepted_dir / f"{ds_filename}.jsonl"
         rejected_path = rejected_dir / f"{ds_filename}.jsonl"
 
+        # Filter to pending examples
+        pending: list[tuple[int, str, dict[str, Any]]] = []
         for i, example in enumerate(examples):
             ex_id = example.get("id", f"{ds_name}_{i}")
-
             if state.is_done(ds_name, ex_id):
                 continue
+            if not budget.should_continue(ds_name):
+                break
+            pending.append((i, ex_id, example))
+
+        logger.info("  %s: %d pending examples (after resume filter)", ds_name, len(pending))
+
+        # Process in batches using fire-all-futures
+        for batch_start in range(0, len(pending), batch_size):
+            batch = pending[batch_start : batch_start + batch_size]
 
             if not budget.should_continue(ds_name):
-                logger.info("Budget exhausted mid-dataset for %s at example %d", ds_name, i)
+                logger.info("Budget exhausted for %s", ds_name)
                 break
 
-            try:
-                translated = selective_translate_example(
-                    example, translate_fn, tool_mode=tool_mode
-                )
-                accepted, reasons = validate_translation(example, translated)
+            # Phase 1: Pre-scan all messages, fire all translation futures
+            # Each slot: (batch_idx, msg_idx, future, is_selective, ph_map)
+            flight_plan: list[tuple[int, int, Any, bool, dict[str, str]]] = []
+            batch_msg_metadata: list[list[str]] = []  # per-example, per-msg action
 
-                tokens = estimate_example_tokens(translated)
-                budget.record(ds_name, tokens)
-                ds_tokens += tokens
+            for b_idx, (_orig_idx, _ex_id, example) in enumerate(batch):
+                task_family = example.get("task_family", "chat")
+                translate_mask = example.get("translate_mask")
+                msg_actions: list[str] = []
 
-                if accepted:
-                    append_jsonl(accepted_path, translated)
-                    ds_accepted += 1
-                    total_accepted += 1
-                else:
+                for m_idx, msg in enumerate(example.get("messages", [])):
+                    content = msg.get("content", "")
+                    role = msg.get("role", "")
+
+                    # Determine action from mask or heuristic
+                    if translate_mask and m_idx < len(translate_mask):
+                        mask_action = translate_mask[m_idx].get("translate", True)
+                        if mask_action is False:
+                            msg_actions.append("preserve")
+                            continue
+                        elif mask_action is True:
+                            action = "translate"
+                        else:
+                            action = "selective"
+                    else:
+                        action = classify_message_content(content, role, task_family)
+
+                    msg_actions.append(action)
+
+                    if action == "preserve" or not content or not isinstance(content, str):
+                        continue
+
+                    if action == "selective":
+                        masked, ph_map = mask_protected_spans(content)
+                        future = engine.fire(masked)
+                        flight_plan.append((b_idx, m_idx, future, True, ph_map))
+                    else:  # translate
+                        future = engine.fire(content)
+                        flight_plan.append((b_idx, m_idx, future, False, {}))
+
+                batch_msg_metadata.append(msg_actions)
+
+            logger.info(
+                "  %s: fired %d translation requests for batch %d-%d",
+                ds_name, len(flight_plan),
+                batch_start, min(batch_start + batch_size, len(pending)),
+            )
+
+            # Phase 2: Collect all futures
+            translations: dict[tuple[int, int], tuple[str, dict[str, str]]] = {}
+            for b_idx, m_idx, future, is_selective, ph_map in flight_plan:
+                try:
+                    translated_text = engine.collect(future)
+                    if is_selective:
+                        translated_text = unmask_protected_spans(translated_text, ph_map)
+                    translations[(b_idx, m_idx)] = (translated_text, ph_map)
+                except Exception as exc:
+                    translations[(b_idx, m_idx)] = (f"__ERROR__: {exc}", {})
+
+            # Phase 3: Reassemble examples and validate
+            for b_idx, (orig_idx, ex_id, example) in enumerate(batch):
+                try:
+                    result_example = dict(example)
+                    translated_messages: list[dict[str, Any]] = []
+                    preservation_metadata: dict[str, Any] = {}
+
+                    for m_idx, msg in enumerate(example.get("messages", [])):
+                        if (b_idx, m_idx) in translations:
+                            result_msg = dict(msg)
+                            text, ph_map = translations[(b_idx, m_idx)]
+                            if text.startswith("__ERROR__:"):
+                                raise RuntimeError(text)
+                            result_msg["content"] = text
+                            if ph_map:
+                                preservation_metadata[f"msg_{m_idx}_placeholders"] = len(ph_map)
+                            translated_messages.append(result_msg)
+                        else:
+                            translated_messages.append(dict(msg))
+
+                    result_example["messages"] = translated_messages
+                    meta = dict(result_example.get("metadata", {}))
+                    meta["selectively_translated"] = True
+                    meta["tool_mode"] = tool_mode
+                    if preservation_metadata:
+                        meta["preservation"] = preservation_metadata
+                    result_example["metadata"] = meta
+
+                    accepted, reasons = validate_translation(example, result_example)
+                    tokens = estimate_example_tokens(result_example)
+                    budget.record(ds_name, tokens)
+                    ds_tokens += tokens
+
+                    if accepted:
+                        append_jsonl(accepted_path, result_example)
+                        ds_accepted += 1
+                        total_accepted += 1
+                    else:
+                        append_jsonl(
+                            rejected_path,
+                            {"example": result_example, "reasons": reasons, "original_id": ex_id},
+                        )
+                        ds_rejected += 1
+                        total_rejected += 1
+
+                except Exception as exc:
+                    logger.warning("Error processing %s: %s", ex_id, exc)
                     append_jsonl(
                         rejected_path,
-                        {"example": translated, "reasons": reasons, "original_id": ex_id},
+                        {"original_id": ex_id, "reasons": ["translation_error", str(exc)]},
                     )
                     ds_rejected += 1
                     total_rejected += 1
 
-            except Exception as exc:
-                logger.warning("Error translating %s: %s", ex_id, exc)
-                append_jsonl(
-                    rejected_path,
-                    {"original_id": ex_id, "reasons": ["translation_error", str(exc)]},
-                )
-                ds_rejected += 1
-                total_rejected += 1
+                state.mark_done(ds_name, ex_id)
 
-            state.mark_done(ds_name, ex_id)
-
-            if (i + 1) % 100 == 0:
-                state.save()
-                logger.info(
-                    "  %s: %d/%d processed, %d accepted, %d rejected, %s tokens",
-                    ds_name,
-                    i + 1,
-                    len(examples),
-                    ds_accepted,
-                    ds_rejected,
-                    format_token_count(ds_tokens),
-                )
+            state.save()
+            processed = min(batch_start + batch_size, len(pending))
+            logger.info(
+                "  %s: %d/%d processed, %d accepted, %d rejected, %s tokens",
+                ds_name, processed, len(pending),
+                ds_accepted, ds_rejected, format_token_count(ds_tokens),
+            )
 
         per_dataset_stats[ds_name] = {
             "total": len(examples),

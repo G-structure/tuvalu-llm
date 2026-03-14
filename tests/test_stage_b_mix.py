@@ -8,7 +8,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from training.common.schema import make_example
 from training.stage_b_agent.build_mix import (
+    _assign_split,
     _deduplicate,
+    _example_split_key,
     _filter_by_task_family,
     _sample_to_ratio,
     _tag_source,
@@ -49,6 +51,21 @@ def _make_anchor_example(i: int) -> dict:
             {"role": "assistant", "content": f"Tusi: text {i}"},
         ],
         metadata={"source": "parallel", "stage_b_source": "anchor"},
+    )
+
+
+def _make_real_chat_example(i: int, split_group: str | None = None) -> dict:
+    metadata = {"source": "private_tvl_chat", "stage_b_source": "real_tvl_chat"}
+    if split_group is not None:
+        metadata["split_group"] = split_group
+    return make_example(
+        id=f"real_chat_{i}",
+        task_family="chat",
+        messages=[
+            {"role": "user", "content": f"Talofa {i}"},
+            {"role": "assistant", "content": f"Malo {i}"},
+        ],
+        metadata=metadata,
     )
 
 
@@ -131,6 +148,32 @@ def test_realized_ratio_reporting():
         assert name in report["realized_counts"]
 
 
+def test_sample_to_ratio_with_real_tvl_chat_pool():
+    """Sampling should support a fourth real_tvl_chat pool."""
+    en = [_make_en_example(i) for i in range(350)]
+    tvl = [_make_tvl_example(i) for i in range(300)]
+    anchor = [_make_anchor_example(i) for i in range(200)]
+    real_chat = [_make_real_chat_example(i) for i in range(150)]
+    pools = {
+        "english": en,
+        "synthetic_tvl": tvl,
+        "anchor": anchor,
+        "real_tvl_chat": real_chat,
+    }
+    ratios = {
+        "english": 0.35,
+        "synthetic_tvl": 0.30,
+        "anchor": 0.20,
+        "real_tvl_chat": 0.15,
+    }
+    rng = random.Random(42)
+
+    _, report = _sample_to_ratio(pools, ratios, rng)
+    for name, target_ratio in ratios.items():
+        realized = report["realized_ratios"][name]
+        assert abs(realized - target_ratio) < 0.05, f"{name}: {realized} vs {target_ratio}"
+
+
 def test_task_family_stratification():
     """Test that different task families are represented."""
     families = ["chat", "tool", "math", "code", "qa", "summarization"]
@@ -169,3 +212,12 @@ def test_deduplicate():
     assert len(result) == 2
     ids = [r["id"] for r in result]
     assert ids == ["en_1", "en_2"]
+
+
+def test_split_group_keeps_thread_examples_together():
+    """Rows with the same split_group should land in the same split."""
+    ex1 = _make_real_chat_example(1, split_group="thread-7")
+    ex2 = _make_real_chat_example(2, split_group="thread-7")
+    split1 = _assign_split(_example_split_key(ex1), 0.02, 0.02)
+    split2 = _assign_split(_example_split_key(ex2), 0.02, 0.02)
+    assert split1 == split2

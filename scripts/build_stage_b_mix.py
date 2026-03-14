@@ -27,6 +27,10 @@ def _translate_config(raw: dict) -> dict:
         cfg["english_dir"] = sources["english_dir"]
     if "synthetic_tvl_dir" in sources:
         cfg["synthetic_tvl_dir"] = sources["synthetic_tvl_dir"]
+    if "crosslingual_dir" in sources:
+        cfg["crosslingual_dir"] = sources["crosslingual_dir"]
+    if "real_tvl_chat_dir" in sources:
+        cfg["real_tvl_chat_dir"] = sources["real_tvl_chat_dir"]
     if "anchor_file" in sources:
         cfg["anchor_path"] = sources["anchor_file"]
 

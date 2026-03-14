@@ -4,12 +4,14 @@ Stage B trains a bilingual capability adapter on openai/gpt-oss-120b BASE
 (NOT Stage A weights). Stage A exists only to produce the synthetic TVL
 dataset that feeds into this mix.
 
-Three data sources:
+Primary data sources:
 1. English capability data  (real upstream EN datasets, normalized)
 2. Synthetic TVL translations (produced by Stage A adapter via selective translation)
-3. Original TVL<->EN parallel anchor data (from Stage A training set)
+3. Cross-lingual data (EN prompt + "respond in Tuvaluan" → TVL response)
+4. Original TVL<->EN parallel anchor data (from Stage A training set)
+5. Optional real TVL chat data (normalized local chat JSONL)
 
-Default ratio: 40% English / 40% synthetic TVL / 20% anchor.
+Default ratio: 30% English / 30% synthetic TVL / 20% cross-lingual / 20% anchor.
 
 Outputs (under data/finetune/stage_b_mix/):
     train.jsonl        - full mixed training set
@@ -41,11 +43,13 @@ DEFAULTS: dict[str, Any] = {
     # Input paths (relative to repo root)
     "english_dir": "data/finetune/stage_b_sources/english_normalized",
     "synthetic_tvl_dir": "data/finetune/stage_b_synthetic_tvl/accepted",
+    "crosslingual_dir": "data/finetune/stage_b_crosslingual",
+    "real_tvl_chat_dir": "data/finetune/stage_b_sources/real_tvl_chat",
     "anchor_path": "data/finetune/stage_a_mt/train_balanced.jsonl",
     # Output path
     "output_dir": "data/finetune/stage_b_mix",
     # Mix ratios
-    "mix_ratios": {"english": 0.4, "synthetic_tvl": 0.4, "anchor": 0.2},
+    "mix_ratios": {"english": 0.30, "synthetic_tvl": 0.30, "crosslingual": 0.20, "anchor": 0.20},
     # Splits
     "validation_fraction": 0.02,
     "test_fraction": 0.02,
@@ -234,6 +238,19 @@ def _assign_split(
     return "train"
 
 
+def _example_split_key(example: dict[str, Any]) -> str:
+    """Return the deterministic split key for an example.
+
+    If metadata carries `split_group` (for example a conversation/thread id),
+    all examples in that group will land in the same split.
+    """
+    metadata = example.get("metadata", {})
+    split_group = metadata.get("split_group")
+    if split_group:
+        return str(split_group)
+    return str(example["id"])
+
+
 def _split_examples(
     examples: list[dict[str, Any]],
     anchor_examples: list[dict[str, Any]],
@@ -243,7 +260,7 @@ def _split_examples(
     """Split examples into train/validation/test.
 
     Anchor examples always go to train (they have their own eval set in Stage A).
-    English and synthetic TVL examples are split by hash.
+    Non-anchor examples are split by hash.
     """
     splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
 
@@ -300,20 +317,29 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     # Resolve paths
     english_dir = resolve_path(cfg["english_dir"], repo_root)
     synthetic_tvl_dir = resolve_path(cfg["synthetic_tvl_dir"], repo_root)
+    crosslingual_dir = resolve_path(cfg["crosslingual_dir"], repo_root)
+    real_tvl_chat_dir = resolve_path(cfg["real_tvl_chat_dir"], repo_root)
     anchor_path = resolve_path(cfg["anchor_path"], repo_root)
     output_dir = resolve_path(cfg["output_dir"], repo_root)
 
     # Load data sources
     english_raw = _load_jsonl_dir(english_dir)
     synthetic_tvl_raw = _load_jsonl_dir(synthetic_tvl_dir)
+    crosslingual_raw = _load_jsonl_dir(crosslingual_dir)
+    real_tvl_chat_raw = _load_jsonl_dir(real_tvl_chat_dir)
     anchor_raw = read_jsonl(anchor_path) if anchor_path.exists() else []
 
-    print(f"Loaded: {len(english_raw)} English, {len(synthetic_tvl_raw)} synthetic TVL, "
-          f"{len(anchor_raw)} anchor")
+    print(
+        f"Loaded: {len(english_raw)} English, {len(synthetic_tvl_raw)} synthetic TVL, "
+        f"{len(crosslingual_raw)} cross-lingual, "
+        f"{len(real_tvl_chat_raw)} real TVL chat, {len(anchor_raw)} anchor"
+    )
 
     # Tag sources
     _tag_source(english_raw, "english")
     _tag_source(synthetic_tvl_raw, "synthetic_tvl")
+    _tag_source(crosslingual_raw, "crosslingual")
+    _tag_source(real_tvl_chat_raw, "real_tvl_chat")
     _tag_source(anchor_raw, "anchor")
 
     # Ensure anchor examples have task_family="translation" for filtering purposes
@@ -326,9 +352,17 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     exclude_families = cfg.get("exclude_task_families")
     english = _filter_by_task_family(english_raw, include_families, exclude_families)
     synthetic_tvl = _filter_by_task_family(synthetic_tvl_raw, include_families, exclude_families)
+    crosslingual = _filter_by_task_family(crosslingual_raw, include_families, exclude_families)
+    real_tvl_chat = _filter_by_task_family(real_tvl_chat_raw, include_families, exclude_families)
 
     # Validate examples
-    for label, pool in [("english", english), ("synthetic_tvl", synthetic_tvl), ("anchor", anchor_raw)]:
+    for label, pool in [
+        ("english", english),
+        ("synthetic_tvl", synthetic_tvl),
+        ("crosslingual", crosslingual),
+        ("real_tvl_chat", real_tvl_chat),
+        ("anchor", anchor_raw),
+    ]:
         invalid = sum(1 for ex in pool if validate_example(ex))
         if invalid:
             print(f"  Warning: {invalid} invalid examples in {label}")
@@ -336,37 +370,53 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     # Deduplicate
     english = _deduplicate(english)
     synthetic_tvl = _deduplicate(synthetic_tvl)
+    crosslingual = _deduplicate(crosslingual)
+    real_tvl_chat = _deduplicate(real_tvl_chat)
     anchor = _deduplicate(anchor_raw)
 
-    print(f"After dedup: {len(english)} English, {len(synthetic_tvl)} synthetic TVL, "
-          f"{len(anchor)} anchor")
+    print(
+        f"After dedup: {len(english)} English, {len(synthetic_tvl)} synthetic TVL, "
+        f"{len(crosslingual)} cross-lingual, "
+        f"{len(real_tvl_chat)} real TVL chat, {len(anchor)} anchor"
+    )
 
     # Apply tool mode formatting
     english = _apply_tool_mode(english, tool_mode)
     synthetic_tvl = _apply_tool_mode(synthetic_tvl, tool_mode)
+    crosslingual = _apply_tool_mode(crosslingual, tool_mode)
+    real_tvl_chat = _apply_tool_mode(real_tvl_chat, tool_mode)
 
     # Split non-anchor data into train/val/test
     val_frac = cfg["validation_fraction"]
     test_frac = cfg["test_fraction"]
 
-    en_splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    tvl_splits: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    split_pools: dict[str, dict[str, list[dict[str, Any]]]] = {
+        "english": defaultdict(list),
+        "synthetic_tvl": defaultdict(list),
+        "crosslingual": defaultdict(list),
+        "real_tvl_chat": defaultdict(list),
+    }
+    non_anchor_pools = {
+        "english": english,
+        "synthetic_tvl": synthetic_tvl,
+        "crosslingual": crosslingual,
+        "real_tvl_chat": real_tvl_chat,
+    }
 
-    for ex in english:
-        split = _assign_split(ex["id"], val_frac, test_frac)
-        en_splits[split].append(ex)
-
-    for ex in synthetic_tvl:
-        split = _assign_split(ex["id"], val_frac, test_frac)
-        tvl_splits[split].append(ex)
+    for source_name, pool in non_anchor_pools.items():
+        for ex in pool:
+            split = _assign_split(_example_split_key(ex), val_frac, test_frac)
+            split_pools[source_name][split].append(ex)
 
     # Build training mix from train splits only
     mix_ratios = cfg["mix_ratios"]
-    train_pools = {
-        "english": en_splits["train"],
-        "synthetic_tvl": tvl_splits["train"],
-        "anchor": anchor,
-    }
+    active_non_anchor_sources = [
+        name for name in split_pools
+        if mix_ratios.get(name, 0) > 0
+    ]
+    train_pools = {name: split_pools[name]["train"] for name in active_non_anchor_sources}
+    if mix_ratios.get("anchor", 0) > 0:
+        train_pools["anchor"] = anchor
     train_all, ratio_report = _sample_to_ratio(train_pools, mix_ratios, rng)
     rng.shuffle(train_all)
 
@@ -374,15 +424,23 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
     pilot_size = min(cfg["pilot_size"], len(train_all))
     train_pilot = train_all[:pilot_size]
 
-    # Validation and test combine EN + synthetic TVL (no anchor)
-    validation = en_splits["validation"] + tvl_splits["validation"]
-    test = en_splits["test"] + tvl_splits["test"]
+    # Validation and test combine all non-anchor sources (no anchor)
+    validation: list[dict[str, Any]] = []
+    test: list[dict[str, Any]] = []
+    for source_name in active_non_anchor_sources:
+        validation.extend(split_pools[source_name]["validation"])
+        test.extend(split_pools[source_name]["test"])
 
     # Sort deterministically
     train_all.sort(key=lambda x: _stable_hash(x["id"]))
     train_pilot.sort(key=lambda x: _stable_hash(x["id"]))
     validation.sort(key=lambda x: _stable_hash(x["id"]))
     test.sort(key=lambda x: _stable_hash(x["id"]))
+
+    # Strip translate_mask (mixed bool/string types break PyArrow in datasets.load_dataset)
+    for pool in (train_all, train_pilot, validation, test):
+        for ex in pool:
+            ex.pop("translate_mask", None)
 
     # Write outputs
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -400,9 +458,13 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         "input_counts": {
             "english_raw": len(english_raw),
             "synthetic_tvl_raw": len(synthetic_tvl_raw),
+            "crosslingual_raw": len(crosslingual_raw),
+            "real_tvl_chat_raw": len(real_tvl_chat_raw),
             "anchor_raw": len(anchor_raw),
             "english_after_filter": len(english),
             "synthetic_tvl_after_filter": len(synthetic_tvl),
+            "crosslingual_after_filter": len(crosslingual),
+            "real_tvl_chat_after_filter": len(real_tvl_chat),
             "anchor_after_dedup": len(anchor),
         },
         "config": {
@@ -418,6 +480,8 @@ def main(config: dict[str, Any] | None = None) -> dict[str, Any]:
         extra={
             "english_dir": str(english_dir),
             "synthetic_tvl_dir": str(synthetic_tvl_dir),
+            "crosslingual_dir": str(crosslingual_dir),
+            "real_tvl_chat_dir": str(real_tvl_chat_dir),
             "anchor_path": str(anchor_path),
             "output_dir": str(output_dir),
             "train_count": len(train_all),

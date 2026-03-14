@@ -3,6 +3,7 @@
   "sources": {
     "english_dir": "data/finetune/stage_b_sources/english_normalized",
     "synthetic_tvl_dir": "data/finetune/stage_b_synthetic_tvl/accepted",
+    "real_tvl_chat_dir": "data/finetune/stage_b_sources/real_tvl_chat",
     "anchor_file": "data/finetune/stage_a_mt/train_balanced.jsonl"
   },
   "mix_ratios": {

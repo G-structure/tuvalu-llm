@@ -17,12 +17,12 @@ def save_checkpoint(
     kind: str = "both",
     loop_state: dict[str, Any] | None = None,
     ttl_seconds: int = 7 * 24 * 3600,
-) -> None:
-    """Save a Tinker checkpoint (state, weights, or both)."""
+) -> dict[str, str]:
+    """Save a Tinker checkpoint (state, weights, or both). Returns paths dict."""
     ensure_cookbook_on_path()
     from tinker_cookbook import checkpoint_utils  # type: ignore
 
-    checkpoint_utils.save_checkpoint(
+    result = checkpoint_utils.save_checkpoint(
         training_client=training_client,
         name=name,
         log_path=log_path,
@@ -31,11 +31,16 @@ def save_checkpoint(
         ttl_seconds=ttl_seconds,
     )
     logger.info("Saved checkpoint '%s' (kind=%s) to %s", name, kind, log_path)
+    return result
 
 
-def get_last_checkpoint(log_path: str) -> dict[str, Any] | None:
+def get_last_checkpoint(log_path: str, **kwargs: Any) -> dict[str, Any] | None:
     """Get the last checkpoint info, or None if no checkpoint exists."""
     ensure_cookbook_on_path()
     from tinker_cookbook import checkpoint_utils  # type: ignore
 
-    return checkpoint_utils.get_last_checkpoint(log_path)
+    # Map our 'key' kwarg to tinker_cookbook's 'required_key' parameter
+    if "key" in kwargs:
+        kwargs["required_key"] = kwargs.pop("key")
+
+    return checkpoint_utils.get_last_checkpoint(log_path, **kwargs)

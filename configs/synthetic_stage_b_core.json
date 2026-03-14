@@ -1,9 +1,9 @@
 {
   "stage": "synthetic_generation",
   "stage_a_model": {
-    "model_path": null,
+    "model_path": "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final",
     "base_model": "Qwen/Qwen3-30B-A3B-Base",
-    "log_path": "logs/tinker/stage_a"
+    "log_path": "logs/tinker/stage_a_3ep"
   },
   "translation": {
     "max_tokens": 1024,
@@ -20,7 +20,8 @@
       "xlam-function-calling-60k": 0.15,
       "mbpp": 0.10,
       "squad": 0.10,
-      "cnn_dailymail": 0.15
+      "cnn_dailymail": 0.12,
+      "TinyStories": 0.13
     }
   },
   "datasets": [
@@ -30,7 +31,8 @@
     {"name": "Salesforce/xlam-function-calling-60k", "task_family": "tool", "enabled": true},
     {"name": "Muennighoff/mbpp", "task_family": "code", "enabled": true},
     {"name": "rajpurkar/squad", "task_family": "qa", "enabled": true},
-    {"name": "ccdv/cnn_dailymail", "task_family": "summarization", "enabled": true}
+    {"name": "ccdv/cnn_dailymail", "task_family": "summarization", "enabled": true},
+    {"name": "roneneldan/TinyStories", "task_family": "chat", "enabled": true}
   ],
   "quality": {
     "length_ratio_min": 0.3,
@@ -42,7 +44,7 @@
   "output": {
     "sources_dir": "data/finetune/stage_b_sources",
     "synthetic_dir": "data/finetune/stage_b_synthetic_tvl",
-    "batch_size": 16,
+    "batch_size": 16384,
     "resume": true
   }
 }

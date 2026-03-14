@@ -1,0 +1,27 @@
+{
+  "name": "tvl-chat",
+  "version": "0.1.0",
+  "description": "Chat with a Tuvaluan-bilingual LLM",
+  "type": "module",
+  "scripts": {
+    "dev": "vinxi dev",
+    "build": "vinxi build",
+    "start": "vinxi start"
+  },
+  "dependencies": {
+    "@solidjs/meta": "^0.29.4",
+    "@solidjs/router": "^0.15.3",
+    "@solidjs/start": "^1.1.0",
+    "highlight.js": "^11.11.1",
+    "marked": "^17.0.4",
+    "solid-js": "^1.9.5",
+    "vinxi": "^0.5.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "tailwindcss": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
