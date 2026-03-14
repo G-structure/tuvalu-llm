@@ -34,6 +34,7 @@ jobs:
 
       - name: Prepare build context
         run: |
+          mkdir -p chat/vps-backend/vendor
           cp -r vendor/tinker-cookbook chat/vps-backend/vendor/tinker-cookbook
 
       - name: Build and push
