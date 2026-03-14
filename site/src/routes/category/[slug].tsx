@@ -11,8 +11,10 @@ const PER_PAGE = 20;
 const loadCategory = cache(async (slug: string, page: number) => {
   "use server";
   const offset = (page - 1) * PER_PAGE;
-  const articles = await getArticles(PER_PAGE + 1, offset, slug);
-  const categories = await getCategories();
+  const [articles, categories] = await Promise.all([
+    getArticles(PER_PAGE + 1, offset, slug),
+    getCategories(),
+  ]);
   return { articles, categories, slug, page };
 }, "category");
 

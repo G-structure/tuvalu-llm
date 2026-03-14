@@ -1,11 +1,10 @@
 import { createAsync, cache, A } from "@solidjs/router";
 import { Show } from "solid-js";
-import { getFateleStats } from "~/lib/db";
+import { getFateleTeaserCount } from "~/lib/db";
 
 const loadTeaser = cache(async () => {
   "use server";
-  const stats = await getFateleStats();
-  return stats.total_this_month;
+  return await getFateleTeaserCount();
 }, "fatele-teaser");
 
 export default function FateleTeaser() {

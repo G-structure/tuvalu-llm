@@ -151,24 +151,37 @@ export async function insertSignal(sig: SignalSubmission): Promise<void> {
 
 export async function getFateleStats(): Promise<FateleStats> {
   const db = await getDb();
-  const total = await db
-    .prepare(
-      `SELECT COUNT(*) AS cnt FROM implicit_signals
-       WHERE created_at >= date('now', 'start of month')`
-    )
-    .first();
-
-  const { results: islands } = await db
-    .prepare(
-      `SELECT island, COUNT(*) AS count FROM implicit_signals
-       WHERE island IS NOT NULL
-       GROUP BY island
-       ORDER BY count DESC`
-    )
-    .all();
+  const [total, { results: islands }] = await Promise.all([
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt FROM implicit_signals
+         WHERE created_at >= date('now', 'start of month')`
+      )
+      .first(),
+    db
+      .prepare(
+        `SELECT island, COUNT(*) AS count FROM implicit_signals
+         WHERE island IS NOT NULL
+         GROUP BY island
+         ORDER BY count DESC`
+      )
+      .all(),
+  ]);
 
   return {
     total_this_month: (total as any)?.cnt ?? 0,
     islands: islands as unknown as { island: string; count: number }[],
   };
+}
+
+// Lightweight version for the teaser bar — single query, no islands breakdown
+export async function getFateleTeaserCount(): Promise<number> {
+  const db = await getDb();
+  const row = await db
+    .prepare(
+      `SELECT COUNT(*) AS cnt FROM implicit_signals
+       WHERE created_at >= date('now', 'start of month')`
+    )
+    .first();
+  return (row as any)?.cnt ?? 0;
 }
