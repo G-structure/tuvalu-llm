@@ -6,6 +6,6 @@ export default defineConfig({
     plugins: [tailwindcss()],
   },
   server: {
-    preset: "node-server",
+    preset: "cloudflare-pages",
   },
 });

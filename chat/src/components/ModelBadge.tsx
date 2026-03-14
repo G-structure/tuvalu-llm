@@ -11,7 +11,7 @@ interface ModelInfo {
 }
 
 async function fetchModelInfo(): Promise<ModelInfo> {
-  const resp = await fetch("http://localhost:8787/api/model-info");
+  const resp = await fetch("/api/model-info");
   if (!resp.ok) throw new Error("Backend unavailable");
   return resp.json();
 }

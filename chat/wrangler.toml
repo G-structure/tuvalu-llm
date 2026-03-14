@@ -1,0 +1,9 @@
+name = "tvl-chat"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-25"
+compatibility_flags = ["nodejs_compat"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "talafutipolo"
+database_id = "7087ac6b-6417-48a4-9c7f-1d108057cd51"

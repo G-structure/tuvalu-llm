@@ -14,7 +14,7 @@ interface TrainingStats {
 }
 
 async function fetchStats(): Promise<TrainingStats> {
-  const resp = await fetch("http://localhost:8787/api/training-stats");
+  const resp = await fetch("/api/training-stats");
   if (!resp.ok) throw new Error("Failed to fetch");
   return resp.json();
 }

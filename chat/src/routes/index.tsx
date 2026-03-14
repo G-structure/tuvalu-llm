@@ -23,7 +23,7 @@ export default function Chat() {
     scrollToBottom();
 
     try {
-      const resp = await fetch("http://localhost:8787/api/chat", {
+      const resp = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

@@ -21,4 +21,5 @@ unstruct_lang_data
 .wrangler
 .venv
 .pytest_cache
+.upload_state.json
 private-todo.md
