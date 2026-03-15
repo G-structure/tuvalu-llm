@@ -4,13 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from tv.common.config import load_config
 from tv.training.local_mlx import prepare_local_mlx_run
 
 
@@ -38,8 +38,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    with args.config.open() as f:
-        raw_config = json.load(f)
+    raw_config = load_config(args.config)
     summary = prepare_local_mlx_run(
         raw_config,
         pilot=args.pilot,
@@ -47,6 +46,8 @@ def main() -> None:
         output_root=args.output_root,
         run_name=args.run_name,
     )
+    import json
+
     print(json.dumps(summary, indent=2))
 
 

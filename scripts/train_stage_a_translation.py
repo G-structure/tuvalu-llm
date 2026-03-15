@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
+
+from tv.common.cli import load_optional_config, merge_cli_overrides
 
 
 def parse_args() -> argparse.Namespace:
@@ -80,17 +81,13 @@ def flatten_train_config(raw_config: dict) -> dict:
 
 def main() -> None:
     args = parse_args()
-
-    raw_config: dict = {}
-    if args.config:
-        with args.config.open() as f:
-            raw_config = json.load(f)
+    raw_config = load_optional_config(args.config)
 
     # Flatten nested config structure into the flat keys train.main() expects.
     config = flatten_train_config(raw_config)
 
     # CLI args override everything
-    cli_map = {
+    config = merge_cli_overrides(config, {
         "data": args.data,
         "val_data": args.val_data,
         "model_name": args.model_name,
@@ -106,10 +103,7 @@ def main() -> None:
         "ttl_seconds": args.ttl_seconds,
         "seed": args.seed,
         "do_final_val_loss": args.do_final_val_loss,
-    }
-    for key, value in cli_map.items():
-        if value is not None:
-            config[key] = value
+    })
 
     from tv.training.stage_a_mt.train import main as train_main
 

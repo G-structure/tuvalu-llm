@@ -17,6 +17,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
+from tv.common.cli import merge_cli_overrides
 from tv.common.config import load_config
 
 
@@ -59,12 +60,11 @@ def main() -> None:
     raw = load_config(args.config)
     config = _translate_config(raw)
 
-    if args.model_path:
-        config["model_path"] = args.model_path
-    if args.stage_a_path:
-        config["stage_a_model_path"] = args.stage_a_path
-    if args.run_name:
-        config["run_name"] = args.run_name
+    config = merge_cli_overrides(config, {
+        "model_path": args.model_path,
+        "stage_a_model_path": args.stage_a_path,
+        "run_name": args.run_name,
+    })
 
     from tv.training.stage_b_agent.eval import main as eval_main
 

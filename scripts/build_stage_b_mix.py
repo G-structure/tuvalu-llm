@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from tv.common.config import load_config
+from tv.common.cli import load_optional_config
 
 
 def _translate_config(raw: dict) -> dict:
@@ -59,7 +59,7 @@ def main() -> None:
 
     config = {}
     if args.config:
-        raw = load_config(args.config)
+        raw = load_optional_config(args.config)
         config = _translate_config(raw)
 
     from tv.training.stage_b_agent.build_mix import main as build_main
