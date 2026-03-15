@@ -34,6 +34,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+from tv.corpus.render import downsample_bible_examples as _shared_downsample_bible_examples
+from tv.corpus.splits import assign_row_split as _shared_assign_row_split
+from tv.corpus.splits import stable_hash as _shared_stable_hash
 from training.common.config import get_repo_root, resolve_path
 from training.common.io import read_jsonl, write_json, write_jsonl
 from training.common.manifests import create_manifest, save_manifest
@@ -78,7 +81,7 @@ DEFAULTS: dict[str, Any] = {
 
 
 def _stable_hash(value: str) -> int:
-    return int(hashlib.sha256(value.encode("utf-8")).hexdigest(), 16)
+    return _shared_stable_hash(value)
 
 
 def _normalize_for_hash(text: str) -> str:
@@ -323,24 +326,14 @@ def _assign_split(
         test_books = DEFAULT_TEST_BOOKS
     if validation_books is None:
         validation_books = DEFAULT_VALID_BOOKS
-
-    if row.get("content_type") == "bible_verse":
-        book_num = int(row.get("book_num") or 0)
-        if book_num in test_books:
-            return "test"
-        if book_num in validation_books:
-            return "validation"
-        return "train"
-
-    key = _group_key(row)
-    bucket = _stable_hash(key) % 10000
-    test_cut = int(non_bible_test_frac * 10000)
-    val_cut = test_cut + int(non_bible_val_frac * 10000)
-    if bucket < test_cut:
-        return "test"
-    if bucket < val_cut:
-        return "validation"
-    return "train"
+    return _shared_assign_row_split(
+        row,
+        non_bible_val_frac=non_bible_val_frac,
+        non_bible_test_frac=non_bible_test_frac,
+        test_books=test_books,
+        validation_books=validation_books,
+        include_pub_code=True,
+    )
 
 
 def _choose_template(row_id: str, direction: str) -> tuple[str, int]:
@@ -392,22 +385,10 @@ def _downsample_bible_examples(
     *,
     bible_max_share: float,
 ) -> list[dict[str, Any]]:
-    if not 0 < bible_max_share < 1:
-        return train_examples
-
-    bible = [x for x in train_examples if x["metadata"].get("content_type") == "bible_verse"]
-    non_bible = [x for x in train_examples if x["metadata"].get("content_type") != "bible_verse"]
-    if not bible or not non_bible:
-        return train_examples
-
-    max_bible = math.floor((bible_max_share / (1.0 - bible_max_share)) * len(non_bible))
-    if len(bible) <= max_bible:
-        return train_examples
-
-    bible_sorted = sorted(bible, key=lambda x: _stable_hash(x["id"]))
-    kept_bible = bible_sorted[:max_bible]
-    combined = non_bible + kept_bible
-    return sorted(combined, key=lambda x: _stable_hash(x["id"]))
+    return _shared_downsample_bible_examples(
+        train_examples,
+        bible_max_share=bible_max_share,
+    )
 
 
 def _summarize_examples(rows: list[dict[str, Any]]) -> dict[str, Any]:

@@ -6,6 +6,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = [
+    "scripts/clean_pipeline.py",
+    "scripts/build_splits.py",
+    "scripts/render_training_data.py",
     "scripts/build_stage_a_mt_data.py",
     "scripts/train_stage_a_translation.py",
     "scripts/eval_stage_a_translation.py",
@@ -31,6 +34,21 @@ def _run_help(script: str) -> subprocess.CompletedProcess:
 
 def test_build_stage_a_help():
     result = _run_help("scripts/build_stage_a_mt_data.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_clean_pipeline_help():
+    result = _run_help("scripts/clean_pipeline.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_build_splits_help():
+    result = _run_help("scripts/build_splits.py")
+    assert result.returncode == 0, result.stderr
+
+
+def test_render_training_data_help():
+    result = _run_help("scripts/render_training_data.py")
     assert result.returncode == 0, result.stderr
 
 

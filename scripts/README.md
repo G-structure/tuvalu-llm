@@ -7,9 +7,9 @@ All scripts in the tv2en project. Run everything with `uv run` unless noted othe
 | Phase | What to run | Purpose |
 |-------|-------------|---------|
 | **Scraping** | `scrape_bible.py`, `scrape_articles.py`, `scrape_daily_text.py` | Build raw parallel corpus from JW.org |
-| **Cleaning** | `clean_pipeline.py` | Deduplicate and filter raw pairs |
-| **Splits** | `build_splits.py` → `validate_splits.py` | Leak-proof train/val/test splits |
-| **Training data** | `render_training_data.py` | Chat-formatted JSONL for Tinker |
+| **Cleaning** | `clean_pipeline.py` | Thin CLI wrapper for `tv.corpus.clean` |
+| **Splits** | `build_splits.py` → `validate_splits.py` | Thin CLI wrapper for `tv.corpus.splits` plus validation |
+| **Training data** | `render_training_data.py` | Thin CLI wrapper for `tv.corpus.render` |
 | **Training** | `train_stage_a_translation.py` | Fine-tune translation LoRA |
 | **Local MLX prep** | `prepare_local_mlx_training.py` | Export Stage A / Stage B runs for local MLX-LM |
 | **Eval** | `eval_stage_a_translation.py` | chrF++/BLEU on test set |
@@ -67,6 +67,8 @@ uv run scripts/scrape_daily_text.py --range 2024-01-01 2024-06-30
 ## Cleaning
 
 ### `clean_pipeline.py`
+
+CLI wrapper that delegates the implementation to `tv.corpus.clean`.
 Deduplication, metadata filtering, length ratio checks, and normalization. Input from `data/aligned/` is never modified.
 
 ```bash
@@ -90,6 +92,8 @@ uv run scripts/stats.py
 ## Training Data Preparation
 
 ### `build_splits.py`
+
+CLI wrapper that delegates the implementation to `tv.corpus.splits`.
 Creates leak-proof train/val/test splits via a 5-phase pipeline: doc-level splitting → n-gram indexing → cross-source decontamination → validation → output.
 
 ```bash
@@ -107,6 +111,8 @@ uv run scripts/validate_splits.py
 ```
 
 ### `render_training_data.py`
+
+CLI wrapper that delegates the implementation to `tv.corpus.render`.
 Renders decontaminated splits into chat-formatted JSONL for Tinker. Creates both TVL→EN and EN→TVL directions with template variation, optional unstructured seed merging, and Bible downsampling.
 
 ```bash
