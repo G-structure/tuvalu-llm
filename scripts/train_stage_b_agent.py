@@ -33,7 +33,9 @@ def _translate_config(raw: dict, pilot: bool = False) -> dict:
     training = raw.get("training", {})
     for key in ("lora_rank", "max_length", "batch_size", "learning_rate",
                 "epochs", "save_every", "seed", "ablation_mode",
-                "train_on_what", "ttl_seconds"):
+                "train_on_what", "ttl_seconds",
+                "gen_eval_every", "gen_eval_parallel", "gen_eval_max_tokens",
+                "val_every", "val_max_examples"):
         if key in training:
             cfg[key] = training[key]
     if "included_task_families" in training:
@@ -48,6 +50,12 @@ def _translate_config(raw: dict, pilot: bool = False) -> dict:
         cfg["train_data"] = data["train_file"]
     if "validation_file" in data:
         cfg["validation_data"] = data["validation_file"]
+
+    eval_sec = raw.get("eval", {})
+    if "gen_eval_data" in eval_sec:
+        cfg["gen_eval_data"] = eval_sec["gen_eval_data"]
+    elif "mt_test_file" in eval_sec:
+        cfg["gen_eval_data"] = eval_sec["mt_test_file"]
 
     logs = raw.get("logs", {})
     if "base_dir" in logs:

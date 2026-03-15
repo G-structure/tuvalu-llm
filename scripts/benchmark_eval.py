@@ -60,6 +60,7 @@ log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 MAX_OUTPUT_TOKENS = 256
+MAX_OUTPUT_TOKENS_THINKING = 2048  # thinking models need more headroom
 CHARS_PER_TOKEN = 3.5  # rough estimate
 
 # Preset budgets (selected via --budget flag)
@@ -69,9 +70,11 @@ BUDGET_PRESETS = {
         "tasks": {
             "translation_en_to_tvl": 250,
             "translation_tvl_to_en": 250,
-            "chat_tvl": 300,
-            "qa_tvl": 150,
-            "summarization_tvl": 50,
+            "textbook_en_to_tvl": 46,
+            "textbook_tvl_to_en": 46,
+            "chat_tvl": 250,
+            "qa_tvl": 120,
+            "summarization_tvl": 40,
         },
     },
     "tiny": {
@@ -79,6 +82,8 @@ BUDGET_PRESETS = {
         "tasks": {
             "translation_en_to_tvl": 5,
             "translation_tvl_to_en": 5,
+            "textbook_en_to_tvl": 5,
+            "textbook_tvl_to_en": 5,
             "chat_tvl": 5,
             "qa_tvl": 3,
             "summarization_tvl": 2,
@@ -100,7 +105,19 @@ OPENROUTER_MODELS = {
     "gemini-3.1-pro": "google/gemini-3.1-pro-preview",
 }
 
-ALL_MODEL_KEYS = ["tvl"] + list(OPENROUTER_MODELS.keys()) + ["google-translate"]
+# Models that use thinking/reasoning tokens — need higher max_tokens
+THINKING_MODELS = {"qwen3-30b"}
+
+# Tinker-direct models (called via SDK, not via VPS backend)
+TINKER_MODELS = {
+    "tvl-stage-a": {
+        "model_name": "Qwen/Qwen3-30B-A3B",
+        "sampler_path": "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final",
+        "label": "Stage A (step 7851)",
+    },
+}
+
+ALL_MODEL_KEYS = ["tvl"] + list(TINKER_MODELS.keys()) + list(OPENROUTER_MODELS.keys()) + ["google-translate"]
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +159,58 @@ def sample_task_data(task_family: str, source: str, n: int) -> list[dict]:
     return filtered[:n]
 
 
+def load_textbook_data(direction: str, n: int) -> list[dict]:
+    """Load children's textbook pairs (held-out, never in training) and format as eval examples."""
+    seed_dir = REPO_ROOT / "data" / "external" / "stage_a_seed"
+    textbook_files = [
+        "unstruct_pai_vau.jsonl",
+        "unstruct_toku_atufenua.jsonl",
+        "unstruct_tepapa_activity.jsonl",
+    ]
+    sys_prompt = (
+        "You are a careful translator between Tuvaluan and English. "
+        "Translate faithfully. Preserve names, numbers, punctuation, line breaks, "
+        "and structure when possible. Output only the translation."
+    )
+    all_examples = []
+    for fname in textbook_files:
+        path = seed_dir / fname
+        if not path.exists():
+            continue
+        rows = load_jsonl(path)
+        for row in rows:
+            tvl_text = row.get("tvl", "")
+            en_text = row.get("en", "")
+            if not tvl_text or not en_text:
+                continue
+            domain = row.get("domain", "textbook")
+            row_id = row.get("id", fname.replace(".jsonl", ""))
+            if direction == "en_to_tvl":
+                messages = [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": f"Translate the following English text into Tuvaluan.\n\n{en_text}"},
+                    {"role": "assistant", "content": tvl_text},
+                ]
+            else:
+                messages = [
+                    {"role": "system", "content": sys_prompt},
+                    {"role": "user", "content": f"Translate the following Tuvaluan text into English.\n\n{tvl_text}"},
+                    {"role": "assistant", "content": en_text},
+                ]
+            all_examples.append({
+                "id": f"{row_id}::{direction}",
+                "messages": messages,
+                "metadata": {
+                    "direction": direction,
+                    "domain": domain,
+                    "tvl": tvl_text,
+                    "en": en_text,
+                },
+            })
+    random.shuffle(all_examples)
+    return all_examples[:n]
+
+
 def build_eval_set() -> dict[str, list[dict]]:
     """Build the stratified evaluation set within token budget."""
     log.info("Building evaluation set...")
@@ -153,6 +222,15 @@ def build_eval_set() -> dict[str, list[dict]]:
     slices["translation_tvl_to_en"] = sample_translation_data(
         "tvl_to_en", TASK_BUDGET["translation_tvl_to_en"]
     )
+    # Children's textbook data (held-out, never in training)
+    if "textbook_en_to_tvl" in TASK_BUDGET:
+        slices["textbook_en_to_tvl"] = load_textbook_data(
+            "en_to_tvl", TASK_BUDGET["textbook_en_to_tvl"]
+        )
+    if "textbook_tvl_to_en" in TASK_BUDGET:
+        slices["textbook_tvl_to_en"] = load_textbook_data(
+            "tvl_to_en", TASK_BUDGET["textbook_tvl_to_en"]
+        )
     # TVL tasks: prefer synthetic_tvl and crosslingual (actual Tuvaluan content)
     slices["chat_tvl"] = sample_task_data("chat", "synthetic_tvl", TASK_BUDGET["chat_tvl"] // 2) + sample_task_data(
         "chat", "crosslingual", TASK_BUDGET["chat_tvl"] // 2
@@ -264,6 +342,62 @@ def call_tvl_model(
     return body.get("content", "")
 
 
+# ---------------------------------------------------------------------------
+# Tinker direct client (lazy singleton)
+# ---------------------------------------------------------------------------
+
+_tinker_clients: dict[str, Any] = {}
+
+
+def _get_tinker_client(model_key: str) -> tuple[Any, Any, Any]:
+    """Lazily init and cache a Tinker sampling client + renderer."""
+    if model_key in _tinker_clients:
+        return _tinker_clients[model_key]
+
+    cfg = TINKER_MODELS[model_key]
+    sys.path.insert(0, str(REPO_ROOT / "vendor" / "tinker-cookbook"))
+    import tinker
+    from tinker_cookbook import model_info, renderers
+    from tinker_cookbook.tokenizer_utils import get_tokenizer
+
+    model_name = cfg["model_name"]
+    tokenizer = get_tokenizer(model_name)
+    renderer_name = model_info.get_recommended_renderer_name(model_name)
+    renderer = renderers.get_renderer(renderer_name, tokenizer)
+
+    service = tinker.ServiceClient()
+    sampling_client = service.create_sampling_client(model_path=cfg["sampler_path"])
+    log.info("Tinker client ready: %s → %s", model_key, cfg["sampler_path"])
+
+    result = (renderer, sampling_client, tinker)
+    _tinker_clients[model_key] = result
+    return result
+
+
+def call_tinker_direct(
+    model_key: str,
+    messages: list[dict],
+    max_tokens: int = MAX_OUTPUT_TOKENS,
+    temperature: float = 0.0,
+) -> str:
+    """Call a Tinker model directly via SDK."""
+    renderer, sampling_client, tinker = _get_tinker_client(model_key)
+
+    params = tinker.SamplingParams(
+        max_tokens=max_tokens,
+        temperature=temperature,
+        stop=renderer.get_stop_sequences(),
+    )
+    prompt = renderer.build_generation_prompt(messages)
+    future = sampling_client.sample(prompt, sampling_params=params, num_samples=1)
+    result = future.result()
+    output_tokens = result.sequences[0].tokens
+    response_message, _ok = renderer.parse_response(output_tokens)
+    if isinstance(response_message, dict):
+        return str(response_message.get("content", ""))
+    return str(response_message)
+
+
 def call_google_translate(
     text: str,
     source_lang: str,
@@ -353,7 +487,8 @@ def run_model_on_slice(
 ) -> list[dict]:
     """Run a model on a slice of examples, return prediction records."""
     predictions = []
-    is_translation = task_name.startswith("translation_")
+    is_translation = task_name.startswith("translation_") or task_name.startswith("textbook_")
+    out_tokens = MAX_OUTPUT_TOKENS_THINKING if model_key in THINKING_MODELS else MAX_OUTPUT_TOKENS
 
     def process_one(example: dict) -> dict | None:
         prompt, reference = extract_source_and_ref(example)
@@ -361,6 +496,8 @@ def run_model_on_slice(
         try:
             if model_key == "tvl":
                 prediction = call_tvl_model(prompt, backend_url=tvl_backend_url)
+            elif model_key in TINKER_MODELS:
+                prediction = call_tinker_direct(model_key, prompt)
             elif model_key == "google-translate":
                 if not is_translation:
                     return None  # Google Translate only for translation tasks
@@ -368,7 +505,8 @@ def run_model_on_slice(
                 prediction = call_google_translate(source_text, src_lang, tgt_lang, google_key)
             elif model_key in OPENROUTER_MODELS:
                 prediction = call_openrouter(
-                    OPENROUTER_MODELS[model_key], prompt, openrouter_key
+                    OPENROUTER_MODELS[model_key], prompt, openrouter_key,
+                    max_tokens=out_tokens,
                 )
             else:
                 return None
@@ -387,7 +525,9 @@ def run_model_on_slice(
             "stage_b_source": meta.get("stage_b_source", ""),
         }
 
-    with ThreadPoolExecutor(max_workers=parallel) as pool:
+    # Tinker SDK clients use a lock internally; limit parallelism for direct models
+    effective_parallel = 1 if model_key in TINKER_MODELS else parallel
+    with ThreadPoolExecutor(max_workers=effective_parallel) as pool:
         futures = {pool.submit(process_one, ex): i for i, ex in enumerate(examples)}
         done = 0
         for future in as_completed(futures):
@@ -406,17 +546,25 @@ def run_model_on_slice(
 # ---------------------------------------------------------------------------
 
 
-def compute_slice_metrics(predictions: list[dict]) -> dict[str, Any]:
+def compute_slice_metrics(predictions: list[dict], task_name: str = "") -> dict[str, Any]:
     """Compute metrics for a slice of predictions."""
     if not predictions:
         return {"count": 0}
     overall = compute_translation_metrics(predictions)
 
-    # If translation, also compute per-direction
-    directions = set(p.get("direction", "") for p in predictions)
-    if directions - {""}:
-        by_direction = compute_grouped_metrics(predictions, "direction")
-        overall["by_direction"] = by_direction
+    is_translation = task_name.startswith("translation_") or task_name.startswith("textbook_")
+
+    # Per-domain breakdown for translation tasks
+    if is_translation:
+        domains = set(p.get("domain", "") for p in predictions)
+        if domains - {""}:
+            overall["by_domain"] = compute_grouped_metrics(predictions, "domain")
+
+    # Per-source breakdown for non-translation tasks
+    if not is_translation:
+        sources = set(p.get("stage_b_source", "") for p in predictions)
+        if sources - {""}:
+            overall["by_source"] = compute_grouped_metrics(predictions, "stage_b_source")
 
     return overall
 
@@ -667,7 +815,7 @@ def main() -> None:
                 continue
 
             # Google Translate only handles translation tasks
-            if model_key == "google-translate" and not task_name.startswith("translation_"):
+            if model_key == "google-translate" and not (task_name.startswith("translation_") or task_name.startswith("textbook_")):
                 continue
 
             log.info("  Running %s on %s (%d examples)...", model_key, task_name, len(examples))
@@ -683,7 +831,7 @@ def main() -> None:
                 parallel=args.parallel,
             )
 
-            metrics = compute_slice_metrics(preds)
+            metrics = compute_slice_metrics(preds, task_name)
             elapsed = time.time() - t0
 
             model_results[task_name] = metrics

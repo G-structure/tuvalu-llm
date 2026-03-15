@@ -62,6 +62,60 @@ export async function getLatestMetric(
   return (row as unknown as TrainingMetricRow) || null;
 }
 
+export interface EvalRunRow {
+  id: number;
+  run_id: string;
+  model_key: string;
+  budget: string;
+  results_json: string;
+  created_at: string;
+}
+
+export interface EvalPredictionRow {
+  id: number;
+  run_id: string;
+  model_key: string;
+  task: string;
+  example_id: string;
+  prediction: string;
+  reference: string;
+  metadata_json: string;
+  created_at: string;
+}
+
+export async function getEvalRuns(): Promise<EvalRunRow[]> {
+  const db = getDb();
+  if (!db) return [];
+  const { results } = await db
+    .prepare(
+      `SELECT id, run_id, model_key, budget, results_json, created_at
+       FROM eval_runs
+       ORDER BY created_at DESC`
+    )
+    .all();
+  return results as unknown as EvalRunRow[];
+}
+
+export async function getEvalPredictions(
+  runId: string,
+  modelKey: string,
+  task: string,
+  limit: number = 20,
+): Promise<EvalPredictionRow[]> {
+  const db = getDb();
+  if (!db) return [];
+  const { results } = await db
+    .prepare(
+      `SELECT id, run_id, model_key, task, example_id, prediction, reference, metadata_json
+       FROM eval_predictions
+       WHERE run_id = ? AND model_key = ? AND task = ?
+       LIMIT ?`
+    )
+    .bind(runId, modelKey, task, limit)
+    .all();
+  return results as unknown as EvalPredictionRow[];
+}
+
 export function hasDb(): boolean {
   return getDb() !== null;
 }

@@ -384,6 +384,200 @@ JSONL metrics files. It uses TensorBoard's `EventFileWriter` directly (no
 PyTorch dependency required). Periodic validation metrics are also logged when
 the training loop runs mid-training evaluation.
 
+## Training Dashboard
+
+Live training metrics are displayed at https://tvl-chat.pages.dev/training,
+served from Cloudflare D1.
+
+### Uploading metrics to D1
+
+The script `scripts/upload_training_metrics.py` reads local JSONL metric logs
+and uploads them to the `training_metrics` and `training_config` tables in D1.
+
+```bash
+# Upload Stage A metrics (one-shot, run is complete)
+CLOUDFLARE_API_TOKEN=... uv run python scripts/upload_training_metrics.py \
+    --once --run-id stage_a_3ep
+
+# Upload Stage B metrics (one-shot)
+CLOUDFLARE_API_TOKEN=... uv run python scripts/upload_training_metrics.py \
+    --once --run-id stage_b_llama8b
+
+# Watch mode — poll for new Stage B entries every 30s during active training
+CLOUDFLARE_API_TOKEN=... uv run python scripts/upload_training_metrics.py \
+    --run-id stage_b_llama8b
+
+# Re-upload everything (reset upload state)
+CLOUDFLARE_API_TOKEN=... uv run python scripts/upload_training_metrics.py \
+    --once --run-id stage_a_3ep --reset
+```
+
+**CLI flags:**
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--run-id` | `stage_b_llama8b` | D1 `run_id` for inserted rows |
+| `--metrics-path` | `logs/tinker/<run-id>/metrics.jsonl` | Path to metrics JSONL |
+| `--mix-stats-path` | `data/finetune/stage_b_mix/stats.json` | Path to dataset mix stats |
+| `--once` | (watch mode) | Upload once and exit |
+| `--reset` | false | Clear upload state and re-upload all rows |
+| `--init-schema` | false | Create D1 tables before uploading |
+
+The script reads the wrangler OAuth token or a `CLOUDFLARE_API_TOKEN` env var
+for authentication.
+
+Upload state is persisted per run in `.upload_state_<run_id>.json` to avoid
+re-uploading already-synced rows.
+
+### D1 schema
+
+```sql
+training_metrics (run_id, step, metric_type, value_json, created_at)
+training_config  (key, value_json, updated_at)
+```
+
+- `metric_type`: `train_nll`, `val_nll`, or `gen_eval`
+- Config keys: `run_info_<run_id>` (model name, total steps), `mix_stats` (dataset composition)
+
+### API endpoint
+
+`GET /api/training-stats` returns both Stage A and Stage B metrics from D1.
+The frontend auto-refreshes every 15 seconds.
+
+### Deploying dashboard changes
+
+```bash
+cd chat
+npx vinxi build
+npx wrangler pages deploy dist --project-name tvl-chat
+```
+
+## Benchmark Evaluation
+
+Live eval results are displayed at https://tvl-chat.pages.dev/eval, served
+from Cloudflare D1.
+
+The benchmark (`scripts/benchmark_eval.py`) evaluates our TVL fine-tune against
+leading models on Tuvaluan language tasks.
+
+### Models compared
+
+| Key | Model | Backend |
+|-----|-------|---------|
+| `tvl` | Stage B fine-tune | VPS backend |
+| `tvl-stage-a` | Stage A (step 7851) | Tinker SDK direct |
+| `gpt-5.4` | GPT-5.4 | OpenRouter |
+| `qwen3-30b` | Qwen3-30B-A3B (thinking) | OpenRouter |
+| `claude-sonnet` | Claude Sonnet 4.6 | OpenRouter |
+| `gemini-3.1-pro` | Gemini 3.1 Pro | OpenRouter |
+| `google-translate` | Google Cloud Translation | Google API (translation tasks only) |
+
+### Tasks evaluated
+
+| Task | Data source | Metrics |
+|------|-------------|---------|
+| `translation_en_to_tvl` | Stage A test set | chrF++, BLEU, exact match, by domain |
+| `translation_tvl_to_en` | Stage A test set | chrF++, BLEU, exact match, by domain |
+| `textbook_en_to_tvl` | Held-out children's textbooks | chrF++, BLEU, exact match, by domain |
+| `textbook_tvl_to_en` | Held-out children's textbooks | chrF++, BLEU, exact match, by domain |
+| `chat_tvl` | Stage B test (synthetic_tvl + crosslingual) | chrF++, BLEU, by source |
+| `qa_tvl` | Stage B test (synthetic_tvl + crosslingual) | chrF++, BLEU, by source |
+| `summarization_tvl` | Stage B test (synthetic_tvl) | chrF++, BLEU, by source |
+
+### Budget presets
+
+| Preset | Tokens/model | Translation | Textbook | Chat | QA | Summ |
+|--------|-------------|-------------|----------|------|----|------|
+| `full` | ~500K | 250+250 | 46+46 | 250 | 120 | 40 |
+| `tiny` | ~10K | 5+5 | 5+5 | 5 | 3 | 2 |
+
+### Commands
+
+```bash
+# Full benchmark (all models)
+OPENROUTER_API_KEY=... GOOGLE_TRANSLATE_KEY=... \
+    uv run python scripts/benchmark_eval.py --budget full
+
+# Our model only (no external API costs)
+uv run python scripts/benchmark_eval.py --our-model-only
+
+# Specific models
+uv run python scripts/benchmark_eval.py \
+    --models tvl,tvl-stage-a,gpt-5.4 --openrouter-key sk-...
+
+# Dry run (show token budget, no API calls)
+uv run python scripts/benchmark_eval.py --dry-run
+
+# Run and upload results to D1 for the dashboard
+CLOUDFLARE_API_TOKEN=... uv run python scripts/benchmark_eval.py \
+    --budget full --upload --cf-token $CLOUDFLARE_API_TOKEN
+```
+
+### Data flow: benchmark → dashboard
+
+```
+scripts/benchmark_eval.py
+    │
+    ├─ Samples eval set from:
+    │   data/finetune/stage_a_mt/test.jsonl  (translation)
+    │   data/finetune/stage_b_mix/test.jsonl (chat/qa/summ)
+    │   data/external/stage_a_seed/*.jsonl   (textbook, held-out)
+    │
+    ├─ Calls each model (OpenRouter / Tinker / Google / VPS)
+    │
+    ├─ Computes chrF++, BLEU, exact match per task per model
+    │
+    ├─ Saves locally: eval/benchmark/results.json + predictions_*.jsonl
+    │
+    └─ --upload flag → D1 HTTP API
+        │
+        ├─ eval_runs (run_id, model_key, budget, results_json)
+        │   One row per model per run
+        │
+        └─ eval_predictions (run_id, model_key, task, prediction, reference)
+            Individual predictions for drill-down
+        │
+        ▼
+    GET /api/eval-results
+        │
+        ├─ Groups eval_runs by run_id
+        ├─ Parses results_json per model
+        └─ Returns { runs: [{ run_id, budget, models: { model → task → metrics } }] }
+        │
+        ▼
+    /eval page (eval.tsx)
+        ├─ Overall ranking (mean chrF++ across tasks)
+        ├─ By-category scores (Translation, Textbook, Generation)
+        └─ Per-task breakdowns with subcategory drill-down
+            (by_domain for translation, by_source for generation)
+```
+
+### D1 eval schema
+
+```sql
+eval_runs (run_id, model_key, budget, results_json, created_at)
+eval_predictions (run_id, model_key, task, example_id, prediction, reference, metadata_json)
+```
+
+Run IDs are auto-generated as `YYYY-MM-DD_HHMM_<budget>` (e.g. `2026-03-14_0130_full`).
+
+### CLI flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--budget` | `full` | Token budget preset (`full` or `tiny`) |
+| `--models` | all | Comma-separated model keys |
+| `--our-model-only` | false | Only evaluate TVL model |
+| `--openrouter-key` | `$OPENROUTER_API_KEY` | API key for OpenRouter models |
+| `--google-key` | `$GOOGLE_TRANSLATE_KEY` | API key for Google Translate |
+| `--tvl-backend` | `https://api.cyberneticphysics.com/tvl-chat` | VPS backend URL |
+| `--upload` | false | Upload results to D1 after evaluation |
+| `--cf-token` | `$CLOUDFLARE_API_TOKEN` | Cloudflare API token for D1 upload |
+| `--parallel` | 8 | Concurrent API requests per model |
+| `--seed` | 42 | Random seed for eval set sampling |
+| `--output-dir` | `eval/benchmark/` | Local results directory |
+| `--dry-run` | false | Show budget breakdown without calling APIs |
+
 ## What Remains Experimental
 
 - Native tool-message training mode (behind `tool_mode: "native"` flag)

@@ -218,3 +218,29 @@ Action plan:
 5. Run a name/place/fauna/flora extraction pass to create anti-hallucination test set.
 6. Add metadata fields (`source_file`, `source_section`, `source_row`, `quality_score`) to all injected rows.
 7. Track each batch in `todo.md` and in stage manifests as a separate artifact source.
+
+## 12. Chat → Site migration
+
+Migrate all chat/ features into site/ so chat/ can be deleted.
+
+### Missing (must migrate)
+
+- [x] `/chat/eval` route — copy `chat/src/routes/eval.tsx` → `site/src/routes/chat/eval.tsx`
+- [x] `/api/eval-results` endpoint — copy `chat/src/routes/api/eval-results.ts` → `site/src/routes/api/eval-results.ts`
+- [x] Eval DB functions — add `getEvalRuns()`, `getEvalPredictions()`, `EvalRunRow`, `EvalPredictionRow` to `site/src/lib/chat-db.ts`
+
+### Correctly NOT migrated (stays separate)
+
+- [ ] `chat/vps-backend/` — Python Tinker inference server, stays as standalone service. Site calls it via `/api/chat` proxy.
+- [ ] VPS Docker/compose config (`chat/vps-backend/Dockerfile`, `chat/vps-backend/compose.yaml`) — deployment infra, not part of the site.
+
+### Already migrated (done)
+
+- [x] `/chat` route + all chat components (ChatInput, ChatMessage, ModelBadge, TypingIndicator)
+- [x] `/chat/training` route + Stage A dashboard
+- [x] `/api/chat`, `/api/model-info`, `/api/training-stats` endpoints
+- [x] D1 database binding (shared `talafutipolo` DB)
+- [x] Dependencies: marked, highlight.js (tree-shaken)
+- [x] CSS theme isolation via `.chat-theme`
+- [x] Markdown rendering lib (`site/src/lib/markdown.ts`)
+- [x] Chat types in `site/src/lib/types.ts`

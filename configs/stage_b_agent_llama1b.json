@@ -26,6 +26,7 @@
     "validation_file": "data/finetune/stage_b_mix/validation.jsonl"
   },
   "eval": {
+    "gen_eval_data": "data/finetune/stage_a_mt/test_small.jsonl",
     "mt_test_file": "data/finetune/stage_a_mt/test.jsonl",
     "capability_test_file": "data/finetune/stage_b_mix/test.jsonl",
     "stage_a_baseline_metrics": "logs/tinker/evals/stage_a_3ep/metrics.json",

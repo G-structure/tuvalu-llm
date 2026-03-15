@@ -79,15 +79,20 @@ def resume_training_client(
     ensure_cookbook_on_path()
     from tinker_cookbook import checkpoint_utils  # type: ignore
 
+    # First try nested checkpoint lookup (for compound paths)
     info = checkpoint_utils.get_last_checkpoint(state_path)
-    if not info:
-        raise FileNotFoundError(f"No checkpoint found at {state_path}")
-    logger.info("Resuming from checkpoint: %s", info["state_path"])
-    client = service_client.create_training_client_from_state_with_optimizer(
-        info["state_path"]
-    )
-    start_step = int(info.get("step", info.get("batch", 0)))
-    return client, start_step
+    if info:
+        logger.info("Resuming from nested checkpoint: %s", info["state_path"])
+        client = service_client.create_training_client_from_state_with_optimizer(
+            info["state_path"]
+        )
+        start_step = int(info.get("step", info.get("batch", 0)))
+        return client, start_step
+
+    # Fall back to using the state_path directly
+    logger.info("Resuming directly from state path: %s", state_path)
+    client = service_client.create_training_client_from_state_with_optimizer(state_path)
+    return client, 0
 
 
 def create_sampling_client(

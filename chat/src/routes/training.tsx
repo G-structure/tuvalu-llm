@@ -12,6 +12,12 @@ interface TrainingStats {
   model_name: string;
   sampler_path: string;
   sampler_step: string;
+  stage_a?: {
+    metrics: Array<Record<string, any>>;
+    model_name: string;
+    total_steps: number;
+    current_step: number;
+  };
 }
 
 async function fetchStats(): Promise<TrainingStats | undefined> {
@@ -301,7 +307,9 @@ export default function Training() {
             </Show>
 
             {/* Stage A — completed translation adapter */}
-            <StageASummary />
+            <Show when={stats()!.stage_a?.metrics?.length}>
+              <StageASummary data={stats()!.stage_a!} />
+            </Show>
 
             {/* Footer */}
             <div class="text-center py-4 text-[11px] text-[var(--color-text-muted)]">
@@ -463,42 +471,29 @@ function formatCount(n: number): string {
 }
 
 
-// Stage A — completed translation adapter run (stage_a_3ep)
-// This run is finished so results are static.
-// TODO: serve from D1 instead of hardcoding — upload stage_a_3ep metrics
-// via upload_training_metrics.py, add to training-stats API, replace this constant.
-const STAGE_A = {
-  model: "Qwen/Qwen3-30B-A3B-Base",
-  epochs: 3,
-  totalSteps: 7851,
-  trainExamples: 334870,
-  loraRank: 32,
-  batchSize: 128,
-  lr: 2.83e-4,
-  maxLength: 2048,
-  valNll: [
-    { step: 1000, nll: 0.6536 },
-    { step: 2000, nll: 0.5875 },
-    { step: 3000, nll: 0.6099 },
-    { step: 4000, nll: 0.5216 },
-    { step: 5000, nll: 0.5035 },
-    { step: 6000, nll: 0.4921 },
-    { step: 7000, nll: 0.4837 },
-  ],
-  genEvals: [
-    { step: 1000, chrf: 62.3, bleu: 43.6, exact: 4.3 },
-    { step: 2000, chrf: 63.9, bleu: 45.8, exact: 5.1 },
-    { step: 3000, chrf: 64.8, bleu: 46.6, exact: 6.1 },
-    { step: 4000, chrf: 66.2, bleu: 48.6, exact: 6.6 },
-    { step: 5000, chrf: 67.1, bleu: 49.9, exact: 7.3 },
-    { step: 6000, chrf: 67.7, bleu: 50.9, exact: 7.7 },
-    { step: 7000, chrf: 68.1, bleu: 51.7, exact: 8.0 },
-  ],
-};
+function StageASummary(props: {
+  data: { metrics: Array<Record<string, any>>; model_name: string; total_steps: number; current_step: number };
+}) {
+  const valMetrics = createMemo(() =>
+    props.data.metrics.filter((m: any) => "validation_mean_nll" in m)
+  );
+  const genEvalMetrics = createMemo(() =>
+    props.data.metrics.filter((m: any) => "gen_eval_chrf_pp" in m)
+  );
+  const trainMetrics = createMemo(() =>
+    props.data.metrics
+      .filter((m: any) => "train_nll" in m || "train_mean_nll" in m)
+      .map((m: any) => ({ ...m, nll: m.train_nll ?? m.train_mean_nll }))
+  );
 
-function StageASummary() {
-  const best = STAGE_A.valNll[STAGE_A.valNll.length - 1];
-  const bestGen = STAGE_A.genEvals[STAGE_A.genEvals.length - 1];
+  const latestVal = createMemo(() => {
+    const v = valMetrics();
+    return v.length > 0 ? v[v.length - 1] : null;
+  });
+  const latestGen = createMemo(() => {
+    const g = genEvalMetrics();
+    return g.length > 0 ? g[g.length - 1] : null;
+  });
 
   return (
     <div class="space-y-6">
@@ -508,7 +503,7 @@ function StageASummary() {
             Stage A — Translation Adapter
           </h2>
           <p class="text-[13px] text-[var(--color-text-muted)] mt-1">
-            {STAGE_A.model} · {STAGE_A.trainExamples.toLocaleString()} examples · {STAGE_A.epochs} epochs
+            {props.data.model_name} · {props.data.total_steps.toLocaleString()} steps
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -521,60 +516,76 @@ function StageASummary() {
       <div class="grid grid-cols-4 gap-px bg-[var(--color-border)] rounded-lg overflow-hidden">
         <Metric
           label="Val NLL"
-          value={best.nll.toFixed(4)}
-          sub={`Step ${best.step.toLocaleString()}`}
+          value={latestVal()?.validation_mean_nll?.toFixed(4) ?? "—"}
+          sub={latestVal() ? `Step ${latestVal()!.step.toLocaleString()}` : ""}
         />
         <Metric
           label="chrF++"
-          value={bestGen.chrf.toFixed(1)}
-          sub={`Step ${bestGen.step.toLocaleString()}`}
+          value={latestGen()?.gen_eval_chrf_pp?.toFixed(1) ?? "—"}
+          sub={latestGen() ? `Step ${latestGen()!.step.toLocaleString()}` : ""}
         />
         <Metric
           label="BLEU"
-          value={bestGen.bleu.toFixed(1)}
-          sub={`Step ${bestGen.step.toLocaleString()}`}
+          value={latestGen()?.gen_eval_bleu?.toFixed(1) ?? "—"}
+          sub={latestGen() ? `Step ${latestGen()!.step.toLocaleString()}` : ""}
         />
         <Metric
           label="Exact"
-          value={`${bestGen.exact.toFixed(1)}%`}
-          sub={`${STAGE_A.totalSteps.toLocaleString()} total steps`}
+          value={latestGen() ? `${(latestGen()!.gen_eval_exact_match * 100).toFixed(1)}%` : "—"}
+          sub={`${props.data.total_steps.toLocaleString()} total steps`}
         />
       </div>
 
-      {/* Two columns: val NLL chart + gen eval history */}
+      {/* Two columns: loss chart + gen eval history */}
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <div class="flex items-center justify-between mb-6">
-            <span class="text-[13px] font-medium text-[var(--color-text)]">Validation loss</span>
-            <span class="text-[11px] text-[var(--color-text-muted)]">every 1,000 steps</span>
-          </div>
-          <StageAValChart data={STAGE_A.valNll} />
-        </Card>
+        <Show when={trainMetrics().length > 5}>
+          <Card>
+            <div class="flex items-center justify-between mb-6">
+              <span class="text-[13px] font-medium text-[var(--color-text)]">Loss</span>
+              <div class="flex items-center gap-5 text-[11px] text-[var(--color-text-muted)]">
+                <span class="flex items-center gap-1.5">
+                  <span class="w-5 h-[1.5px] bg-[#34d399] rounded" /> Train
+                </span>
+                <Show when={valMetrics().length > 0}>
+                  <span class="flex items-center gap-1.5">
+                    <span class="w-5 h-[1.5px] rounded" style="background: #f0c674; opacity: 0.7" /> Val
+                  </span>
+                </Show>
+              </div>
+            </div>
+            <StageALossChart data={trainMetrics()} valData={valMetrics()} />
+          </Card>
+        </Show>
 
         <Card>
           <span class="text-[13px] font-medium text-[var(--color-text)] block mb-5">Evaluations</span>
-          <table class="w-full text-[12px]">
-            <thead>
-              <tr class="text-[var(--color-text-muted)]">
-                <th class="text-left py-2 font-normal">Step</th>
-                <th class="text-right py-2 font-normal">chrF++</th>
-                <th class="text-right py-2 font-normal">BLEU</th>
-                <th class="text-right py-2 font-normal">Exact</th>
-              </tr>
-            </thead>
-            <tbody>
-              <For each={[...STAGE_A.genEvals].reverse()}>
-                {(m, idx) => (
-                  <tr class={`border-t border-[var(--color-border)] ${idx() === 0 ? "text-[var(--color-text)]" : "text-[var(--color-text-secondary)]"}`}>
-                    <td class="py-2.5 tabular">{m.step.toLocaleString()}</td>
-                    <td class="py-2.5 text-right tabular">{m.chrf.toFixed(1)}</td>
-                    <td class="py-2.5 text-right tabular">{m.bleu.toFixed(1)}</td>
-                    <td class="py-2.5 text-right tabular">{m.exact.toFixed(1)}%</td>
-                  </tr>
-                )}
-              </For>
-            </tbody>
-          </table>
+          <Show
+            when={genEvalMetrics().length > 0}
+            fallback={<p class="text-[12px] text-[var(--color-text-muted)]">No gen evals yet.</p>}
+          >
+            <table class="w-full text-[12px]">
+              <thead>
+                <tr class="text-[var(--color-text-muted)]">
+                  <th class="text-left py-2 font-normal">Step</th>
+                  <th class="text-right py-2 font-normal">chrF++</th>
+                  <th class="text-right py-2 font-normal">BLEU</th>
+                  <th class="text-right py-2 font-normal">Exact</th>
+                </tr>
+              </thead>
+              <tbody>
+                <For each={genEvalMetrics().slice().reverse()}>
+                  {(m: any, idx) => (
+                    <tr class={`border-t border-[var(--color-border)] ${idx() === 0 ? "text-[var(--color-text)]" : "text-[var(--color-text-secondary)]"}`}>
+                      <td class="py-2.5 tabular">{m.step.toLocaleString()}</td>
+                      <td class="py-2.5 text-right tabular">{m.gen_eval_chrf_pp?.toFixed(1)}</td>
+                      <td class="py-2.5 text-right tabular">{m.gen_eval_bleu?.toFixed(1)}</td>
+                      <td class="py-2.5 text-right tabular">{(m.gen_eval_exact_match * 100).toFixed(1)}%</td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </Show>
         </Card>
       </div>
     </div>
@@ -582,7 +593,7 @@ function StageASummary() {
 }
 
 
-function StageAValChart(props: { data: Array<{ step: number; nll: number }> }) {
+function StageALossChart(props: { data: any[]; valData: any[] }) {
   const width = 420;
   const height = 160;
   const pad = { t: 12, r: 12, b: 28, l: 48 };
@@ -591,28 +602,38 @@ function StageAValChart(props: { data: Array<{ step: number; nll: number }> }) {
 
   const paths = createMemo(() => {
     const d = props.data;
-    if (d.length < 2) return { line: "", area: "", xLabels: [], yLabels: [] };
+    if (d.length < 2) return { train: "", val: "", area: "", xLabels: [], yLabels: [] };
 
-    const minStep = d[0].step;
     const maxStep = d[d.length - 1].step;
-    const nlls = d.map((m) => m.nll);
-    const maxNll = Math.max(...nlls);
-    const minNll = Math.min(...nlls) * 0.95;
+    const minStep = d[0].step;
+    const allNll = d.map((m: any) => m.nll);
+    const maxNll = Math.max(...allNll);
+    const minNll = Math.min(...allNll) * 0.95;
     const range = maxNll - minNll || 1;
 
     const sx = (s: number) => pad.l + ((s - minStep) / (maxStep - minStep || 1)) * chartW;
     const sy = (v: number) => pad.t + (1 - (v - minNll) / range) * chartH;
 
-    const line = d
-      .map((m, i) => `${i === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.nll).toFixed(1)}`)
+    const step = Math.max(1, Math.floor(d.length / 300));
+    const sampled = d.filter((_: any, i: number) => i % step === 0 || i === d.length - 1);
+
+    const train = sampled
+      .map((m: any, i: number) => `${i === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.nll).toFixed(1)}`)
       .join(" ");
 
-    const area = line + ` L${sx(d[d.length - 1].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} L${sx(d[0].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} Z`;
+    const area = train + ` L${sx(sampled[sampled.length - 1].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} L${sx(sampled[0].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} Z`;
 
-    const xLabels = [d[0], d[Math.floor(d.length / 2)], d[d.length - 1]].map((m) => ({
-      x: sx(m.step),
-      label: m.step.toLocaleString(),
-    }));
+    const val = props.valData.length > 1
+      ? props.valData
+          .map((m: any, i: number) => `${i === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.validation_mean_nll).toFixed(1)}`)
+          .join(" ")
+      : "";
+
+    const xCount = 5;
+    const xLabels = Array.from({ length: xCount }, (_, i) => {
+      const s = minStep + ((maxStep - minStep) * i) / (xCount - 1);
+      return { x: sx(s), label: Math.round(s).toLocaleString() };
+    });
 
     const yCount = 4;
     const yLabels = Array.from({ length: yCount }, (_, i) => {
@@ -620,7 +641,7 @@ function StageAValChart(props: { data: Array<{ step: number; nll: number }> }) {
       return { y: sy(v), label: v.toFixed(2) };
     });
 
-    return { line, area, xLabels, yLabels };
+    return { train, val, area, xLabels, yLabels };
   });
 
   return (
@@ -647,24 +668,12 @@ function StageAValChart(props: { data: Array<{ step: number; nll: number }> }) {
       <Show when={paths().area}>
         <path d={paths().area} fill="url(#stageAFill)" />
       </Show>
-      <Show when={paths().line}>
-        <path d={paths().line} fill="none" stroke="#34d399" stroke-width="1.5" />
+      <Show when={paths().train}>
+        <path d={paths().train} fill="none" stroke="#34d399" stroke-width="1.5" />
       </Show>
-      {/* Dots on each data point */}
-      <For each={props.data}>
-        {(m) => {
-          const d = props.data;
-          const minStep = d[0].step;
-          const maxStep = d[d.length - 1].step;
-          const nlls = d.map((p) => p.nll);
-          const maxNll = Math.max(...nlls);
-          const minNll = Math.min(...nlls) * 0.95;
-          const range = maxNll - minNll || 1;
-          const cx = pad.l + ((m.step - minStep) / (maxStep - minStep || 1)) * chartW;
-          const cy = pad.t + (1 - (m.nll - minNll) / range) * chartH;
-          return <circle cx={cx} cy={cy} r="2.5" fill="#34d399" opacity="0.8" />;
-        }}
-      </For>
+      <Show when={paths().val}>
+        <path d={paths().val} fill="none" stroke="#f0c674" stroke-width="1.5" stroke-opacity="0.6" stroke-dasharray="4,3" />
+      </Show>
     </svg>
   );
 }

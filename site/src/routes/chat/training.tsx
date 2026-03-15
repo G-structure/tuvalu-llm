@@ -93,12 +93,17 @@ export default function Training() {
               <span class="text-[var(--color-border-subtle)]">/</span>
               <span class="text-[13px] text-[var(--color-text)] font-medium">Training</span>
             </div>
-            <button
-              onClick={() => refetch()}
-              class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-            >
-              Refresh
-            </button>
+            <div class="flex items-center gap-4">
+              <a href="/chat/eval" class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
+                Eval
+              </a>
+              <button
+                onClick={() => refetch()}
+                class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
         </nav>
 

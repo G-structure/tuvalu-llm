@@ -2,7 +2,15 @@ import type { APIEvent } from "@solidjs/start/server";
 import { hasDb, getTrainingMetrics, getTrainingConfig, getLatestMetric } from "~/lib/db";
 
 const BACKEND_URL = process.env.CHAT_BACKEND_URL || "http://localhost:8787";
-const DEFAULT_RUN_ID = "stage_b_llama8b";
+const STAGE_B_RUN_ID = "stage_b_llama8b";
+const STAGE_A_RUN_ID = "stage_a_3ep";
+
+function parseMetrics(rawMetrics: Array<{ step: number; metric_type: string; value_json: string }>) {
+  return rawMetrics.map((m) => {
+    const parsed = JSON.parse(m.value_json);
+    return { step: m.step, metric_type: m.metric_type, ...parsed };
+  });
+}
 
 export async function GET(_event: APIEvent) {
   // If D1 is not available (local dev), proxy to Python backend
@@ -21,39 +29,44 @@ export async function GET(_event: APIEvent) {
   }
 
   try {
-    // Read from D1
-    const [rawMetrics, mixStats, runInfo, latestTrain] = await Promise.all([
-      getTrainingMetrics(DEFAULT_RUN_ID),
+    // Read both Stage A and Stage B from D1
+    const [
+      rawMetricsB, mixStats, runInfoB, latestTrainB,
+      rawMetricsA, runInfoA,
+    ] = await Promise.all([
+      getTrainingMetrics(STAGE_B_RUN_ID),
       getTrainingConfig("mix_stats"),
-      getTrainingConfig("run_info"),
-      getLatestMetric(DEFAULT_RUN_ID, "train_nll"),
+      getTrainingConfig(`run_info_${STAGE_B_RUN_ID}`).then(r => r ?? getTrainingConfig("run_info")),
+      getLatestMetric(STAGE_B_RUN_ID, "train_nll"),
+      getTrainingMetrics(STAGE_A_RUN_ID),
+      getTrainingConfig(`run_info_${STAGE_A_RUN_ID}`),
     ]);
 
-    // Parse value_json for each metric and flatten into the shape the frontend expects
-    const metrics = rawMetrics.map((m) => {
-      const parsed = JSON.parse(m.value_json);
-      return {
-        step: m.step,
-        metric_type: m.metric_type,
-        ...parsed,
-      };
-    });
+    const metricsB = parseMetrics(rawMetricsB);
+    const metricsA = parseMetrics(rawMetricsA);
 
-    const currentStep = latestTrain ? latestTrain.step : 0;
-    const totalSteps = runInfo?.total_steps ?? 0;
+    const currentStep = latestTrainB ? latestTrainB.step : 0;
+    const totalSteps = runInfoB?.total_steps ?? 0;
     const progressPct =
       totalSteps > 0 ? Math.round((currentStep / totalSteps) * 1000) / 10 : 0;
 
     const result = {
-      metrics,
+      metrics: metricsB,
       mix_stats: mixStats ?? {},
       checkpoints: [],
       current_step: currentStep,
       total_steps: totalSteps,
       progress_pct: progressPct,
-      model_name: runInfo?.model_name ?? "",
-      sampler_path: runInfo?.sampler_path ?? "",
-      sampler_step: runInfo?.sampler_step ?? "",
+      model_name: runInfoB?.model_name ?? "",
+      sampler_path: runInfoB?.sampler_path ?? "",
+      sampler_step: runInfoB?.sampler_step ?? "",
+      // Stage A
+      stage_a: {
+        metrics: metricsA,
+        model_name: runInfoA?.model_name ?? "",
+        total_steps: runInfoA?.total_steps ?? 0,
+        current_step: runInfoA?.current_step ?? 0,
+      },
     };
 
     return new Response(JSON.stringify(result), {

@@ -32,12 +32,17 @@ D1_API_URL = (
     f"/d1/database/{DATABASE_ID}/query"
 )
 
-# Local paths
-METRICS_PATH = REPO_ROOT / "logs" / "tinker" / "stage_b_llama8b" / "metrics.jsonl"
-MIX_STATS_PATH = REPO_ROOT / "data" / "finetune" / "stage_b_mix" / "stats.json"
-UPLOAD_STATE_PATH = REPO_ROOT / ".upload_state.json"
+# Local paths (defaults, overridable via CLI)
+DEFAULT_METRICS_PATH = REPO_ROOT / "logs" / "tinker" / "stage_b_llama8b" / "metrics.jsonl"
+DEFAULT_MIX_STATS_PATH = REPO_ROOT / "data" / "finetune" / "stage_b_mix" / "stats.json"
 
-RUN_ID = "stage_b_llama8b"
+DEFAULT_RUN_ID = "stage_b_llama8b"
+
+# These are set in main() from CLI args
+METRICS_PATH = DEFAULT_METRICS_PATH
+MIX_STATS_PATH = DEFAULT_MIX_STATS_PATH
+UPLOAD_STATE_PATH = REPO_ROOT / ".upload_state.json"
+RUN_ID = DEFAULT_RUN_ID
 POLL_INTERVAL = 30  # seconds
 
 logging.basicConfig(
@@ -352,15 +357,30 @@ def upload_mix_stats(token: str, state: dict) -> dict:
 
 
 def upload_run_info_from_config(token: str) -> None:
-    """Upload run-level info from the training config file."""
-    config_path = REPO_ROOT / "configs" / "stage_b_agent_llama1b.json"
-    if not config_path.exists():
-        return
-    try:
-        cfg = json.loads(config_path.read_text())
-    except (json.JSONDecodeError, OSError):
-        return
-    # Read total steps from log or metrics
+    """Upload run-level info from the manifest or training config file."""
+    # Try manifest first (has model_name, total_steps, etc.)
+    manifest_path = METRICS_PATH.parent / "manifest.json"
+    model_name = "Qwen/Qwen3-30B-A3B"
+    total_steps = 0
+
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text())
+            model_name = manifest.get("config", {}).get("model_name", model_name)
+            total_steps = manifest.get("total_steps", 0)
+        except (json.JSONDecodeError, OSError):
+            pass
+    else:
+        # Fallback to config file
+        config_path = REPO_ROOT / "configs" / "stage_b_agent_llama1b.json"
+        if config_path.exists():
+            try:
+                cfg = json.loads(config_path.read_text())
+                model_name = cfg.get("model", {}).get("name", model_name)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+    # Read current step from metrics
     lines = read_metrics_lines()
     max_step = 0
     for line in reversed(lines):
@@ -368,9 +388,11 @@ def upload_run_info_from_config(token: str) -> None:
         if entry and "step" in entry:
             max_step = max(max_step, entry["step"])
             break
+
+    config_key = f"run_info_{RUN_ID}"
     info = {
-        "model_name": cfg.get("model", {}).get("name", "Qwen/Qwen3-30B-A3B"),
-        "total_steps": 45561,
+        "model_name": model_name,
+        "total_steps": total_steps,
         "current_step": max_step,
         "run_id": RUN_ID,
     }
@@ -379,16 +401,16 @@ def upload_run_info_from_config(token: str) -> None:
             {
                 "sql": (
                     "INSERT INTO training_config (key, value_json, updated_at) "
-                    "VALUES ('run_info', ?, datetime('now')) "
+                    "VALUES (?, ?, datetime('now')) "
                     "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, "
                     "updated_at=datetime('now')"
                 ),
-                "params": [json.dumps(info)],
+                "params": [config_key, json.dumps(info)],
             }
         ],
         token,
     )
-    log.info("Run info uploaded: step %d, model %s", max_step, info["model_name"])
+    log.info("Run info uploaded (%s): step %d, model %s", config_key, max_step, model_name)
 
 
 def run_upload_cycle(token: str, state: dict) -> dict:
@@ -438,7 +460,31 @@ def main() -> None:
         action="store_true",
         help="Reset upload state (re-upload everything)",
     )
+    parser.add_argument(
+        "--run-id",
+        default=DEFAULT_RUN_ID,
+        help=f"Run ID for D1 entries (default: {DEFAULT_RUN_ID})",
+    )
+    parser.add_argument(
+        "--metrics-path",
+        type=Path,
+        default=None,
+        help="Path to metrics.jsonl (default: logs/tinker/<run-id>/metrics.jsonl)",
+    )
+    parser.add_argument(
+        "--mix-stats-path",
+        type=Path,
+        default=None,
+        help="Path to mix stats JSON (default: data/finetune/stage_b_mix/stats.json)",
+    )
     args = parser.parse_args()
+
+    # Set globals from CLI args
+    global RUN_ID, METRICS_PATH, MIX_STATS_PATH, UPLOAD_STATE_PATH
+    RUN_ID = args.run_id
+    METRICS_PATH = args.metrics_path or REPO_ROOT / "logs" / "tinker" / RUN_ID / "metrics.jsonl"
+    MIX_STATS_PATH = args.mix_stats_path or DEFAULT_MIX_STATS_PATH
+    UPLOAD_STATE_PATH = REPO_ROOT / f".upload_state_{RUN_ID}.json"
 
     token = get_api_token()
 
