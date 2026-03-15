@@ -17,7 +17,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.common.config import load_config
+from tv.common.config import load_config
 
 
 def _translate_config(raw: dict) -> dict:
@@ -66,7 +66,7 @@ def main() -> None:
     if args.run_name:
         config["run_name"] = args.run_name
 
-    from training.stage_b_agent.eval import main as eval_main
+    from tv.training.stage_b_agent.eval import main as eval_main
 
     eval_main(config)
 

@@ -19,7 +19,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.common.config import load_config
+from tv.common.config import load_config
 
 
 def _translate_config(raw: dict, pilot: bool = False) -> dict:
@@ -85,7 +85,7 @@ def main() -> None:
     if args.resume:
         config["resume_from"] = args.resume
 
-    from training.stage_b_agent.train import main as train_main
+    from tv.training.stage_b_agent.train import main as train_main
 
     train_main(config)
 

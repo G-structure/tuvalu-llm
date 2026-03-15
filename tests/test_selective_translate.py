@@ -5,13 +5,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.synthetic.selective_translate import (
+from tv.training.synthetic.selective_translate import (
     classify_message_content,
     mask_protected_spans,
     selective_translate_example,
     unmask_protected_spans,
 )
-from training.synthetic.quality import (
+from tv.training.synthetic.quality import (
     check_placeholder_leaks,
     validate_code_preservation,
     validate_json_preservation,

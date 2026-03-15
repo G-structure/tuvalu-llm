@@ -7,8 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.io import write_jsonl
-from training.synthetic.loaders import load_private_tvl_chat
+from tv.common.io import write_jsonl
+from tv.training.synthetic.loaders import load_private_tvl_chat
 
 
 def test_load_private_tvl_chat_from_messages(tmp_path: Path):

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DEPRECATED: Use scripts/train_stage_a_translation.py instead.
 
-This wrapper delegates to training.stage_a_mt.train for backwards
+This wrapper delegates to tv.training.stage_a_mt.train for backwards
 compatibility. It will be removed in a future version.
 """
 
@@ -54,7 +54,7 @@ def main() -> None:
         if val is not None:
             config[key] = val
 
-    from training.stage_a_mt.train import main as train_main
+    from tv.training.stage_a_mt.train import main as train_main
 
     train_main(config)
 

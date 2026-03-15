@@ -1,8 +1,20 @@
-"""Synthetic data generation: registry, loaders, selective translation."""
+"""Compatibility shim for ``training.synthetic`` -> ``tv.training.synthetic``."""
 
-from .registry import get_loader, list_datasets, register
+from importlib import import_module as _import_module
 
-# Import loaders to trigger registration via @register decorators
-from . import loaders as _loaders  # noqa: F401
+_TARGET = _import_module("tv.training.synthetic")
 
-__all__ = ["get_loader", "list_datasets", "register"]
+__doc__ = _TARGET.__doc__
+__all__ = getattr(_TARGET, "__all__", [])
+__path__ = list(getattr(_TARGET, "__path__", []))
+
+if __spec__ is not None:
+    __spec__.submodule_search_locations = __path__
+
+
+def __getattr__(name: str):
+    return getattr(_TARGET, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(dir(_TARGET)))

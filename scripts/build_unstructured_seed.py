@@ -25,8 +25,8 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.common.io import write_json, write_jsonl
-from training.common.manifests import create_manifest, save_manifest
+from tv.common.io import write_json, write_jsonl
+from tv.common.manifests import create_manifest, save_manifest
 
 EXTRACTOR_VERSION = "unstructured-seed-v3"
 

@@ -19,7 +19,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.common.config import load_config
+from tv.common.config import load_config
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,7 +46,7 @@ def main() -> None:
         print(json.dumps(config, indent=2))
         return
 
-    from training.synthetic.generate import main as run_generation
+    from tv.training.synthetic.generate import main as run_generation
 
     summary = run_generation(config)
     print(json.dumps(summary, indent=2, ensure_ascii=False))

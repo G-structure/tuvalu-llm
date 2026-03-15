@@ -1,12 +1,20 @@
-"""Stage B: Bilingual capability/agent adapter on gpt-oss-120b.
+"""Compatibility shim for ``training.stage_b_agent`` -> ``tv.training.stage_b_agent``."""
 
-Stage B starts from openai/gpt-oss-120b BASE, NOT from Stage A weights.
-Stage A exists only to produce the synthetic TVL dataset. The adapter
-produced by Stage B is the final shipping artifact.
+from importlib import import_module as _import_module
 
-Submodules:
-    build_mix      - Build mixed training dataset (EN + synthetic TVL + anchor)
-    train          - LoRA fine-tuning on Tinker
-    eval           - Translation regression, capability smoke, preservation metrics
-    tooling_modes  - Safe vs native tool-call formatting
-"""
+_TARGET = _import_module("tv.training.stage_b_agent")
+
+__doc__ = _TARGET.__doc__
+__all__ = getattr(_TARGET, "__all__", [])
+__path__ = list(getattr(_TARGET, "__path__", []))
+
+if __spec__ is not None:
+    __spec__.submodule_search_locations = __path__
+
+
+def __getattr__(name: str):
+    return getattr(_TARGET, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(dir(_TARGET)))

@@ -11,7 +11,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.local_mlx import prepare_local_mlx_run
+from tv.training.local_mlx import prepare_local_mlx_run
 
 
 def parse_args() -> argparse.Namespace:

@@ -141,7 +141,7 @@ def _write_manifest(path: Path, run_name: str, steps: list[dict[str, Any]]) -> N
 
     # Include minimal git context if available for reproducibility.
     try:
-        import training.common.manifests as manifest_lib
+        import tv.common.manifests as manifest_lib
 
         payload["git_hash"] = manifest_lib.get_git_hash()
         payload["git_dirty"] = manifest_lib.get_git_dirty()

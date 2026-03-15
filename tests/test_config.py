@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.config import load_config, merge_config, get_repo_root
+from tv.common.config import load_config, merge_config, get_repo_root
 from scripts.build_stage_a_mt_data import flatten_build_config
 from scripts.eval_stage_a_translation import flatten_eval_config
 from scripts.train_stage_a_translation import flatten_train_config
@@ -130,7 +130,7 @@ def test_eval_wrapper_flattens_nested_config():
 
 def test_config_driven_book_holdouts():
     """Verify build_data uses config books when provided."""
-    from training.stage_a_mt.build_data import _assign_split
+    from tv.training.stage_a_mt.build_data import _assign_split
 
     bible_row = {"content_type": "bible_verse", "book_num": 1}
 
@@ -192,7 +192,7 @@ def _make_fake_examples(n: int, chars_per_msg: int = 200) -> list[dict]:
 
 def test_pilot_subset_deterministic():
     """Two runs with same config produce same subset."""
-    from training.stage_a_mt.build_data import build_pilot_subset
+    from tv.training.stage_a_mt.build_data import build_pilot_subset
 
     examples = _make_fake_examples(100)
     run1 = build_pilot_subset(examples, token_budget=5000)
@@ -202,8 +202,8 @@ def test_pilot_subset_deterministic():
 
 def test_pilot_subset_within_budget():
     """Total tokens within 10% of budget."""
-    from training.stage_a_mt.build_data import build_pilot_subset
-    from training.common.token_estimates import estimate_dataset_tokens
+    from tv.training.stage_a_mt.build_data import build_pilot_subset
+    from tv.common.token_estimates import estimate_dataset_tokens
 
     examples = _make_fake_examples(200, chars_per_msg=100)
     budget = 5000
@@ -217,7 +217,7 @@ def test_pilot_subset_within_budget():
 
 def test_pilot_subset_stable_ordering():
     """Examples are selected in stable hash order."""
-    from training.stage_a_mt.build_data import build_pilot_subset, _stable_hash
+    from tv.training.stage_a_mt.build_data import build_pilot_subset, _stable_hash
 
     examples = _make_fake_examples(50)
     subset = build_pilot_subset(examples, token_budget=3000)

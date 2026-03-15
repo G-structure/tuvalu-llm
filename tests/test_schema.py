@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.schema import make_example, validate_example, TASK_FAMILIES
+from tv.common.schema import make_example, validate_example, TASK_FAMILIES
 
 
 def test_make_example_valid():

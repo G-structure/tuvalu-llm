@@ -43,7 +43,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 sys.path.insert(0, str(REPO_ROOT))
-from training.common.metrics import (
+from tv.common.metrics import (
     compute_grouped_metrics,
     compute_translation_metrics,
 )

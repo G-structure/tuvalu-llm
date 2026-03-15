@@ -18,16 +18,16 @@ from pathlib import Path
 # Ensure repo root is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.config import get_repo_root, load_config
-from training.common.io import write_json
-from training.common.manifests import create_manifest, save_manifest
-from training.common.token_estimates import estimate_example_tokens, format_token_count
-from training.synthetic.budgeting import BudgetManager
-from training.synthetic.naming import dataset_name_to_filename
-from training.synthetic.registry import get_loader, list_datasets
+from tv.common.config import get_repo_root, load_config
+from tv.common.io import write_json
+from tv.common.manifests import create_manifest, save_manifest
+from tv.common.token_estimates import estimate_example_tokens, format_token_count
+from tv.training.synthetic.budgeting import BudgetManager
+from tv.training.synthetic.naming import dataset_name_to_filename
+from tv.training.synthetic.registry import get_loader, list_datasets
 
 # Force loader registration
-import training.synthetic.loaders  # noqa: F401
+import tv.training.synthetic.loaders  # noqa: F401
 
 logger = logging.getLogger(__name__)
 

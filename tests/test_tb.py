@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.tb import TBLogger
+from tv.common.tb import TBLogger
 
 
 def test_numeric_scalar_filtering():

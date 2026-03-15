@@ -88,7 +88,7 @@ def main() -> None:
         if value is not None:
             config[key] = value
 
-    from training.stage_a_mt.eval import main as eval_main
+    from tv.training.stage_a_mt.eval import main as eval_main
 
     eval_main(config)
 

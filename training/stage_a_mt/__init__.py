@@ -1,8 +1,20 @@
-"""Stage A: Translation adapter (Tuvaluan <-> English).
+"""Compatibility shim for ``training.stage_a_mt`` -> ``tv.training.stage_a_mt``."""
 
-Modules:
-    build_data - Build MT dataset from aligned JSONL
-    train      - LoRA fine-tuning via Tinker
-    eval       - Translation quality evaluation
-    export     - Export final checkpoint for downstream use
-"""
+from importlib import import_module as _import_module
+
+_TARGET = _import_module("tv.training.stage_a_mt")
+
+__doc__ = _TARGET.__doc__
+__all__ = getattr(_TARGET, "__all__", [])
+__path__ = list(getattr(_TARGET, "__path__", []))
+
+if __spec__ is not None:
+    __spec__.submodule_search_locations = __path__
+
+
+def __getattr__(name: str):
+    return getattr(_TARGET, name)
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(dir(_TARGET)))

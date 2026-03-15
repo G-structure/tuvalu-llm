@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """DEPRECATED: Use scripts/build_stage_a_mt_data.py instead.
 
-This wrapper delegates to training.stage_a_mt.build_data for backwards
+This wrapper delegates to tv.training.stage_a_mt.build_data for backwards
 compatibility. It will be removed in a future version.
 """
 
@@ -63,7 +63,7 @@ def main() -> None:
         if value is not None:
             config[key] = value
 
-    from training.stage_a_mt.build_data import main as build_main
+    from tv.training.stage_a_mt.build_data import main as build_main
 
     build_main(config)
 

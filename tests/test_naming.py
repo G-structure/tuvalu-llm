@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.synthetic.naming import dataset_name_to_filename, filename_to_dataset_name
+from tv.training.synthetic.naming import dataset_name_to_filename, filename_to_dataset_name
 
 
 class TestNamingRoundtrip:

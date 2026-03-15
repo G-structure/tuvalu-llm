@@ -6,8 +6,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.schema import make_example
-from training.stage_b_agent.build_mix import (
+from tv.common.schema import make_example
+from tv.training.stage_b_agent.build_mix import (
     _assign_split,
     _deduplicate,
     _example_split_key,

@@ -30,7 +30,7 @@ def main():
     if args.base_model:
         config["base_model"] = args.base_model
 
-    from training.stage_a_mt.export import main as export_main
+    from tv.training.stage_a_mt.export import main as export_main
 
     result = export_main(config)
     print(json.dumps(result, indent=2))

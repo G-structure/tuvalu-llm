@@ -5,7 +5,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.stage_a_mt.build_data import (
+from tv.training.stage_a_mt.build_data import (
     _assign_split,
     _stable_hash,
     _normalize_for_hash,

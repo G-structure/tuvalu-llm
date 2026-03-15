@@ -123,7 +123,7 @@ uv run scripts/render_training_data.py --dry-run
 ```
 
 ### `build_stage_a_mt_data.py`
-CLI wrapper that builds Stage A MT chat datasets from aligned JSONL. Delegates to `training.stage_a_mt.build_data`. Largely superseded by `render_training_data.py` for the v2 pipeline.
+CLI wrapper that builds Stage A MT chat datasets from aligned JSONL. Delegates to `tv.training.stage_a_mt.build_data`. Largely superseded by `render_training_data.py` for the v2 pipeline.
 
 ```bash
 uv run scripts/build_stage_a_mt_data.py --config configs/stage_a_translation_qwen30b_base.json

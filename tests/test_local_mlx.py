@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.local_mlx.prepare import prepare_local_mlx_run, stage_spec_from_config
+from tv.training.local_mlx.prepare import prepare_local_mlx_run, stage_spec_from_config
 
 
 def _write_jsonl(path: Path, rows: list[dict]) -> None:

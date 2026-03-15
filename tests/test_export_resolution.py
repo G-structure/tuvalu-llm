@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from training.common.io import write_json
+from tv.common.io import write_json
 
 
 def _make_stage_a_config(tmp_path, model_path=None, log_path=None):
@@ -24,8 +24,8 @@ def _make_stage_a_config(tmp_path, model_path=None, log_path=None):
 
 def _resolve_model_path(stage_a_config, repo_root):
     """Extract the resolution logic matching generate.py."""
-    from training.common.config import resolve_path
-    from training.common.io import read_json
+    from tv.common.config import resolve_path
+    from tv.common.io import read_json
 
     model_path = stage_a_config.get("model_path")
     if not model_path and stage_a_config.get("log_path"):
@@ -35,7 +35,7 @@ def _resolve_model_path(stage_a_config, repo_root):
             export_info = read_json(export_info_path)
             model_path = export_info.get("model_path")
         else:
-            from training.stage_a_mt.export import get_model_path
+            from tv.training.stage_a_mt.export import get_model_path
 
             try:
                 model_path = get_model_path({"log_path": stage_a_config["log_path"]})
@@ -71,7 +71,7 @@ def test_resolution_from_checkpoint_fallback(tmp_path):
     cfg = _make_stage_a_config(tmp_path, log_path=str(log_dir))
 
     with patch(
-        "training.stage_a_mt.export.get_model_path",
+        "tv.training.stage_a_mt.export.get_model_path",
         return_value="/checkpoint/model/v3",
     ):
         result = _resolve_model_path(cfg, tmp_path)
@@ -86,7 +86,7 @@ def test_resolution_fallback_returns_none(tmp_path):
     cfg = _make_stage_a_config(tmp_path, log_path=str(log_dir))
 
     with patch(
-        "training.stage_a_mt.export.get_model_path",
+        "tv.training.stage_a_mt.export.get_model_path",
         side_effect=FileNotFoundError("no checkpoint"),
     ):
         result = _resolve_model_path(cfg, tmp_path)

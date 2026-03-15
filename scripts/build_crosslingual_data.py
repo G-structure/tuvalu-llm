@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from training.common.io import read_jsonl
+from tv.common.io import read_jsonl
 
 ENGLISH_DIR = REPO_ROOT / "data" / "finetune" / "stage_b_sources" / "english_normalized"
 SYNTHETIC_DIR = REPO_ROOT / "data" / "finetune" / "stage_b_synthetic_tvl" / "accepted"

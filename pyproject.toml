@@ -31,3 +31,6 @@ ocr = [
     "pytesseract>=0.3.13",
     "pillow>=11.0.0",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
