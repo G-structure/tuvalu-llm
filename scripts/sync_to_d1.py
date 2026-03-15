@@ -42,6 +42,20 @@ def build_upsert_sql(table: str, rows: list[dict], conflict_col: str = "id") -> 
     return statements
 
 
+def table_exists(conn: sqlite3.Connection, table: str) -> bool:
+    row = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table,),
+    ).fetchone()
+    return row is not None
+
+
+def _optional_rows(conn: sqlite3.Connection, table: str) -> list[dict]:
+    if not table_exists(conn, table):
+        return []
+    return [dict(r) for r in conn.execute(f"SELECT * FROM {table}").fetchall()]
+
+
 def get_local_data(conn: sqlite3.Connection) -> dict:
     """Read all data from local DB that needs syncing."""
     conn.row_factory = sqlite3.Row
@@ -49,11 +63,17 @@ def get_local_data(conn: sqlite3.Connection) -> dict:
     sources = [dict(r) for r in conn.execute("SELECT * FROM sources").fetchall()]
     articles = [dict(r) for r in conn.execute("SELECT * FROM articles").fetchall()]
     translations = [dict(r) for r in conn.execute("SELECT * FROM translations").fetchall()]
+    feedback = _optional_rows(conn, "feedback")
+    implicit_signals = _optional_rows(conn, "implicit_signals")
+    article_feedback_forms = _optional_rows(conn, "article_feedback_forms")
 
     return {
         "sources": sources,
         "articles": articles,
         "translations": translations,
+        "feedback": feedback,
+        "implicit_signals": implicit_signals,
+        "article_feedback_forms": article_feedback_forms,
     }
 
 
@@ -73,6 +93,10 @@ def build_sync_sql(data: dict) -> str:
         cols = ", ".join(row.keys())
         vals = ", ".join(escape_sql(v) for v in row.values())
         lines.append(f"INSERT OR REPLACE INTO translations ({cols}) VALUES ({vals});")
+
+    lines.extend(build_upsert_sql("feedback", data["feedback"]))
+    lines.extend(build_upsert_sql("implicit_signals", data["implicit_signals"]))
+    lines.extend(build_upsert_sql("article_feedback_forms", data["article_feedback_forms"]))
 
     lines.append("PRAGMA foreign_keys = ON;")
     return "\n".join(lines)
@@ -115,9 +139,14 @@ def main():
     data = get_local_data(conn)
     conn.close()
 
-    print(f"Local DB: {len(data['sources'])} sources, "
-          f"{len(data['articles'])} articles, "
-          f"{len(data['translations'])} translations")
+    print(
+        f"Local DB: {len(data['sources'])} sources, "
+        f"{len(data['articles'])} articles, "
+        f"{len(data['translations'])} translations, "
+        f"{len(data['feedback'])} paragraph feedback, "
+        f"{len(data['implicit_signals'])} implicit signals, "
+        f"{len(data['article_feedback_forms'])} coaching forms"
+    )
 
     sql = build_sync_sql(data)
     statement_count = sql.count(";")

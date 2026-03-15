@@ -58,6 +58,41 @@ export default function Home() {
                 </div>
               </Show>
 
+              <Show when={articles().length > 0}>
+                <div class="px-4 pt-3">
+                  <div class="rounded-2xl border border-[var(--gold)]/50 bg-[var(--ocean-deep)] text-white p-4">
+                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p class="text-xs uppercase tracking-[0.2em] text-[var(--gold)]">
+                          Te Fatele
+                        </p>
+                        <h2 class="mt-1 text-lg font-bold">
+                          Help coach the Tuvaluan model
+                        </h2>
+                        <p class="mt-1 text-sm text-[var(--sky-dark)]">
+                          Open a story, vote on the translation, choose your
+                          preferred reading mode, and leave a better phrasing.
+                        </p>
+                      </div>
+                      <div class="flex gap-2">
+                        <A
+                          href={`/articles/${articles()[0].id}`}
+                          class="rounded-xl bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--ocean-deep)] no-underline"
+                        >
+                          Coach latest story
+                        </A>
+                        <A
+                          href="/fatele"
+                          class="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white no-underline"
+                        >
+                          View community
+                        </A>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Show>
+
               {/* Hero card for latest article */}
               <Show when={articles().length > 0}>
                 <div class="px-4 pt-2">

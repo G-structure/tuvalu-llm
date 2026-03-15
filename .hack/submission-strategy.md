@@ -23,10 +23,12 @@ The preservation angle matters, but for SemiAnalysis it should be the reason the
 ## What To Say Early
 
 - largest Tuvaluan-English corpus we know of
+- public-source corpus including Jehovah's Witnesses publications, dictionaries, and textbooks
 - Tinker-trained Qwen3-30B-A3B-Base adaptation
 - 30B total / 3B active
 - live app collecting real feedback signals
 - current overlap benchmark beats GPT-5.4 overall
+- Hugging Face datasets and model cards are being published for direct inspection
 
 ## What To Avoid
 
@@ -65,3 +67,20 @@ If you rerun a bigger overlap benchmark, replace the numbers everywhere at once.
 ## Best Sponsor Answer To "Why Give You Credits?"
 
 `More Tinker credits directly translate into larger cross-model benchmarks, more live feedback-driven tuning, and a stronger public proof that customized models can serve languages frontier systems still underserve.`
+
+## Public Artifact Language
+
+Use this exact style if the uploads are still running:
+
+`At submission time, we are publishing the project artifacts to Hugging Face under FriezaForce. The cleaned dataset and Stage A model card are live now, while the raw aligned dataset and Stage B model card are in the current upload queue.`
+
+If everything finishes before submission, switch to:
+
+`We published the project artifacts to Hugging Face under FriezaForce, including cleaned and raw datasets plus Stage A and Stage B model cards.`
+
+Current links:
+
+- `https://huggingface.co/datasets/FriezaForce/tv2en-cleaned`
+- `https://huggingface.co/datasets/FriezaForce/tv2en-raw-aligned`
+- `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a`
+- `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-b-llama8b`

@@ -100,6 +100,18 @@ CREATE TABLE IF NOT EXISTS implicit_signals (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS article_feedback_forms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  article_id TEXT NOT NULL REFERENCES articles(id),
+  session_id TEXT,
+  island TEXT,
+  helpful_score INTEGER NOT NULL,
+  mode_preference TEXT NOT NULL,
+  correction_paragraph_idx INTEGER,
+  correction_text TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_articles_published ON articles(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_source ON articles(source_id, published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_articles_category ON articles(category, published_at DESC);
@@ -108,6 +120,9 @@ CREATE INDEX IF NOT EXISTS idx_feedback_article ON feedback(article_id);
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
 CREATE INDEX IF NOT EXISTS idx_signals_article ON implicit_signals(article_id);
 CREATE INDEX IF NOT EXISTS idx_signals_created ON implicit_signals(created_at);
+CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_article ON article_feedback_forms(article_id);
+CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_created ON article_feedback_forms(created_at);
+CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_session ON article_feedback_forms(session_id, article_id);
 CREATE INDEX IF NOT EXISTS idx_attempts_article ON translation_attempts(article_id);
 CREATE INDEX IF NOT EXISTS idx_translations_collapsed ON translations(is_collapsed);
 """

@@ -11,3 +11,6 @@ Recommended starting points:
 
 Supporting notes:
 - `thinking-machines-angle.md` — why this is good PR for Thinking Machines and Tinker
+
+Current submission additions:
+- Hugging Face artifact links and upload-status wording now live in `devpost.md` and `submission-strategy.md`

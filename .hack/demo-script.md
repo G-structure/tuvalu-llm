@@ -6,7 +6,7 @@ Most AI infrastructure is built for giant general-purpose models. We built the o
 
 ## 45-Second Sponsor Version
 
-This project is good evidence for why customization infrastructure matters. We used Tinker to turn a compact MoE base model into what we believe is the strongest Tuvaluan model we are aware of, then connected it to a live product and an eval dashboard. Instead of stopping at a checkpoint, we built the whole loop: data ingestion, decontaminated training, evaluation, serving, and user feedback. For Thinking Machines, this is strong PR because it shows that custom-model tooling can unlock real performance gains for languages that giant general-purpose systems still underserve.
+This project is good evidence for why customization infrastructure matters. We used Tinker to turn a compact MoE base model into what we believe is the strongest Tuvaluan model we are aware of, then connected it to a live product and an eval dashboard. Instead of stopping at a checkpoint, we built the whole loop: data ingestion, decontaminated training, evaluation, serving, user feedback, and public artifact release through Hugging Face datasets and model cards. For Thinking Machines, this is strong PR because it shows that custom-model tooling can unlock real performance gains for languages that giant general-purpose systems still underserve.
 
 ## 10-Second One-Liner
 

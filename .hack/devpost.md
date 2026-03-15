@@ -6,7 +6,7 @@
 
 ## Short Description
 
-We built a full-stack pipeline for low-resource-language AI: the largest Tuvaluan-English corpus we know of, a Tinker-trained 3B-active Tuvaluan model, a live football news product that collects feedback signals, and an eval stack where our current model beats GPT-5.4 on the shared Tuvaluan benchmark subset.
+We built a full-stack pipeline for low-resource-language AI: the largest Tuvaluan-English corpus we know of, a Tinker-trained 3B-active Tuvaluan model, a live football news product that collects feedback signals, an eval stack where our current model beats GPT-5.4 on the shared Tuvaluan benchmark subset, and public Hugging Face artifacts for datasets and models.
 
 ## Tagline
 
@@ -37,13 +37,15 @@ Instead of asking how to make one giant model slightly better for everyone, we a
 
 ## How We Built It
 
-We started by scraping and aligning Tuvaluan-English text from multiple sources, then built a cleaning and split pipeline to reduce leakage and preserve held-out evaluation quality. The final Stage A translation dataset contains 377,122 rendered examples, covering articles, Bible text, dictionary entries, textbooks, and other bilingual material.
+We started by scraping and aligning Tuvaluan-English text from multiple public sources, including Jehovah's Witnesses publications, dictionaries, textbooks, and other bilingual material, then built a cleaning and split pipeline to reduce leakage and preserve held-out evaluation quality. The final Stage A translation dataset contains 377,122 rendered examples.
 
 For training, we used Thinking Machines' Tinker API to LoRA fine-tune Qwen3-30B-A3B-Base. The resulting translation model reached chrF++ 64.5 and BLEU 46.7 on our decontaminated held-out translation test set.
 
 On top of that, we built Talafutipolo, a Tuvaluan-first football news site on SolidStart and Cloudflare. It ingests articles from Goal.com, FIFA.com, and Sky Sports, translates them into Tuvaluan, and captures feedback such as thumbs up, thumbs down, reveals, shares, and island-tagged participation. That gives us a live path to collect post-training signals rather than stopping at a static benchmark.
 
 We also built an evaluation runner and dashboard so we can compare our model to frontier systems on translation, textbook, chat, QA, and summarization tasks in Tuvaluan.
+
+At submission time, we are also publishing the project artifacts to Hugging Face under the `FriezaForce` account so judges can inspect the data and model cards directly. The cleaned dataset and Stage A model card are already live, while the raw aligned dataset and Stage B model card are queued in the current upload run.
 
 ## Results
 
@@ -59,11 +61,18 @@ The strongest cross-model comparison we can defend today is:
 
 We are careful about claim scope here: the overlap benchmark is still small, so we present it as an early but real cross-model signal, not a universal claim over every possible Tuvaluan workload.
 
+Public artifacts at submission time:
+
+- cleaned dataset live: `https://huggingface.co/datasets/FriezaForce/tv2en-cleaned`
+- raw aligned dataset upload in progress: `https://huggingface.co/datasets/FriezaForce/tv2en-raw-aligned`
+- Stage A translation model card live: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a`
+- Stage B bilingual model card upload in progress: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-b-llama8b`
+
 ## Challenges We Ran Into
 
 Low-resource language work has two hard problems at once: data scarcity and evaluation credibility.
 
-On the data side, Tuvaluan sources are fragmented across websites, scanned PDFs, dictionaries, and mixed-format educational material. On the modeling side, it is easy to overclaim from anecdotal generations, so we invested heavily in decontamination, held-out test sets, and comparable benchmarks.
+On the data side, Tuvaluan sources are fragmented across websites, Jehovah's Witnesses publications, scanned PDFs, dictionaries, and mixed-format educational material. On the modeling side, it is easy to overclaim from anecdotal generations, so we invested heavily in decontamination, held-out test sets, and comparable benchmarks.
 
 The product challenge was different: if the app felt like a data-collection form, no one would use it. The football format gave us a real reason for users to read, react, and generate useful feedback signals.
 
@@ -93,10 +102,12 @@ Additional credits would convert directly into better public benchmarks, broader
 - Expand the shared cross-model benchmark so the GPT-5.4 comparison covers a larger eval set
 - Close the loop from live feedback into ranking, filtering, and post-training data generation
 - Improve Stage B bilingual capability performance beyond translation into more general Tuvaluan assistant tasks
+- Finish the current Hugging Face upload run and publish merged model weights for easier downstream use
 - Use the same pipeline as a blueprint for additional low-resource languages
 
 ## Notes Before Submission
 
 - Keep the `28 overlapping examples` qualifier on the GPT-5.4 comparison unless you rerun the larger benchmark and update the numbers.
 - If you have a live demo URL and eval dashboard URL, put them near the top of the submission.
+- If the raw dataset and Stage B uploads finish before you submit, change `upload in progress` to `live` everywhere at once.
 - If you have a team name, replace the working title with that branding only if it stays technical.

@@ -33,6 +33,16 @@ export interface FeedbackSubmission {
   session_id?: string;
 }
 
+export interface ArticleFeedbackFormSubmission {
+  article_id: string;
+  helpful_score: 0 | 1;
+  mode_preference: "tv" | "tv+en" | "en";
+  correction_paragraph_idx?: number;
+  correction_text?: string;
+  island?: string;
+  session_id?: string;
+}
+
 export interface SignalSubmission {
   article_id: string;
   signal_type: "share" | "reveal" | "thumbs_up" | "thumbs_down";
@@ -46,9 +56,19 @@ export interface IslandStats {
   count: number;
 }
 
+export interface ModePreferenceStats {
+  mode: "tv" | "tv+en" | "en";
+  count: number;
+}
+
 export interface FateleStats {
   total_this_month: number;
   islands: IslandStats[];
+  article_feedback_count: number;
+  corrections_count: number;
+  helpful_yes: number;
+  helpful_no: number;
+  mode_preferences: ModePreferenceStats[];
 }
 
 export const ISLANDS = [

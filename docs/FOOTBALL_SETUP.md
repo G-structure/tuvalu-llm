@@ -4,6 +4,29 @@ Football news in Tuvaluan and English. Scrapes articles from Goal.com, FIFA.com,
 and Sky Sports, translates them to Tuvaluan via the Tinker API, stores everything
 in SQLite, and serves a bilingual news site via SolidStart.
 
+For the hackathon, this app matters because it is the live feedback flywheel:
+users read Tuvaluan content, react to paragraphs, submit correction notes and
+mode preferences, and those interactions can be exported into normalized JSONL
+for future post-training.
+
+## Fastest Demo
+
+```bash
+uv sync
+uv run python scripts/init_football_db.py
+uv run python scripts/pipeline_football.py --scrape-limit 10 --translate-limit 10
+cd site && npm install && npm run dev
+```
+
+Then:
+
+1. Open a translated article.
+2. Use the thumbs feedback and `Coach the Translator` form.
+3. Visit `/fatele` to show community totals.
+4. Run `uv run python scripts/export_football_interactions.py`.
+
+That is the shortest path to demonstrating the live product plus the data export loop.
+
 ## Prerequisites
 
 | Tool | Version | Install |
@@ -42,6 +65,18 @@ docs/
   FOOTBALL_SETUP.md               # local setup guide
   football_site_plan.md           # architecture + extraction notes
 ```
+
+## Data Flywheel Outputs
+
+The football stack currently produces four useful classes of signal:
+
+- paragraph-level positive or negative feedback
+- article-level helpfulness and preferred reading mode
+- free-text correction suggestions
+- implicit reveal/share-style engagement events
+
+The export step writes those into normalized JSONL artifacts plus a manifest so
+they can be consumed later by ranking, filtering, or post-training pipelines.
 
 ## Quick start
 

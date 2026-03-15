@@ -43,7 +43,7 @@ Speaker prompt: Say "from raw text to user signals" in one sentence.
 - ~74.6M training tokens
 - Decontaminated train / validation / test splits
 
-Speaker prompt: This is the largest Tuvaluan-English corpus we know of.
+Speaker prompt: This is the largest Tuvaluan-English corpus we know of. Mention that the public-source mix includes Jehovah's Witnesses publications, dictionaries, textbooks, and other bilingual material.
 
 ---
 

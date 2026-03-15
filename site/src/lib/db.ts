@@ -1,8 +1,16 @@
-import type { Article, Category, FeedbackSubmission, SignalSubmission, FateleStats } from "./types";
+import type {
+  Article,
+  ArticleFeedbackFormSubmission,
+  Category,
+  FeedbackSubmission,
+  FateleStats,
+  SignalSubmission,
+} from "./types";
 
 // D1 binding is injected by Cloudflare Workers runtime
 // In dev mode, lazily initialize via wrangler's getPlatformProxy()
 let _devProxy: any = null;
+let _communitySchemaReady: Promise<void> | null = null;
 
 async function getDb(): Promise<D1Database> {
   const db = (process.env as any).DB || (globalThis as any).__env__?.DB;
@@ -15,6 +23,54 @@ async function getDb(): Promise<D1Database> {
     (globalThis as any).__env__ = _devProxy.env;
   }
   return _devProxy.env.DB;
+}
+
+async function ensureCommunitySchema(db: D1Database): Promise<void> {
+  if (_communitySchemaReady) {
+    await _communitySchemaReady;
+    return;
+  }
+
+  _communitySchemaReady = (async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS article_feedback_forms (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          article_id TEXT NOT NULL REFERENCES articles(id),
+          session_id TEXT,
+          island TEXT,
+          helpful_score INTEGER NOT NULL,
+          mode_preference TEXT NOT NULL,
+          correction_paragraph_idx INTEGER,
+          correction_text TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_article
+         ON article_feedback_forms(article_id)`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_created
+         ON article_feedback_forms(created_at)`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_article_feedback_forms_session
+         ON article_feedback_forms(session_id, article_id)`
+      )
+      .run();
+  })();
+
+  await _communitySchemaReady;
 }
 
 // Full select (with bodies) — for single article detail page
@@ -129,6 +185,7 @@ export async function searchArticles(query: string, limit = 20): Promise<Article
 
 export async function insertFeedback(fb: FeedbackSubmission): Promise<void> {
   const db = await getDb();
+  await ensureCommunitySchema(db);
   await db
     .prepare(
       `INSERT INTO feedback (article_id, paragraph_idx, feedback_type, island, session_id)
@@ -140,6 +197,7 @@ export async function insertFeedback(fb: FeedbackSubmission): Promise<void> {
 
 export async function insertSignal(sig: SignalSubmission): Promise<void> {
   const db = await getDb();
+  await ensureCommunitySchema(db);
   await db
     .prepare(
       `INSERT INTO implicit_signals (article_id, signal_type, paragraph_index, session_id, island)
@@ -149,20 +207,103 @@ export async function insertSignal(sig: SignalSubmission): Promise<void> {
     .run();
 }
 
+export async function insertArticleFeedbackForm(
+  feedback: ArticleFeedbackFormSubmission
+): Promise<void> {
+  const db = await getDb();
+  await ensureCommunitySchema(db);
+  await db
+    .prepare(
+      `INSERT INTO article_feedback_forms (
+         article_id,
+         session_id,
+         island,
+         helpful_score,
+         mode_preference,
+         correction_paragraph_idx,
+         correction_text
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(
+      feedback.article_id,
+      feedback.session_id ?? null,
+      feedback.island ?? null,
+      feedback.helpful_score,
+      feedback.mode_preference,
+      feedback.correction_paragraph_idx ?? null,
+      feedback.correction_text?.trim() || null
+    )
+    .run();
+}
+
 export async function getFateleStats(): Promise<FateleStats> {
   const db = await getDb();
-  const [total, { results: islands }] = await Promise.all([
+  await ensureCommunitySchema(db);
+  const [
+    total,
+    { results: islands },
+    articleFeedback,
+    corrections,
+    helpful,
+    { results: modePreferences },
+  ] = await Promise.all([
     db
       .prepare(
-        `SELECT COUNT(*) AS cnt FROM implicit_signals
+        `SELECT COUNT(*) AS cnt FROM (
+           SELECT created_at FROM implicit_signals
+           UNION ALL
+           SELECT created_at FROM feedback
+           UNION ALL
+           SELECT created_at FROM article_feedback_forms
+         )
          WHERE created_at >= date('now', 'start of month')`
       )
       .first(),
     db
       .prepare(
-        `SELECT island, COUNT(*) AS count FROM implicit_signals
+        `SELECT island, COUNT(*) AS count FROM (
+           SELECT island FROM implicit_signals
+           UNION ALL
+           SELECT island FROM feedback
+           UNION ALL
+           SELECT island FROM article_feedback_forms
+         )
          WHERE island IS NOT NULL
          GROUP BY island
+         ORDER BY count DESC`
+      )
+      .all(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt
+         FROM article_feedback_forms
+         WHERE created_at >= date('now', 'start of month')`
+      )
+      .first(),
+    db
+      .prepare(
+        `SELECT COUNT(*) AS cnt
+         FROM article_feedback_forms
+         WHERE correction_text IS NOT NULL
+           AND TRIM(correction_text) != ''
+           AND created_at >= date('now', 'start of month')`
+      )
+      .first(),
+    db
+      .prepare(
+        `SELECT
+           SUM(CASE WHEN helpful_score = 1 THEN 1 ELSE 0 END) AS helpful_yes,
+           SUM(CASE WHEN helpful_score = 0 THEN 1 ELSE 0 END) AS helpful_no
+         FROM article_feedback_forms
+         WHERE created_at >= date('now', 'start of month')`
+      )
+      .first(),
+    db
+      .prepare(
+        `SELECT mode_preference AS mode, COUNT(*) AS count
+         FROM article_feedback_forms
+         WHERE created_at >= date('now', 'start of month')
+         GROUP BY mode_preference
          ORDER BY count DESC`
       )
       .all(),
@@ -171,15 +312,30 @@ export async function getFateleStats(): Promise<FateleStats> {
   return {
     total_this_month: (total as any)?.cnt ?? 0,
     islands: islands as unknown as { island: string; count: number }[],
+    article_feedback_count: (articleFeedback as any)?.cnt ?? 0,
+    corrections_count: (corrections as any)?.cnt ?? 0,
+    helpful_yes: (helpful as any)?.helpful_yes ?? 0,
+    helpful_no: (helpful as any)?.helpful_no ?? 0,
+    mode_preferences: modePreferences as unknown as {
+      mode: "tv" | "tv+en" | "en";
+      count: number;
+    }[],
   };
 }
 
 // Lightweight version for the teaser bar — single query, no islands breakdown
 export async function getFateleTeaserCount(): Promise<number> {
   const db = await getDb();
+  await ensureCommunitySchema(db);
   const row = await db
     .prepare(
-      `SELECT COUNT(*) AS cnt FROM implicit_signals
+      `SELECT COUNT(*) AS cnt FROM (
+         SELECT created_at FROM implicit_signals
+         UNION ALL
+         SELECT created_at FROM feedback
+         UNION ALL
+         SELECT created_at FROM article_feedback_forms
+       )
        WHERE created_at >= date('now', 'start of month')`
     )
     .first();

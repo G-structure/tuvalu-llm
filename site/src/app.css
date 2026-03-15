@@ -140,3 +140,437 @@ button {
   background-size: 200% 100%;
   animation: progress-shine 2.5s linear infinite;
 }
+
+/* Judge demo page */
+.demo-page {
+  background:
+    radial-gradient(circle at top, rgba(255, 183, 3, 0.16), transparent 34%),
+    linear-gradient(180deg, #eaf7fb 0%, #edf6f9 42%, #ffffff 100%);
+}
+
+.demo-shell {
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.demo-shell--narrow {
+  max-width: 68rem;
+}
+
+.demo-hero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(1, 58, 99, 0.92), rgba(0, 119, 182, 0.78)),
+    url("/judges/rainbow-ocean.jpg") center/cover no-repeat;
+  color: white;
+}
+
+.demo-hero__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(255, 183, 3, 0.25), transparent 26%),
+    linear-gradient(180deg, rgba(1, 58, 99, 0.18), rgba(1, 58, 99, 0.55));
+  pointer-events: none;
+}
+
+.demo-hero__content {
+  position: relative;
+  z-index: 1;
+  padding: 4.5rem 0 3.5rem;
+}
+
+.demo-kicker {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(255, 230, 168, 0.96);
+}
+
+.demo-kicker--dark {
+  color: var(--ocean);
+}
+
+.demo-title {
+  max-width: 12ch;
+  margin: 0.85rem 0 0;
+  font-size: clamp(2.8rem, 6vw, 5.6rem);
+  line-height: 0.92;
+  font-weight: 800;
+  letter-spacing: -0.06em;
+  text-wrap: balance;
+}
+
+.demo-lead {
+  max-width: 44rem;
+  margin: 1.35rem 0 0;
+  font-size: 1.08rem;
+  line-height: 1.7;
+  color: rgba(237, 246, 249, 0.94);
+}
+
+.demo-cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+  margin-top: 1.8rem;
+}
+
+.demo-button {
+  justify-content: center;
+  border-radius: 999px;
+  padding: 0.95rem 1.35rem;
+  text-decoration: none;
+  font-weight: 700;
+  transition:
+    transform 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease;
+}
+
+.demo-button:hover {
+  transform: translateY(-1px);
+}
+
+.demo-button--gold {
+  background: var(--gold);
+  color: var(--ocean-deep);
+}
+
+.demo-button--gold:hover {
+  background: #ffd15c;
+}
+
+.demo-button--ghost {
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.demo-button--ghost:hover {
+  border-color: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.demo-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2.25rem;
+}
+
+.demo-stat {
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1.5rem;
+  padding: 1.2rem;
+  backdrop-filter: blur(10px);
+  background: rgba(4, 28, 46, 0.42);
+}
+
+.demo-stat__value {
+  margin: 0;
+  font-size: 1.8rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.demo-stat__label,
+.demo-stat__note {
+  margin: 0;
+}
+
+.demo-stat__label {
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 230, 168, 0.92);
+}
+
+.demo-stat__note {
+  margin-top: 0.55rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(237, 246, 249, 0.85);
+}
+
+.demo-section {
+  padding: 4.5rem 0;
+}
+
+.demo-section--dark {
+  background:
+    radial-gradient(circle at top right, rgba(46, 196, 182, 0.16), transparent 28%),
+    linear-gradient(180deg, #031626 0%, #082338 100%);
+  color: white;
+}
+
+.demo-section__intro {
+  max-width: 42rem;
+}
+
+.demo-section__title {
+  margin: 0.75rem 0 0;
+  font-size: clamp(2rem, 3.5vw, 3.2rem);
+  line-height: 1.02;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: var(--ocean-deep);
+  text-wrap: balance;
+}
+
+.demo-section__title--light {
+  color: white;
+}
+
+.demo-section__text {
+  margin: 1rem 0 0;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: rgba(1, 58, 99, 0.82);
+}
+
+.demo-section--dark .demo-section__text {
+  color: rgba(237, 246, 249, 0.86);
+}
+
+.demo-link-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.demo-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  min-height: 15rem;
+  border-radius: 1.6rem;
+  padding: 1.4rem;
+  text-decoration: none;
+  color: var(--ocean-deep);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(234, 247, 251, 0.92));
+  border: 1px solid rgba(1, 58, 99, 0.08);
+  box-shadow: 0 24px 60px rgba(1, 58, 99, 0.08);
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease;
+}
+
+.demo-link-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 30px 70px rgba(1, 58, 99, 0.14);
+  border-color: rgba(0, 119, 182, 0.26);
+}
+
+.demo-link-card__eyebrow {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ocean);
+}
+
+.demo-link-card__title {
+  margin: 0;
+  font-size: 1.55rem;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.demo-link-card__body {
+  margin: 0;
+  font-size: 0.98rem;
+  line-height: 1.65;
+  color: rgba(1, 58, 99, 0.74);
+}
+
+.demo-link-card__cta {
+  margin-top: auto;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+.demo-reason-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.demo-reason {
+  display: grid;
+  grid-template-columns: 5rem 1fr;
+  gap: 1rem;
+  align-items: start;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.1rem;
+}
+
+.demo-reason__index {
+  font-size: 1.8rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  color: rgba(255, 183, 3, 0.94);
+}
+
+.demo-reason__text {
+  margin: 0;
+  font-size: 1.02rem;
+  line-height: 1.75;
+  color: rgba(237, 246, 249, 0.9);
+}
+
+.demo-story {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(18rem, 0.8fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.demo-story__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.demo-inline-link {
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid rgba(1, 58, 99, 0.1);
+  padding: 0.75rem 1rem;
+  text-decoration: none;
+  color: var(--ocean-deep);
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.demo-inline-link:hover {
+  border-color: rgba(0, 119, 182, 0.28);
+  color: var(--ocean);
+}
+
+.demo-highlight-card {
+  border-radius: 1.7rem;
+  padding: 1.4rem;
+  background:
+    linear-gradient(180deg, rgba(1, 58, 99, 0.96), rgba(0, 90, 140, 0.88)),
+    url("/judges/island-lagoon.jpg") center/cover no-repeat;
+  color: white;
+  box-shadow: 0 24px 60px rgba(1, 58, 99, 0.18);
+}
+
+.demo-highlight-card__eyebrow {
+  margin: 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 230, 168, 0.96);
+}
+
+.demo-highlight-card__quote {
+  margin: 0.85rem 0 0;
+  font-size: 1.05rem;
+  line-height: 1.75;
+  color: rgba(237, 246, 249, 0.94);
+}
+
+.demo-gallery {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-top: 2.2rem;
+}
+
+.demo-gallery__item {
+  overflow: hidden;
+  border-radius: 1.6rem;
+  background: white;
+  border: 1px solid rgba(1, 58, 99, 0.08);
+  box-shadow: 0 18px 48px rgba(1, 58, 99, 0.08);
+}
+
+.demo-gallery__item--tall {
+  grid-row: span 2;
+}
+
+.demo-gallery__image {
+  width: 100%;
+  height: 18rem;
+  object-fit: cover;
+  display: block;
+}
+
+.demo-gallery__item--tall .demo-gallery__image {
+  height: 26rem;
+}
+
+.demo-gallery__caption {
+  padding: 1rem 1rem 1.1rem;
+}
+
+.demo-gallery__title,
+.demo-gallery__text {
+  margin: 0;
+}
+
+.demo-gallery__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ocean-deep);
+}
+
+.demo-gallery__text {
+  margin-top: 0.45rem;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(1, 58, 99, 0.72);
+}
+
+@media (max-width: 900px) {
+  .demo-stats,
+  .demo-link-grid,
+  .demo-gallery,
+  .demo-story {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-gallery__item--tall {
+    grid-row: auto;
+  }
+
+  .demo-gallery__image,
+  .demo-gallery__item--tall .demo-gallery__image {
+    height: 18rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .demo-hero__content,
+  .demo-section {
+    padding-top: 3.5rem;
+    padding-bottom: 3rem;
+  }
+
+  .demo-title {
+    max-width: 9ch;
+  }
+
+  .demo-reason {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+}

@@ -6,6 +6,7 @@ import { formatDate } from "~/lib/time";
 import OGMeta from "~/components/OGMeta";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
+import CoachTranslatorCard from "~/components/CoachTranslatorCard";
 
 const loadArticle = cache(async (id: string) => {
   "use server";
@@ -301,6 +302,14 @@ export default function ArticlePage() {
                   </For>
                 </Show>
               </div>
+
+              <Show when={hasTvl()}>
+                <CoachTranslatorCard
+                  articleId={a().id}
+                  paragraphCount={tvlParagraphs().length}
+                  initialMode={effectiveMode()}
+                />
+              </Show>
 
               {/* Source attribution + share */}
               <div class="mt-8 pt-4 border-t border-[var(--sky-dark)] flex items-center justify-between">

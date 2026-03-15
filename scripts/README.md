@@ -1,7 +1,9 @@
 # scripts/
 
-All scripts in the tv2en project. Run everything with `uv run` unless noted otherwise.
-The intended design is that `scripts/` contains CLI entrypoints while reusable logic lives under `tv/`.
+Operational script inventory for the current tv2en repo. Run everything with
+`uv run` unless noted otherwise. The intended design is that `scripts/`
+contains thin CLI entrypoints and orchestration, while reusable logic lives
+under `tv/`.
 
 ## Quick Reference
 
