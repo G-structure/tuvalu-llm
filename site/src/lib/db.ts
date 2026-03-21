@@ -89,15 +89,17 @@ const ARTICLE_SELECT = `
 `;
 
 // Lightweight select (no bodies) — for list/search pages
+// INNER JOIN + collapsed filter ensures only translated stories appear
 const ARTICLE_LIST_SELECT = `
   SELECT
     a.id, a.source_id, a.url,
     a.title_en, a.author,
     a.published_at, a.category,
     a.image_url, a.image_alt,
-    CASE WHEN t.is_collapsed = 1 THEN NULL ELSE t.title_tvl END AS title_tvl
+    t.title_tvl
   FROM articles a
-  LEFT JOIN translations t ON t.article_id = a.id
+  INNER JOIN translations t ON t.article_id = a.id
+    AND (t.is_collapsed = 0 OR t.is_collapsed IS NULL)
 `;
 
 export async function getArticles(
@@ -142,10 +144,12 @@ export async function getCategories(): Promise<Category[]> {
   const db = await getDb();
   const { results } = await db
     .prepare(
-      `SELECT category AS slug, COUNT(*) AS count
-       FROM articles
-       WHERE category IS NOT NULL AND category != ''
-       GROUP BY category
+      `SELECT a.category AS slug, COUNT(*) AS count
+       FROM articles a
+       INNER JOIN translations t ON t.article_id = a.id
+         AND (t.is_collapsed = 0 OR t.is_collapsed IS NULL)
+       WHERE a.category IS NOT NULL AND a.category != ''
+       GROUP BY a.category
        ORDER BY count DESC`
     )
     .all();
@@ -154,16 +158,18 @@ export async function getCategories(): Promise<Category[]> {
 
 export async function getArticleCount(category?: string): Promise<number> {
   const db = await getDb();
+  const base = `SELECT COUNT(*) AS cnt
+    FROM articles a
+    INNER JOIN translations t ON t.article_id = a.id
+      AND (t.is_collapsed = 0 OR t.is_collapsed IS NULL)`;
   if (category) {
     const row = await db
-      .prepare("SELECT COUNT(*) AS cnt FROM articles WHERE category = ?")
+      .prepare(`${base} WHERE a.category = ?`)
       .bind(category)
       .first();
     return (row as any)?.cnt ?? 0;
   }
-  const row = await db
-    .prepare("SELECT COUNT(*) AS cnt FROM articles")
-    .first();
+  const row = await db.prepare(base).first();
   return (row as any)?.cnt ?? 0;
 }
 

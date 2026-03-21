@@ -26,6 +26,6 @@ We built the largest Tuvaluan-English corpus we know of, used Thinking Machines'
 - Tinker-trained Qwen3-30B-A3B-Base adaptation with only 3B active parameters at inference
 - Live Tuvaluan-first product with paragraph-level voting, reveal signals, shares, and island-tagged participation
 
-## Optional Judge-Facing Blurb
+## Blurb
 
 This is not a chatbot wrapper. It is infrastructure for specialized models: a repeatable system for building and improving models that serve communities frontier AI still misses.

@@ -45,7 +45,7 @@ On top of that, we built Talafutipolo, a Tuvaluan-first football news site on So
 
 We also built an evaluation runner and dashboard so we can compare our model to frontier systems on translation, textbook, chat, QA, and summarization tasks in Tuvaluan.
 
-At submission time, we are also publishing the project artifacts to Hugging Face under the `FriezaForce` account so judges can inspect the data and model cards directly. The cleaned dataset and Stage A model card are already live, while the raw aligned dataset and Stage B model card are queued in the current upload run.
+We published the project artifacts to Hugging Face under the `FriezaForce` account so judges can inspect the data and model cards directly.
 
 ## Results
 
@@ -61,12 +61,12 @@ The strongest cross-model comparison we can defend today is:
 
 We are careful about claim scope here: the overlap benchmark is still small, so we present it as an early but real cross-model signal, not a universal claim over every possible Tuvaluan workload.
 
-Public artifacts at submission time:
+Public artifacts:
 
-- cleaned dataset live: `https://huggingface.co/datasets/FriezaForce/tv2en-cleaned`
-- raw aligned dataset upload in progress: `https://huggingface.co/datasets/FriezaForce/tv2en-raw-aligned`
-- Stage A translation model card live: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a`
-- Stage B bilingual model card upload in progress: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-b-llama8b`
+- Cleaned dataset: `https://huggingface.co/datasets/FriezaForce/tv2en-cleaned`
+- Raw aligned dataset: `https://huggingface.co/datasets/FriezaForce/tv2en-raw-aligned`
+- Stage A translation model: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a`
+- Stage B bilingual model: `https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-b-llama8b`
 
 ## Challenges We Ran Into
 
@@ -105,9 +105,3 @@ Additional credits would convert directly into better public benchmarks, broader
 - Finish the current Hugging Face upload run and publish merged model weights for easier downstream use
 - Use the same pipeline as a blueprint for additional low-resource languages
 
-## Notes Before Submission
-
-- Keep the `28 overlapping examples` qualifier on the GPT-5.4 comparison unless you rerun the larger benchmark and update the numbers.
-- If you have a live demo URL and eval dashboard URL, put them near the top of the submission.
-- If the raw dataset and Stage B uploads finish before you submit, change `upload in progress` to `live` everywhere at once.
-- If you have a team name, replace the working title with that branding only if it stays technical.

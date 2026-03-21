@@ -426,11 +426,21 @@ button {
   color: rgba(255, 183, 3, 0.94);
 }
 
+.demo-reason__title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: white;
+  grid-column: 2;
+}
+
 .demo-reason__text {
   margin: 0;
-  font-size: 1.02rem;
-  line-height: 1.75;
-  color: rgba(237, 246, 249, 0.9);
+  font-size: 0.98rem;
+  line-height: 1.65;
+  color: rgba(237, 246, 249, 0.8);
+  grid-column: 2;
 }
 
 .demo-story {

@@ -18,6 +18,10 @@ on:
         description: 'Limit articles per source (0 = use defaults)'
         type: number
         default: 0
+      retranslate_all:
+        description: 'Retranslate ALL articles with current model'
+        type: boolean
+        default: false
 
 env:
   PYTHONPATH: scripts
@@ -27,7 +31,7 @@ env:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
@@ -61,8 +65,16 @@ jobs:
       # --- TRANSLATE (reads from D1, writes to D1) ---
       # Default: translate up to 5 articles per run (each ~2-5 min).
       # Override with limit input. Runs every 6h so backlog clears over time.
+      - name: Retranslate all articles
+        if: ${{ inputs.retranslate_all }}
+        env:
+          TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
+        run: python scripts/translate_football.py --retranslate-all
+        timeout-minutes: 120
+        continue-on-error: true
+
       - name: Translate new articles
-        if: ${{ github.event_name == 'schedule' || !inputs.scrape_only }}
+        if: ${{ !inputs.retranslate_all && (github.event_name == 'schedule' || !inputs.scrape_only) }}
         env:
           TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
         run: python scripts/translate_football.py --limit ${{ inputs.limit > 0 && inputs.limit || '2' }}

@@ -1,7 +1,7 @@
 {
   "stage": "synthetic_generation",
   "stage_a_model": {
-    "model_path": "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final",
+    "model_path": "tinker://9002d935-e8ed-5bfb-bf60-30171a805792:train:0/sampler_weights/gen_eval_020000",
     "base_model": "Qwen/Qwen3-30B-A3B-Base",
     "log_path": "logs/tinker/stage_a_3ep"
   },

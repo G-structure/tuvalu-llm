@@ -1,7 +1,7 @@
 # TalaFutipolo
 ## A Live Data Flywheel for Tuvaluan LLMs
 
-Speaker prompt: Open with the systems framing, not the social-impact framing.
+Note: Open with the systems framing, not the social-impact framing.
 
 ---
 
@@ -11,7 +11,7 @@ Speaker prompt: Open with the systems framing, not the social-impact framing.
 - A specialized model plus the right data and eval pipeline can win
 - We built the full stack needed to prove it
 
-Speaker prompt: "This is an AI infrastructure project disguised as a language app."
+Note: "This is an AI infrastructure project disguised as a language app."
 
 ---
 
@@ -21,7 +21,7 @@ Speaker prompt: "This is an AI infrastructure project disguised as a language ap
 - General-purpose models underperform because the data flywheel barely exists
 - Low-resource-language work usually dies at the benchmark or dataset stage
 
-Speaker prompt: Emphasize that the bottleneck is not only model quality. It is the entire pipeline.
+Note: Emphasize that the bottleneck is not only model quality. It is the entire pipeline.
 
 ---
 
@@ -32,7 +32,7 @@ Speaker prompt: Emphasize that the bottleneck is not only model quality. It is t
 - Eval runner and dashboard
 - Live product for feedback collection
 
-Speaker prompt: Say "from raw text to user signals" in one sentence.
+Note: Say "from raw text to user signals" in one sentence.
 
 ---
 
@@ -43,7 +43,7 @@ Speaker prompt: Say "from raw text to user signals" in one sentence.
 - ~74.6M training tokens
 - Decontaminated train / validation / test splits
 
-Speaker prompt: This is the largest Tuvaluan-English corpus we know of. Mention that the public-source mix includes Jehovah's Witnesses publications, dictionaries, textbooks, and other bilingual material.
+Note: This is the largest Tuvaluan-English corpus we know of. Mention that the public-source mix includes Jehovah's Witnesses publications, dictionaries, textbooks, and other bilingual material.
 
 ---
 
@@ -54,7 +54,7 @@ Speaker prompt: This is the largest Tuvaluan-English corpus we know of. Mention 
 - LoRA fine-tuning on Thinking Machines' Tinker stack
 - Stage A translation adapter plus Stage B capability model
 
-Speaker prompt: The point is not giant scale. The point is efficient specialization.
+Note: The point is not giant scale. The point is efficient specialization.
 
 ---
 
@@ -65,7 +65,7 @@ Speaker prompt: The point is not giant scale. The point is efficient specializat
 - Bidirectional Tuvaluan <-> English evaluation
 - Extra held-out textbook set outside core training flow
 
-Speaker prompt: These are not cherry-picked generations. They come from repeatable eval code in the repo.
+Note: These are not cherry-picked generations. They come from repeatable eval code in the repo.
 
 ---
 
@@ -76,7 +76,7 @@ Speaker prompt: These are not cherry-picked generations. They come from repeatab
 - GPT-5.4 on same overlap: chrF++ 36.1
 - Our model wins 6 of 7 task slices by chrF++
 
-Speaker prompt: Keep the "shared subset" qualifier. It makes the claim stronger, not weaker.
+Note: Keep the "shared subset" qualifier. It makes the claim stronger, not weaker.
 
 ---
 
@@ -87,7 +87,7 @@ Speaker prompt: Keep the "shared subset" qualifier. It makes the claim stronger,
 - Cloudflare Pages + D1 + automated ingestion pipeline
 - Paragraph-level thumbs up / thumbs down plus reveal and share signals
 
-Speaker prompt: The app is the data flywheel, not just the demo wrapper.
+Note: The app is the data flywheel, not just the demo wrapper.
 
 ---
 
@@ -98,7 +98,7 @@ Speaker prompt: The app is the data flywheel, not just the demo wrapper.
 - Natural way to collect preference signals without making users fill forms
 - Practical path from passive reading to active model improvement
 
-Speaker prompt: This is how we make post-training data collection sustainable.
+Note: This is how we make post-training data collection sustainable.
 
 ---
 
@@ -109,7 +109,7 @@ Speaker prompt: This is how we make post-training data collection sustainable.
 - Clear resource-efficiency story around a specialized 3B-active model
 - Concrete metrics instead of vague "AI for good" claims
 
-Speaker prompt: Tie directly to their "dirt to decode" framing by showing every link in the chain.
+Note: Tie directly to their "dirt to decode" framing by showing every link in the chain.
 
 ---
 
@@ -120,7 +120,7 @@ Speaker prompt: Tie directly to their "dirt to decode" framing by showing every 
 - Connects fine-tuning infra to a live public product, not just an internal benchmark
 - Makes a strong case for more credits producing visible public results
 
-Speaker prompt: "This is a public proof point for customized models."
+Note: "This is a public proof point for customized models."
 
 ---
 
@@ -131,7 +131,7 @@ Speaker prompt: "This is a public proof point for customized models."
 - Better ranking and filtering of high-value signals
 - Extension of the same stack to additional low-resource languages
 
-Speaker prompt: End with momentum. Credits and compute obviously convert into better results.
+Note: End with momentum. Credits and compute obviously convert into better results.
 
 ---
 
@@ -141,4 +141,4 @@ Speaker prompt: End with momentum. Credits and compute obviously convert into be
 - Low-resource languages need infrastructure, not just goodwill
 - We built a repeatable blueprint
 
-Speaker prompt: Close on technical ambition first, impact second.
+Note: Close on technical ambition first, impact second.

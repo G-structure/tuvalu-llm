@@ -32,8 +32,8 @@ from detect_collapse import is_collapsed, collapse_score
 
 # Tinker API config
 TINKER_BASE = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1"
-TINKER_MODEL = "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final"
-TINKER_MODEL_ID = "391bb502-f0c1-509e-bcd5-68bc35c82db2"
+TINKER_MODEL = "tinker://06e2f0d3-7d06-5c29-83a4-f44c0d29728c:train:0/sampler_weights/gen_eval_018000"
+TINKER_MODEL_ID = "06e2f0d3-7d06-5c29-83a4-f44c0d29728c"
 
 SYSTEM_PROMPT = (
     "You are a careful translator between Tuvaluan and English. Translate "
@@ -382,6 +382,13 @@ def get_untranslated_articles(
     return list(conn.execute(query).fetchall())
 
 
+def get_all_articles(conn: object) -> list[object]:
+    """Get all articles for retranslation."""
+    return list(conn.execute(
+        "SELECT * FROM articles ORDER BY published_at DESC"
+    ).fetchall())
+
+
 def get_collapsed_articles(conn: object) -> list[object]:
     """Get articles whose current translation is flagged as collapsed."""
     return list(conn.execute(
@@ -398,12 +405,20 @@ def main():
     parser.add_argument("--article", type=str, help="Translate a specific article ID")
     parser.add_argument("--retry-collapsed", action="store_true",
                         help="Retry articles with collapsed translations")
+    parser.add_argument("--retranslate-all", action="store_true",
+                        help="Retranslate all articles (even already translated)")
     args = parser.parse_args()
 
     api_key = get_api_key()
     conn = get_db()
 
-    if args.retry_collapsed:
+    if args.retranslate_all:
+        articles = get_all_articles(conn)
+        if not articles:
+            print("No articles found in database.")
+            return
+        print(f"Retranslating ALL {len(articles)} articles with model {TINKER_MODEL_ID}")
+    elif args.retry_collapsed:
         articles = get_collapsed_articles(conn)
         if not articles:
             print("No collapsed translations found.")
@@ -417,9 +432,9 @@ def main():
         print(f"Found {len(articles)} articles to translate")
 
     # Use quick schedule (1 attempt) when --limit is set (CI mode)
-    # Use full schedule (3 attempts) for manual/retry runs
+    # Use full schedule (3 attempts) for manual/retry/retranslate-all runs
     schedule = TEMPERATURE_SCHEDULE_QUICK if args.limit else TEMPERATURE_SCHEDULE_FULL
-    if args.retry_collapsed:
+    if args.retry_collapsed or args.retranslate_all:
         schedule = TEMPERATURE_SCHEDULE_FULL
 
     client = httpx.Client(http2=True)

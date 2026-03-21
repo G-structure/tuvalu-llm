@@ -112,8 +112,13 @@ THINKING_MODELS = {"qwen3-30b"}
 TINKER_MODELS = {
     "tvl-stage-a": {
         "model_name": "Qwen/Qwen3-30B-A3B",
-        "sampler_path": "tinker://391bb502-f0c1-509e-bcd5-68bc35c82db2:train:0/sampler_weights/final",
-        "label": "Stage A (step 7851)",
+        "sampler_path": "tinker://9002d935-e8ed-5bfb-bf60-30171a805792:train:0/sampler_weights/gen_eval_020000",
+        "label": "Stage A (step 20000)",
+    },
+    "tvl-stage-b": {
+        "model_name": "Qwen/Qwen3-30B-A3B",
+        "sampler_path": "tinker://06e2f0d3-7d06-5c29-83a4-f44c0d29728c:train:0/sampler_weights/gen_eval_018000",
+        "label": "Stage B (step 18000)",
     },
 }
 
