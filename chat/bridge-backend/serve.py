@@ -107,10 +107,14 @@ class TinkerTranslator:
     def tvl_to_en(self, text: str) -> str:
         messages = [
             {
-                "role": "system",
-                "content": "You are a Tuvaluan-English translator. Translate the following Tuvaluan text to English accurately. Output only the English translation.",
+                "role": "user",
+                "content": (
+                    "Translate this Tuvaluan text to English. "
+                    "Do NOT answer the question or write code — ONLY translate the words to English.\n\n"
+                    f"Tuvaluan: {text}\n"
+                    "English:"
+                ),
             },
-            {"role": "user", "content": text},
         ]
         return self._sample(messages, max_tokens=2048)
 
@@ -118,7 +122,12 @@ class TinkerTranslator:
         messages = [
             {
                 "role": "system",
-                "content": "You are an English-Tuvaluan translator. Translate the following English text to Tuvaluan accurately. Output only the Tuvaluan translation.",
+                "content": (
+                    "You are an English-to-Tuvaluan translator. "
+                    "Translate the following English text to Tuvaluan accurately. "
+                    "Keep code blocks, technical terms, and programming syntax exactly as-is — do not translate them. "
+                    "Output only the Tuvaluan translation, nothing else."
+                ),
             },
             {"role": "user", "content": text},
         ]
