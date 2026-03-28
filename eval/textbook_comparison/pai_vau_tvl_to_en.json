@@ -1,0 +1,326 @@
+{
+  "tvl-stage-b": {
+    "label": "TVL Stage B (ours)",
+    "direction": "tvl_to_en",
+    "chrf": 42.4,
+    "bleu": 19.6,
+    "n": 12,
+    "predictions": [
+      {
+        "id": "unstruct:pai_vau:00001",
+        "source": "Nateaho e iai he tokolua fafine, e igoa kia Pai mo Vau, kae e iai ni laa kete one fakataulaaitu. Ni ‘ligi ni la one ki te moana, tela ni tupu ake iai he fenua. Ni fakaigoa e laaua te fenua kia, Na Mea, tona uiga, Momea Nei. Mai tua ifo ni fakaigoa kia Nanumea. “Momea nei e fakamanuiagina moo kautama ateaho,” munaa laaua.",
+        "reference": "Once there were two women, called Pai and Vau, who owned baskets of magical sand. They poured some of the sand into the ocean, where it formed an island. They named the island, Na Mea, which means, This Place. Later, it became Nanumea. “This place will be a blessing to future generations,” they said.",
+        "prediction": "Nateaho was with two women, named Pai and Vau, and they had a magic basket of sand. They ‘poured the sand into the sea, and out of it arose the islands. The islands were named, Na Mea, which means, Here Now. After that they were called Nanumea. “Here now is blessed with generations of mankind,” said Pai and Vau."
+      },
+      {
+        "id": "unstruct:pai_vau:00002",
+        "source": "I te po e tahi, ni oko atu he toa e igoa kia Tefolaha ki Nanumea. Tefolaha ni taua tele i taua e uke i te Pasefika. Ni fiu a ia i te taua tele tela ni manako a ia o fakafou tona olaaga. Teelaa ni faimalaga iai a ia i te moana i po e uke oko atu iai ki Nanumea.",
+        "reference": "One day, a warrior named Tefolaha arrived in Nanumea. Tefolaha had fought in battles all over the Pacific. But he was tired of fighting and wanted to make a new life. He travelled on the ocean for many days before landing on Nanumea.",
+        "prediction": "One night, a warrior named Debrah arrived at Nanumea. Debrah had fought in many Pacific wars. He was tired of fighting and wanted to make a new start. Debrah had been travelingacross the ocean for many nights and had finally arrived at Nanumea."
+      },
+      {
+        "id": "unstruct:pai_vau:00003",
+        "source": "Ni lavea e Tefolaha a kalofaga i te one. Ni tautali e ia a kalofa kola kae ni oko atu ki he fale faka Tuvalu, teelaa e ‘noho mai iai a Pai mo Vau e ‘laga laa kete kae `fili a laa fau. Ni a’lofa laua kiai tela tuku e laua kiai mea’kai mo meainu mo he fau ki tona piho.",
+        "reference": "Tefolaha saw footprints in the sand. They followed them to a Tuvaluan house, where Pai and Vau were weaving baskets and garlands. They felt sorry for him and gave him food and drink and put a garland on his head.",
+        "prediction": "So Job went on to see the tracks of the wild ass. He did not follow the hares, and he came to the house of the Tuʹman·ites. There he found a lair, and he ‘laid down in the midst of the reeds and the rushes.’ They would feed his young in the midst of the thorns and cover his young in the midst of the thornbushes."
+      },
+      {
+        "id": "unstruct:pai_vau:00004",
+        "source": "“Niaa lua mea e fai I toku fenua?” ni ‘hili atu Tefolaha.",
+        "reference": "“What are you doing on my island?” Tefolaha said.",
+        "prediction": "“What are you doing in my land?” asked Pharaoh."
+      },
+      {
+        "id": "unstruct:pai_vau:00005",
+        "source": "“Niaa nei, heai he fakafetai,” munaa Pai. “Ni faite e maaua te fenua tenei!”",
+        "reference": "“Wow, not even a thank you,” said Pai. “We made this island!”",
+        "prediction": "“Now, at last,” said Baia, “we have something to thank the gods for. This land is ours!”"
+      },
+      {
+        "id": "unstruct:pai_vau:00006",
+        "source": "“Ke fai he ‘tou fakataufaiga a po nei,” munaa Tefolaha. “Kae maua e koulua o taku mai toku igoa, aku ko fano. Kae fai e maua e aku o taku atu lua igoa, koulua ko olo.”",
+        "reference": "“Let’s have a contest tonight,” Tefolaha said. “If you can guess my name, I’ll leave. But if I guess your names, you have to leave.”",
+        "prediction": "“Let us have a wrestling match tonight,” said Deʹlah. “And if you will tell me your name, I will let you go. But if you will not tell me, you must let me go.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00007",
+        "source": "Pai mo Vau ni faka’tali ke fano Tefolaha keatea mo te fale, ni kata’kata iai a laaua. “Te Atua ni aumai e ia te tagata nei ke fai mo tupuga o tino Nanumea,” munaa Vau. “Ta ‘kau ki tana taahaoga ki te matemate igoa.”",
+        "reference": "Pai and Vau waited for Tefolaha to leave the house, then smiled at each other. “God sent this man to be the ancestor of the people of Nanumea,” said Vau. “Let’s go along with his guessing game.”",
+        "prediction": "Paie and Vau waited until the old man had left the house, then they laughed. “God brought this man to be the ancestor of the Nanumea people,” said Vau. “Let us ‘join him in his funeral dance.’”"
+      },
+      {
+        "id": "unstruct:pai_vau:00008",
+        "source": "Mai tua ifo i te po tena, Tefolaha ni kake ake ki luga i oka o te fale o Pai mo Vau. Ni iloa e laua me e noho a ia ikona, kae fai tele laa mea pelaa me he laa iloagina. Ni honi e ia te loko ki te kolokolo kae tukutuku ifo ke tautau mai luga o te piho o Pai. “Ou mata … Paiiii,” munaa Vau, mo te fakamoemoega ke lagona e Tefolaha te igoa. Oti una ni toe tukutuku ifo te loko ke pili ki te piho o Vau. “E tena hoki … Vauuuu,” munaa Pai.",
+        "reference": "Later that day, Tefolaha climbed quietly up into the rafters of Pai and Vau’s house. They knew he was there, but pretended they didn’t. He tied a loko to a piece of string and lowered it until it was dangling close to Pai’s head. “Watch out … Paiiii,” said Vau, making sure Tefolaha heard the name. Then Tefolaha lowered the loko near to Vau’s head. “There it is again … Vauuuu,” said Pai.",
+        "prediction": "After that night, Daffy climbed up to the rafters of the house of P.I. and V. They knew he was there, but they pretended not to notice. He put his foot in the hole and hung there above P.I.’s head. “Hiya . . . P.I.,” P.I. said, hoping Daffy would hear. Then he put his foot in the hole and hung there above V. “That’s right . . . V.,” V. said."
+      },
+      {
+        "id": "unstruct:pai_vau:00009",
+        "source": "I te po tena, ni foki mai Tefolaha ki te fale. “Ko taa te taimi o te taahaoga matemate,” ana muna. “A koe ko Pai. A koe ko Vau. Koai toku igoa?”",
+        "reference": "That night, Tefolaha came back to the hut. “It’s time for the guessing contest,” he said. “You’re Pai. You’re Vau. What’s my name?”",
+        "prediction": "That night, Deborah came home. “The time for the sound of the horns has come,” she said. “You are Baʹa·rah. You are A·ha·vaiʹah. Who amI?”"
+      },
+      {
+        "id": "unstruct:pai_vau:00010",
+        "source": "“E he iloa e maaua,” munaa Vau. “Koe pelaa koa hili.”",
+        "reference": "“We don’t know,” said Vau. “Looks like you win.”",
+        "prediction": "“Eh, I don’t know,” Vau said. “You must be a bit crazy.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00011",
+        "source": "“Tausi la Nanumea,” munaa Pai. “E fakamanuiagina ou tino i kautama e uke.”",
+        "reference": "“Take care of Nanumea,” said Pai. “It will bless your people for generations.”",
+        "prediction": "“Take care of Namané,” said Baʹi. “Your people will be blessed for many generations.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00012",
+        "source": "Kae koi tuai a Pai mo Vau o olo, ni toe ‘ligi e laaua ni one fakataulaaitu ki te moana. “Meaalofa faopoopo moo tino o Nanumea,” munaa Pai. A one kona ni faite ake iai a motufo’liki ko Lafogaki mo Te Afua a Taepoa, kae tafahili atu, ko Lakena, tela i poo nei a tino Nanumea e `toki iai a lou talo.",
+        "reference": "Just before Pai and Vau left, they poured more magical sand into the ocean. “Some more gifts for the people of Nanumea,” Pai said. The sand formed the islets of Lafogaki and Te Afua a Taepoa, and most important, Lakena, where today’s Nanumeans plant their taro gardens.",
+        "prediction": "Before Pai and Vau left, however, they ‘scattered magic sand into the sea. “Gifts for the people of Nanumea,” Pai said. The sand was from the small islands of Lafogaki and Te Afua Taepoa, and beyond them, Rangikai, where the Nanumeans now plant their taro."
+      }
+    ]
+  },
+  "gpt-5.4": {
+    "label": "GPT-5.4",
+    "direction": "tvl_to_en",
+    "chrf": 51.5,
+    "bleu": 26.8,
+    "n": 12,
+    "predictions": [
+      {
+        "id": "unstruct:pai_vau:00001",
+        "source": "Nateaho e iai he tokolua fafine, e igoa kia Pai mo Vau, kae e iai ni laa kete one fakataulaaitu. Ni ‘ligi ni la one ki te moana, tela ni tupu ake iai he fenua. Ni fakaigoa e laaua te fenua kia, Na Mea, tona uiga, Momea Nei. Mai tua ifo ni fakaigoa kia Nanumea. “Momea nei e fakamanuiagina moo kautama ateaho,” munaa laaua.",
+        "reference": "Once there were two women, called Pai and Vau, who owned baskets of magical sand. They poured some of the sand into the ocean, where it formed an island. They named the island, Na Mea, which means, This Place. Later, it became Nanumea. “This place will be a blessing to future generations,” they said.",
+        "prediction": "Long ago there were two women, named Pai and Vau, and they had two magical baskets. They threw the two baskets into the sea, and from that a land arose. They named the land Na Mea, meaning, These Things. Later it was named Nanumea. “These things are blessed for the people of the future,” they said."
+      },
+      {
+        "id": "unstruct:pai_vau:00002",
+        "source": "I te po e tahi, ni oko atu he toa e igoa kia Tefolaha ki Nanumea. Tefolaha ni taua tele i taua e uke i te Pasefika. Ni fiu a ia i te taua tele tela ni manako a ia o fakafou tona olaaga. Teelaa ni faimalaga iai a ia i te moana i po e uke oko atu iai ki Nanumea.",
+        "reference": "One day, a warrior named Tefolaha arrived in Nanumea. Tefolaha had fought in battles all over the Pacific. But he was tired of fighting and wanted to make a new life. He travelled on the ocean for many days before landing on Nanumea.",
+        "prediction": "One night, a warrior named Tefolaha arrived at Nanumea. Tefolaha was a great warrior who had fought in many battles in the Pacific. He grew tired of the great warfare and wanted to renew his life. So he traveled on the sea for many nights until he arrived at Nanumea."
+      },
+      {
+        "id": "unstruct:pai_vau:00003",
+        "source": "Ni lavea e Tefolaha a kalofaga i te one. Ni tautali e ia a kalofa kola kae ni oko atu ki he fale faka Tuvalu, teelaa e ‘noho mai iai a Pai mo Vau e ‘laga laa kete kae `fili a laa fau. Ni a’lofa laua kiai tela tuku e laua kiai mea’kai mo meainu mo he fau ki tona piho.",
+        "reference": "Tefolaha saw footprints in the sand. They followed them to a Tuvaluan house, where Pai and Vau were weaving baskets and garlands. They felt sorry for him and gave him food and drink and put a garland on his head.",
+        "prediction": "Tefolaha found a kalofaga on the beach. He followed those kalofa and arrived at a Tuvaluan house, where Pai and Vau were staying, weaving a basket and selecting pandanus leaves. They were kind to him, so they gave him food and drink and a pandanus leaf for his hat."
+      },
+      {
+        "id": "unstruct:pai_vau:00004",
+        "source": "“Niaa lua mea e fai I toku fenua?” ni ‘hili atu Tefolaha.",
+        "reference": "“What are you doing on my island?” Tefolaha said.",
+        "prediction": "“What are the two things to do in my land?” asked Tefolaha."
+      },
+      {
+        "id": "unstruct:pai_vau:00005",
+        "source": "“Niaa nei, heai he fakafetai,” munaa Pai. “Ni faite e maaua te fenua tenei!”",
+        "reference": "“Wow, not even a thank you,” said Pai. “We made this island!”",
+        "prediction": "“Here, this is a thank-you,” said Pai. “This land was made by us!”"
+      },
+      {
+        "id": "unstruct:pai_vau:00006",
+        "source": "“Ke fai he ‘tou fakataufaiga a po nei,” munaa Tefolaha. “Kae maua e koulua o taku mai toku igoa, aku ko fano. Kae fai e maua e aku o taku atu lua igoa, koulua ko olo.”",
+        "reference": "“Let’s have a contest tonight,” Tefolaha said. “If you can guess my name, I’ll leave. But if I guess your names, you have to leave.”",
+        "prediction": "“We shall make our agreement tonight,” said Tefolaha. “But if you two can say my name, I will go. But if I can say your two names, you two will leave.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00007",
+        "source": "Pai mo Vau ni faka’tali ke fano Tefolaha keatea mo te fale, ni kata’kata iai a laaua. “Te Atua ni aumai e ia te tagata nei ke fai mo tupuga o tino Nanumea,” munaa Vau. “Ta ‘kau ki tana taahaoga ki te matemate igoa.”",
+        "reference": "Pai and Vau waited for Tefolaha to leave the house, then smiled at each other. “God sent this man to be the ancestor of the people of Nanumea,” said Vau. “Let’s go along with his guessing game.”",
+        "prediction": "But Vau did not wait for Tefolaha to leave the house, and the two of them laughed at him. “God has brought this man to become the ancestor of the people of Nanumea,” said Vau. “So let us join in his naming ceremony.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00008",
+        "source": "Mai tua ifo i te po tena, Tefolaha ni kake ake ki luga i oka o te fale o Pai mo Vau. Ni iloa e laua me e noho a ia ikona, kae fai tele laa mea pelaa me he laa iloagina. Ni honi e ia te loko ki te kolokolo kae tukutuku ifo ke tautau mai luga o te piho o Pai. “Ou mata … Paiiii,” munaa Vau, mo te fakamoemoega ke lagona e Tefolaha te igoa. Oti una ni toe tukutuku ifo te loko ke pili ki te piho o Vau. “E tena hoki … Vauuuu,” munaa Pai.",
+        "reference": "Later that day, Tefolaha climbed quietly up into the rafters of Pai and Vau’s house. They knew he was there, but pretended they didn’t. He tied a loko to a piece of string and lowered it until it was dangling close to Pai’s head. “Watch out … Paiiii,” said Vau, making sure Tefolaha heard the name. Then Tefolaha lowered the loko near to Vau’s head. “There it is again … Vauuuu,” said Pai.",
+        "prediction": "Later that night, Tefolaha climbed up onto the roof of the house of Pai and Vau. The two of them knew that he was staying there, but they acted very much as if they did not know. He tied the end of the carrying pole to the wall and lowered it so that it hung down from above Pai’s sleeping place. “Oh my eyes … Paiiii,” said Vau, hoping that Tefolaha would hear the name. Then he lowered the carrying pole again until it was near Vau’s sleeping place. “It is there also … Vauuuu,” said Pai."
+      },
+      {
+        "id": "unstruct:pai_vau:00009",
+        "source": "I te po tena, ni foki mai Tefolaha ki te fale. “Ko taa te taimi o te taahaoga matemate,” ana muna. “A koe ko Pai. A koe ko Vau. Koai toku igoa?”",
+        "reference": "That night, Tefolaha came back to the hut. “It’s time for the guessing contest,” he said. “You’re Pai. You’re Vau. What’s my name?”",
+        "prediction": "That night, Tefolaha returned home. “Now is the time for the dying game,” he said. “You are Pai. You are Vau. What is my name?”"
+      },
+      {
+        "id": "unstruct:pai_vau:00010",
+        "source": "“E he iloa e maaua,” munaa Vau. “Koe pelaa koa hili.”",
+        "reference": "“We don’t know,” said Vau. “Looks like you win.”",
+        "prediction": "“We know,” said Vau. “You are like that too.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00011",
+        "source": "“Tausi la Nanumea,” munaa Pai. “E fakamanuiagina ou tino i kautama e uke.”",
+        "reference": "“Take care of Nanumea,” said Pai. “It will bless your people for generations.”",
+        "prediction": "“The people of Nanumea,” said Pai. “I bless your body with many descendants.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00012",
+        "source": "Kae koi tuai a Pai mo Vau o olo, ni toe ‘ligi e laaua ni one fakataulaaitu ki te moana. “Meaalofa faopoopo moo tino o Nanumea,” munaa Pai. A one kona ni faite ake iai a motufo’liki ko Lafogaki mo Te Afua a Taepoa, kae tafahili atu, ko Lakena, tela i poo nei a tino Nanumea e `toki iai a lou talo.",
+        "reference": "Just before Pai and Vau left, they poured more magical sand into the ocean. “Some more gifts for the people of Nanumea,” Pai said. The sand formed the islets of Lafogaki and Te Afua a Taepoa, and most important, Lakena, where today’s Nanumeans plant their taro gardens.",
+        "prediction": "As Pai and Vau were about to go, they again threw some magical sand into the sea. “An extra gift for the people of Nanumea,” said Pai. From that sand were formed the islets Lafogaki and Te Afua a Taepoa, and farther away, Lakena, where even today the people of Nanumea still have their taro pits."
+      }
+    ]
+  },
+  "gpt-5.4-nano": {
+    "label": "GPT-5.4 Nano",
+    "direction": "tvl_to_en",
+    "chrf": 40.2,
+    "bleu": 15.4,
+    "n": 12,
+    "predictions": [
+      {
+        "id": "unstruct:pai_vau:00001",
+        "source": "Nateaho e iai he tokolua fafine, e igoa kia Pai mo Vau, kae e iai ni laa kete one fakataulaaitu. Ni ‘ligi ni la one ki te moana, tela ni tupu ake iai he fenua. Ni fakaigoa e laaua te fenua kia, Na Mea, tona uiga, Momea Nei. Mai tua ifo ni fakaigoa kia Nanumea. “Momea nei e fakamanuiagina moo kautama ateaho,” munaa laaua.",
+        "reference": "Once there were two women, called Pai and Vau, who owned baskets of magical sand. They poured some of the sand into the ocean, where it formed an island. They named the island, Na Mea, which means, This Place. Later, it became Nanumea. “This place will be a blessing to future generations,” they said.",
+        "prediction": "There were two women, named Pai and Vau, but they had a basket of enchanted sand. They poured the sand into the sea; that is why land grew up. They called the island Na Mea, meaning Momea Nei. Later they called it Nanumea. “These things are the ones that are blessed with power,” they said."
+      },
+      {
+        "id": "unstruct:pai_vau:00002",
+        "source": "I te po e tahi, ni oko atu he toa e igoa kia Tefolaha ki Nanumea. Tefolaha ni taua tele i taua e uke i te Pasefika. Ni fiu a ia i te taua tele tela ni manako a ia o fakafou tona olaaga. Teelaa ni faimalaga iai a ia i te moana i po e uke oko atu iai ki Nanumea.",
+        "reference": "One day, a warrior named Tefolaha arrived in Nanumea. Tefolaha had fought in battles all over the Pacific. But he was tired of fighting and wanted to make a new life. He travelled on the ocean for many days before landing on Nanumea.",
+        "prediction": "In those days, a man named Tefolaha visited Nanumea. Tefolaha was a great warrior in the war that took place in the Pacific. He grew tired of the huge war because what he wanted was to renew his life. He traveled across the ocean at night, for many nights, until he reached Nanumea."
+      },
+      {
+        "id": "unstruct:pai_vau:00003",
+        "source": "Ni lavea e Tefolaha a kalofaga i te one. Ni tautali e ia a kalofa kola kae ni oko atu ki he fale faka Tuvalu, teelaa e ‘noho mai iai a Pai mo Vau e ‘laga laa kete kae `fili a laa fau. Ni a’lofa laua kiai tela tuku e laua kiai mea’kai mo meainu mo he fau ki tona piho.",
+        "reference": "Tefolaha saw footprints in the sand. They followed them to a Tuvaluan house, where Pai and Vau were weaving baskets and garlands. They felt sorry for him and gave him food and drink and put a garland on his head.",
+        "prediction": "Tefolaha fetched the fishing net from the sand. He carried the net until it was time to put it in the Tuvalu house; so they kept it there. Pai and Vau stayed there, with their feet in the sand and waiting for the building materials. They were kind to each other, each offering food and drinks, and the forge with him to his home."
+      },
+      {
+        "id": "unstruct:pai_vau:00004",
+        "source": "“Niaa lua mea e fai I toku fenua?” ni ‘hili atu Tefolaha.",
+        "reference": "“What are you doing on my island?” Tefolaha said.",
+        "prediction": "“Where should I place my boat?” asked Tefolaha."
+      },
+      {
+        "id": "unstruct:pai_vau:00005",
+        "source": "“Niaa nei, heai he fakafetai,” munaa Pai. “Ni faite e maaua te fenua tenei!”",
+        "reference": "“Wow, not even a thank you,” said Pai. “We made this island!”",
+        "prediction": "“Don’t, there is no thanks,” said Pai. “If you do that, it will ruin this country!”"
+      },
+      {
+        "id": "unstruct:pai_vau:00006",
+        "source": "“Ke fai he ‘tou fakataufaiga a po nei,” munaa Tefolaha. “Kae maua e koulua o taku mai toku igoa, aku ko fano. Kae fai e maua e aku o taku atu lua igoa, koulua ko olo.”",
+        "reference": "“Let’s have a contest tonight,” Tefolaha said. “If you can guess my name, I’ll leave. But if I guess your names, you have to leave.”",
+        "prediction": "“Because you are stirring up trouble tonight,” said Tefolaha. “But get from me by my name, I am going. But you must get from me by giving your two names, while you go.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00007",
+        "source": "Pai mo Vau ni faka’tali ke fano Tefolaha keatea mo te fale, ni kata’kata iai a laaua. “Te Atua ni aumai e ia te tagata nei ke fai mo tupuga o tino Nanumea,” munaa Vau. “Ta ‘kau ki tana taahaoga ki te matemate igoa.”",
+        "reference": "Pai and Vau waited for Tefolaha to leave the house, then smiled at each other. “God sent this man to be the ancestor of the people of Nanumea,” said Vau. “Let’s go along with his guessing game.”",
+        "prediction": "“Father, you must not consent to go to Tefolaha with the house, because there is laughter between us. ‘God brought this person so that he would become descendants of the people of Nanumea,’” said Vau. “Let’s take him to his service for the name of death.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00008",
+        "source": "Mai tua ifo i te po tena, Tefolaha ni kake ake ki luga i oka o te fale o Pai mo Vau. Ni iloa e laua me e noho a ia ikona, kae fai tele laa mea pelaa me he laa iloagina. Ni honi e ia te loko ki te kolokolo kae tukutuku ifo ke tautau mai luga o te piho o Pai. “Ou mata … Paiiii,” munaa Vau, mo te fakamoemoega ke lagona e Tefolaha te igoa. Oti una ni toe tukutuku ifo te loko ke pili ki te piho o Vau. “E tena hoki … Vauuuu,” munaa Pai.",
+        "reference": "Later that day, Tefolaha climbed quietly up into the rafters of Pai and Vau’s house. They knew he was there, but pretended they didn’t. He tied a loko to a piece of string and lowered it until it was dangling close to Pai’s head. “Watch out … Paiiii,” said Vau, making sure Tefolaha heard the name. Then Tefolaha lowered the loko near to Vau’s head. “There it is again … Vauuuu,” said Pai.",
+        "prediction": "Early at that night, Tefolaha said to go to the upstairs room of Father and Vau’s house. They knew that he was sleeping there, but he performed other things as if he had not heard them. He poured something to the floor and hung it from above on Father’s roof. “You see… Father…,” Vau said, in order to feel that Tefolaha was calling the name. Then he climbed again and stuck the window close to Vau’s roof. “It’s night again… Vau…,” Father said."
+      },
+      {
+        "id": "unstruct:pai_vau:00009",
+        "source": "I te po tena, ni foki mai Tefolaha ki te fale. “Ko taa te taimi o te taahaoga matemate,” ana muna. “A koe ko Pai. A koe ko Vau. Koai toku igoa?”",
+        "reference": "That night, Tefolaha came back to the hut. “It’s time for the guessing contest,” he said. “You’re Pai. You’re Vau. What’s my name?”",
+        "prediction": "In the evening, he also brought Tefolaha to the house. “Now is the time for a dead giveaway,” he said. “You are Pai. You are Vau. What is my name?”"
+      },
+      {
+        "id": "unstruct:pai_vau:00010",
+        "source": "“E he iloa e maaua,” munaa Vau. “Koe pelaa koa hili.”",
+        "reference": "“We don’t know,” said Vau. “Looks like you win.”",
+        "prediction": "“Know it,” said Vau to me. “Don’t get angry anymore.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00011",
+        "source": "“Tausi la Nanumea,” munaa Pai. “E fakamanuiagina ou tino i kautama e uke.”",
+        "reference": "“Take care of Nanumea,” said Pai. “It will bless your people for generations.”",
+        "prediction": "“Take care of Nanumea,” said Pai. “And let your body be blessed with something you can’t resist.”"
+      },
+      {
+        "id": "unstruct:pai_vau:00012",
+        "source": "Kae koi tuai a Pai mo Vau o olo, ni toe ‘ligi e laaua ni one fakataulaaitu ki te moana. “Meaalofa faopoopo moo tino o Nanumea,” munaa Pai. A one kona ni faite ake iai a motufo’liki ko Lafogaki mo Te Afua a Taepoa, kae tafahili atu, ko Lakena, tela i poo nei a tino Nanumea e `toki iai a lou talo.",
+        "reference": "Just before Pai and Vau left, they poured more magical sand into the ocean. “Some more gifts for the people of Nanumea,” Pai said. The sand formed the islets of Lafogaki and Te Afua a Taepoa, and most important, Lakena, where today’s Nanumeans plant their taro gardens.",
+        "prediction": "If you don’t return me from Pai to Vau, then you’ll still have to blame yourselves and sacrifice to the sea. “More gifts besides bodies from Nanumea,” said Pai. The land where there are the sea birds, Lafogaki and Te Afua a Taepoa, but you should listen, it is Lakena—just as there are these bodies of Nanumea whose hearts are like `toki."
+      }
+    ]
+  },
+  "claude-sonnet": {
+    "label": "Claude Sonnet 4.6",
+    "direction": "tvl_to_en",
+    "chrf": 48.8,
+    "bleu": 24.8,
+    "n": 12,
+    "predictions": [
+      {
+        "id": "unstruct:pai_vau:00001",
+        "source": "Nateaho e iai he tokolua fafine, e igoa kia Pai mo Vau, kae e iai ni laa kete one fakataulaaitu. Ni ‘ligi ni la one ki te moana, tela ni tupu ake iai he fenua. Ni fakaigoa e laaua te fenua kia, Na Mea, tona uiga, Momea Nei. Mai tua ifo ni fakaigoa kia Nanumea. “Momea nei e fakamanuiagina moo kautama ateaho,” munaa laaua.",
+        "reference": "Once there were two women, called Pai and Vau, who owned baskets of magical sand. They poured some of the sand into the ocean, where it formed an island. They named the island, Na Mea, which means, This Place. Later, it became Nanumea. “This place will be a blessing to future generations,” they said.",
+        "prediction": "Long ago there were two women, named Pai and Vau, and they had some baskets of sand used for ritual offerings. They poured their sand into the ocean, and from it an island grew up. They named the island, Na Mea, meaning, This Redness. From then on it was named Nanumea. \"This redness is blessed for the young men of today,\" they said."
+      },
+      {
+        "id": "unstruct:pai_vau:00002",
+        "source": "I te po e tahi, ni oko atu he toa e igoa kia Tefolaha ki Nanumea. Tefolaha ni taua tele i taua e uke i te Pasefika. Ni fiu a ia i te taua tele tela ni manako a ia o fakafou tona olaaga. Teelaa ni faimalaga iai a ia i te moana i po e uke oko atu iai ki Nanumea.",
+        "reference": "One day, a warrior named Tefolaha arrived in Nanumea. Tefolaha had fought in battles all over the Pacific. But he was tired of fighting and wanted to make a new life. He travelled on the ocean for many days before landing on Nanumea.",
+        "prediction": "One night, a warrior named Tefolaha arrived at Nanumea. Tefolaha had fought in many battles across the Pacific. He had grown weary of all those battles and he thought about renewing his life. That is why he made a journey across the ocean for many nights until he arrived at Nanumea."
+      },
+      {
+        "id": "unstruct:pai_vau:00003",
+        "source": "Ni lavea e Tefolaha a kalofaga i te one. Ni tautali e ia a kalofa kola kae ni oko atu ki he fale faka Tuvalu, teelaa e ‘noho mai iai a Pai mo Vau e ‘laga laa kete kae `fili a laa fau. Ni a’lofa laua kiai tela tuku e laua kiai mea’kai mo meainu mo he fau ki tona piho.",
+        "reference": "Tefolaha saw footprints in the sand. They followed them to a Tuvaluan house, where Pai and Vau were weaving baskets and garlands. They felt sorry for him and gave him food and drink and put a garland on his head.",
+        "prediction": "Tefolaha found some coconuts on the beach. He followed those coconuts and arrived at a Tuvaluan house, where Pai and Vau were sitting weaving baskets and selecting their pandanus leaves. They were kind to him and gave him food and drink and a pandanus leaf for his pillow."
+      },
+      {
+        "id": "unstruct:pai_vau:00004",
+        "source": "“Niaa lua mea e fai I toku fenua?” ni ‘hili atu Tefolaha.",
+        "reference": "“What are you doing on my island?” Tefolaha said.",
+        "prediction": "\"What are two things happening in my country?\" asked Tefolaha."
+      },
+      {
+        "id": "unstruct:pai_vau:00005",
+        "source": "“Niaa nei, heai he fakafetai,” munaa Pai. “Ni faite e maaua te fenua tenei!”",
+        "reference": "“Wow, not even a thank you,” said Pai. “We made this island!”",
+        "prediction": "\"Now then, no thanks,\" said Pai. \"We two found this land!\""
+      },
+      {
+        "id": "unstruct:pai_vau:00006",
+        "source": "“Ke fai he ‘tou fakataufaiga a po nei,” munaa Tefolaha. “Kae maua e koulua o taku mai toku igoa, aku ko fano. Kae fai e maua e aku o taku atu lua igoa, koulua ko olo.”",
+        "reference": "“Let’s have a contest tonight,” Tefolaha said. “If you can guess my name, I’ll leave. But if I guess your names, you have to leave.”",
+        "prediction": "\"Let us have our competition tonight,\" said Tefolaha. \"And if you two can tell me my name, I will go. But if I am able to tell you two names, you will go.\""
+      },
+      {
+        "id": "unstruct:pai_vau:00007",
+        "source": "Pai mo Vau ni faka’tali ke fano Tefolaha keatea mo te fale, ni kata’kata iai a laaua. “Te Atua ni aumai e ia te tagata nei ke fai mo tupuga o tino Nanumea,” munaa Vau. “Ta ‘kau ki tana taahaoga ki te matemate igoa.”",
+        "reference": "Pai and Vau waited for Tefolaha to leave the house, then smiled at each other. “God sent this man to be the ancestor of the people of Nanumea,” said Vau. “Let’s go along with his guessing game.”",
+        "prediction": "Pai and Vau were waiting for Tefolaha to leave the house, and they were laughing about it. \"God brought this man to be the ancestor of the people of Nanumea,\" said Vau. \"Look at his readiness to face death by name.\""
+      },
+      {
+        "id": "unstruct:pai_vau:00008",
+        "source": "Mai tua ifo i te po tena, Tefolaha ni kake ake ki luga i oka o te fale o Pai mo Vau. Ni iloa e laua me e noho a ia ikona, kae fai tele laa mea pelaa me he laa iloagina. Ni honi e ia te loko ki te kolokolo kae tukutuku ifo ke tautau mai luga o te piho o Pai. “Ou mata … Paiiii,” munaa Vau, mo te fakamoemoega ke lagona e Tefolaha te igoa. Oti una ni toe tukutuku ifo te loko ke pili ki te piho o Vau. “E tena hoki … Vauuuu,” munaa Pai.",
+        "reference": "Later that day, Tefolaha climbed quietly up into the rafters of Pai and Vau’s house. They knew he was there, but pretended they didn’t. He tied a loko to a piece of string and lowered it until it was dangling close to Pai’s head. “Watch out … Paiiii,” said Vau, making sure Tefolaha heard the name. Then Tefolaha lowered the loko near to Vau’s head. “There it is again … Vauuuu,” said Pai.",
+        "prediction": "From below that night, Tefolaha climbed up onto the roof of Pai and Vau's house. They both knew he was there, but they pretended as though they didn't know. He lowered a string down to dangle above Pai's navel. \"My eyes … Paiiii,\" whispered Vau, hoping that Tefolaha would hear the name. Then he lowered the string again to touch Vau's navel. \"That one too … Vauuuu,\" whispered Pai."
+      },
+      {
+        "id": "unstruct:pai_vau:00009",
+        "source": "I te po tena, ni foki mai Tefolaha ki te fale. “Ko taa te taimi o te taahaoga matemate,” ana muna. “A koe ko Pai. A koe ko Vau. Koai toku igoa?”",
+        "reference": "That night, Tefolaha came back to the hut. “It’s time for the guessing contest,” he said. “You’re Pai. You’re Vau. What’s my name?”",
+        "prediction": "On that night, Tefolaha came back to the house. \"It is the time of the deadly raid,\" he said. \"You are Pai. You are Vau. What is my name?\""
+      },
+      {
+        "id": "unstruct:pai_vau:00010",
+        "source": "“E he iloa e maaua,” munaa Vau. “Koe pelaa koa hili.”",
+        "reference": "“We don’t know,” said Vau. “Looks like you win.”",
+        "prediction": "\"We don't know,\" said Vau. \"You might be right.\""
+      },
+      {
+        "id": "unstruct:pai_vau:00011",
+        "source": "“Tausi la Nanumea,” munaa Pai. “E fakamanuiagina ou tino i kautama e uke.”",
+        "reference": "“Take care of Nanumea,” said Pai. “It will bless your people for generations.”",
+        "prediction": "\"Take care of Nanumea,\" said Pai. \"Your body is blessed with many talents.\""
+      },
+      {
+        "id": "unstruct:pai_vau:00012",
+        "source": "Kae koi tuai a Pai mo Vau o olo, ni toe ‘ligi e laaua ni one fakataulaaitu ki te moana. “Meaalofa faopoopo moo tino o Nanumea,” munaa Pai. A one kona ni faite ake iai a motufo’liki ko Lafogaki mo Te Afua a Taepoa, kae tafahili atu, ko Lakena, tela i poo nei a tino Nanumea e `toki iai a lou talo.",
+        "reference": "Just before Pai and Vau left, they poured more magical sand into the ocean. “Some more gifts for the people of Nanumea,” Pai said. The sand formed the islets of Lafogaki and Te Afua a Taepoa, and most important, Lakena, where today’s Nanumeans plant their taro gardens.",
+        "prediction": "And still Pai and Vau went and scattered some sacred sand offerings into the sea. \"Additional gifts for the people of Nanumea,\" said Pai. It was from that place that the small islands of Lafogaki and Te Afua a Taepoa arose, and further away, Lakena, where the people of Nanumea now harvest their taro leaves."
+      }
+    ]
+  }
+}
