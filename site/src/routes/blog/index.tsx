@@ -1,29 +1,12 @@
 import { A } from "@solidjs/router";
 import { For } from "solid-js";
 import { createAsync, cache } from "@solidjs/router";
-import { parseBlogMeta, type BlogPost } from "~/lib/blog";
+import { getAllPosts, type BlogPost } from "~/lib/blog-data";
 import OGMeta from "~/components/OGMeta";
 
 const getBlogPosts = cache(async (): Promise<BlogPost[]> => {
   "use server";
-  const fs = await import("fs");
-  const path = await import("path");
-
-  const postsDir = path.join(process.cwd(), "public", "blog", "posts");
-  if (!fs.existsSync(postsDir)) return [];
-
-  const files = fs.readdirSync(postsDir).filter((f: string) => f.endsWith(".md"));
-  const posts: BlogPost[] = [];
-
-  for (const file of files) {
-    const raw = fs.readFileSync(path.join(postsDir, file), "utf-8");
-    const slug = file.replace(/\.md$/, "");
-    posts.push(parseBlogMeta(slug, raw));
-  }
-
-  // Sort by date descending
-  posts.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
-  return posts;
+  return getAllPosts();
 }, "blog-posts");
 
 export const route = { load: () => getBlogPosts() };

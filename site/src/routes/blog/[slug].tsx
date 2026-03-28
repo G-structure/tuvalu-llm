@@ -1,19 +1,13 @@
 import { A, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { createAsync, cache } from "@solidjs/router";
-import { parseBlogPost, type BlogPostFull } from "~/lib/blog";
+import { getPostBySlug } from "~/lib/blog-data";
+import type { BlogPostFull } from "~/lib/blog";
 import OGMeta from "~/components/OGMeta";
 
 const getPost = cache(async (slug: string): Promise<BlogPostFull | null> => {
   "use server";
-  const fs = await import("fs");
-  const path = await import("path");
-
-  const filePath = path.join(process.cwd(), "public", "blog", "posts", `${slug}.md`);
-  if (!fs.existsSync(filePath)) return null;
-
-  const raw = fs.readFileSync(filePath, "utf-8");
-  return parseBlogPost(slug, raw);
+  return getPostBySlug(slug);
 }, "blog-post");
 
 export const route = {
