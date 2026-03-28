@@ -509,6 +509,14 @@ button {
   gap: 0.6rem; margin-top: 1.5rem;
 }
 
+.demo-newsletter__contact {
+  margin-top: 1.25rem; font-size: 0.8rem; color: var(--sky-dark); text-align: center;
+}
+.demo-newsletter__contact a {
+  color: var(--gold); text-decoration: underline; text-underline-offset: 2px;
+}
+.demo-newsletter__contact a:hover { color: #fff; }
+
 .newsletter-form { margin-top: 1.5rem; }
 .newsletter-form__row {
   display: flex; max-width: 28rem; margin: 0 auto;

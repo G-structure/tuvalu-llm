@@ -495,6 +495,9 @@ export default function DemoPage() {
                 GitHub
               </a>
             </div>
+            <p class="demo-newsletter__contact">
+              Need to reach us directly? Email <a href="mailto:luc@sanative.ai">luc@sanative.ai</a>
+            </p>
           </div>
         </div>
       </section>
