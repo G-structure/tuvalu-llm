@@ -1,83 +1,49 @@
 import { A } from "@solidjs/router";
-import { For } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 import OGMeta from "~/components/OGMeta";
 
-const proofStats = [
-  {
-    label: "vs GPT-5.4",
-    value: "41.8 vs 36.1",
-    note: "Our Stage B model beats GPT-5.4 on 6 of 7 Tuvaluan task slices by chrF++ on the shared benchmark.",
-  },
-  {
-    label: "Translation quality",
-    value: "64.5 chrF++",
-    note: "Stage A translation on our held-out test set. BLEU 46.7. The foundation for everything else.",
-  },
-  {
-    label: "Active parameters",
-    value: "3B",
-    note: "Qwen3-30B-A3B MoE fine-tuned on Tinker. 10x fewer active parameters than the models we beat.",
-  },
-  {
-    label: "Training corpus",
-    value: "342k pairs",
-    note: "Largest Tuvaluan-English corpus we know of. Cleaned, decontaminated, public on Hugging Face.",
-  },
-];
+// ─── Data ───
 
 const featuredEval = [
   { model: "TVL Stage B (ours)", score: "41.8", tone: "highlight" },
   { model: "GPT-5.4", score: "36.1", tone: "neutral" },
   { model: "Claude Sonnet 4.6", score: "34.2", tone: "neutral" },
   { model: "Google Translate", score: "29.5", tone: "muted" },
-  { model: "TVL Stage A", score: "16.2", tone: "muted" },
   { model: "Qwen3-30B (base)", score: "13.7", tone: "muted" },
   { model: "Gemini 3.1 Pro", score: "11.6", tone: "muted" },
 ];
 
-const launchLinks = [
+const milestones = [
+  { value: "342k", label: "parallel pairs", detail: "Largest Tuvaluan-English corpus ever assembled" },
+  { value: "3B", label: "active params", detail: "MoE fine-tuned on Tinker, 10x smaller than what we beat" },
+  { value: "6/7", label: "task slices won", detail: "Translation, chat, QA, summarization vs GPT-5.4" },
+  { value: "3rd", label: "place at GTC", detail: "SemiAnalysis Hackathon at NVIDIA GTC 2026" },
+];
+
+const exploreLinks = [
   {
     href: "/chat/eval",
-    eyebrow: "Results",
-    title: "See All 7 Benchmark Slices",
-    body: "Interactive eval dashboard showing our Stage B model at 41.8 chrF++ vs GPT-5.4 at 36.1 across translation, chat, QA, and summarization.",
-  },
-  {
-    href: "/chat/training",
-    eyebrow: "Infrastructure",
-    title: "Watch the Training Loop",
-    body: "Real-time dashboard showing Tinker fine-tuning progress, loss curves, and live dataset composition metrics.",
+    eyebrow: "Benchmark",
+    title: "See the eval results",
+    body: "41.8 vs 36.1 chrF++ across 7 task slices. Interactive dashboard, per-model breakdowns.",
   },
   {
     href: "/chat",
-    eyebrow: "Live Model",
-    title: "Talk to SOTA Tuvaluan AI",
-    body: "Try the model in real time. Code-switch between Tuvaluan and English. See why 3B active parameters can compete with 100B+ systems.",
+    eyebrow: "Live model",
+    title: "Talk to Tuvaluan AI",
+    body: "Try real-time code-switching between Tuvaluan and English.",
+  },
+  {
+    href: "/",
+    eyebrow: "Product",
+    title: "Read Tuvaluan football news",
+    body: "Live translated articles from Goal.com, FIFA, and Sky Sports.",
   },
   {
     href: "/fatele",
-    eyebrow: "Product",
-    title: "See Real User Signals",
-    body: "Talafutipolo: a live Tuvaluan football news product collecting paragraph-level feedback and implicit signals from 11,000+ language speakers.",
-  },
-];
-
-const reasons = [
-  {
-    title: "Beats GPT-5.4 on 6 of 7 task slices",
-    detail: "41.8 vs 36.1 overall chrF++ on the shared benchmark subset. Translation, chat, QA, summarization — our Stage B model leads systematically, not on a single cherry-picked metric.",
-  },
-  {
-    title: "Complete infrastructure, not a model artifact",
-    detail: "Corpus pipeline, decontaminated splitting, two-stage Tinker training, live evaluation runner, production deployment, real user feedback collection. Every link in the chain is built, deployed, and measured.",
-  },
-  {
-    title: "Expert-written, held-out benchmarks eliminate gaming",
-    detail: "The Textbook set is hand-curated by Tuvaluan speakers, completely isolated from training, and represents real-world language expertise. No contamination. No cherry-picking.",
-  },
-  {
-    title: "Open infrastructure for the 11,000-speaker use case",
-    detail: "342k corpus pairs, model cards, training code, and eval harness are live on Hugging Face. A blueprint for how to build frontier-class models for underserved languages.",
+    eyebrow: "Community",
+    title: "See the Fatele dashboard",
+    body: "Real user feedback signals from across the Tuvaluan islands.",
   },
 ];
 
@@ -85,91 +51,219 @@ const gallery = [
   {
     src: "/judges/nick-football-community.jpg",
     alt: "Nick Miller standing with two local football community members in matching shirts.",
-    title: "Real Community. Real Use Case.",
-    caption: "Talafutipolo is not built for tourists. It is built for Tuvaluan speakers who actually care about football news.",
+    title: "Built with the community, not for them.",
     tall: false,
   },
   {
-    src: "/judges/nick-ocean-lookout.jpg",
-    alt: "Nick Miller looking out over the ocean in Tuvalu.",
-    title: "Ground Truth",
-    caption: "This project comes from on-the-ground time and direct community contact, not a distant dataset exercise.",
+    src: "/judges/rainbow-ocean.jpg",
+    alt: "Rainbow over the ocean in Tuvalu.",
+    title: "11,000 speakers. One mission.",
     tall: false,
   },
   {
     src: "/judges/nick-coconut-crab.jpg",
     alt: "Nick Miller holding a coconut crab in Tuvalu.",
-    title: "Motivated By Place",
-    caption: "The technical rigor is real. The motivation is real. Both matter.",
+    title: "Ground truth comes from the ground.",
     tall: true,
-  },
-  {
-    src: "/judges/rainbow-ocean.jpg",
-    alt: "Rainbow over the ocean in Tuvalu.",
-    title: "11,000 Speakers. 100+ Billion Parameters Model. We Still Win.",
-    caption: "This is what SOTA looks like for communities frontier models ignore.",
-    tall: false,
   },
   {
     src: "/judges/island-lagoon.jpg",
     alt: "Small tropical island surrounded by clear lagoon water in Tuvalu.",
-    title: "Specialization Matters",
-    caption: "A small language community + the right infrastructure = frontier-class performance.",
+    title: "Every language deserves sovereign AI.",
     tall: false,
   },
   {
     src: "/judges/beach-tree.jpg",
     alt: "Beach scene with a leaning tree and shallow turquoise water in Tuvalu.",
-    title: "Efficiency Wins",
-    caption: "3B active parameters, built for the place and people, beats 100B+ generic systems.",
+    title: "Efficiency over scale.",
     tall: true,
   },
   {
     src: "/judges/futsal-article.jpg",
     alt: "Magazine article about Tuvalu futsal as a springboard.",
-    title: "Products Collect Data. Data Improves Models.",
-    caption: "Talafutipolo is not just a demo-it's the engine that generates better training signals.",
+    title: "Products collect data. Data improves models.",
     tall: true,
   },
 ];
+
+const upcomingLanguages = [
+  "Tuvaluan", "Tokelauan", "Niuean", "Cook Islands Maori",
+  "Rotuman", "Wallisian", "Futunan",
+];
+
+// ─── Newsletter signup ───
+
+function NewsletterSignup(props: { variant?: "hero" | "section" }) {
+  const [email, setEmail] = createSignal("");
+  const [state, setState] = createSignal<"idle" | "submitting" | "success" | "error">("idle");
+  const isHero = () => props.variant === "hero";
+
+  async function handleSubmit(e: SubmitEvent) {
+    e.preventDefault();
+    const addr = email().trim();
+    if (!addr || !addr.includes("@")) return;
+
+    setState("submitting");
+    try {
+      const resp = await fetch("/api/newsletter", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addr }),
+      });
+      if (resp.ok) {
+        setState("success");
+      } else {
+        setState("error");
+      }
+    } catch {
+      setState("error");
+    }
+  }
+
+  return (
+    <Show
+      when={state() !== "success"}
+      fallback={
+        <div class={`newsletter-success ${isHero() ? "newsletter-success--hero" : ""}`}>
+          <p class="newsletter-success__icon">&#10003;</p>
+          <p class="newsletter-success__text">You're in. We'll share updates as we build.</p>
+        </div>
+      }
+    >
+      <form onSubmit={handleSubmit} class={`newsletter-form ${isHero() ? "newsletter-form--hero" : ""}`}>
+        <div class="newsletter-form__row">
+          <input
+            type="email"
+            placeholder="you@example.com"
+            value={email()}
+            onInput={(e) => setEmail(e.currentTarget.value)}
+            class="newsletter-form__input"
+            required
+          />
+          <button
+            type="submit"
+            class="newsletter-form__button"
+            disabled={state() === "submitting"}
+          >
+            {state() === "submitting" ? "..." : "Join"}
+          </button>
+        </div>
+        <Show when={state() === "error"}>
+          <p class="newsletter-form__error">Something went wrong. Try again?</p>
+        </Show>
+        <p class="newsletter-form__fine">No spam. Updates on the Language Lab, new languages, and open-source releases.</p>
+      </form>
+    </Show>
+  );
+}
+
+// ─── Twitter embed loader ───
+
+function TweetEmbed(props: { tweetUrl: string }) {
+  let containerRef: HTMLDivElement | undefined;
+
+  onMount(() => {
+    // Load Twitter widgets script if not already present
+    if (!(window as any).twttr) {
+      const script = document.createElement("script");
+      script.src = "https://platform.twitter.com/widgets.js";
+      script.async = true;
+      script.charset = "utf-8";
+      document.head.appendChild(script);
+      script.onload = () => {
+        (window as any).twttr?.widgets?.load(containerRef);
+      };
+    } else {
+      (window as any).twttr?.widgets?.load(containerRef);
+    }
+  });
+
+  return (
+    <div ref={containerRef} class="tweet-embed">
+      <blockquote class="twitter-tweet" data-theme="dark" data-dnt="true">
+        <a href={props.tweetUrl}>Loading tweet...</a>
+      </blockquote>
+    </div>
+  );
+}
+
+// ─── Page ───
 
 export default function DemoPage() {
   return (
     <main class="demo-page">
       <OGMeta
-        title="We beat GPT-5.4 at Tuvaluan | TalaFutipolo"
-        description="3B-active model scores 41.8 vs GPT-5.4's 36.1 chrF++ on Tuvaluan. Wins 6 of 7 task slices. Full-stack infrastructure, live product, public artifacts."
+        title="We beat GPT-5.4 at Tuvaluan — now we're building a Language Lab"
+        description="3rd place at GTC 2026. NVIDIA DGX Spark going to Tuvalu. A 3B model that beats GPT-5.4 on 6/7 Tuvaluan task slices. Now building an open Language Lab for dying languages."
         image="/judges/rainbow-ocean.jpg"
         imageWidth={1366}
         imageHeight={768}
         url="https://tuvalugpt.tv/demo"
       />
 
+      {/* ═══ HERO ═══ */}
       <section class="demo-hero">
         <div class="demo-hero__backdrop" />
         <div class="demo-shell">
           <div class="demo-hero__content">
+            <div class="demo-hero__badge">
+              3rd Place &mdash; SemiAnalysis Hackathon @ NVIDIA GTC 2026
+            </div>
             <h1 class="demo-title">
               We beat GPT-5.4 at Tuvaluan.
+              <span class="demo-title__sub">Now we're giving the hardware to Tuvalu.</span>
             </h1>
             <p class="demo-lead">
-              A 3B-active model outperforms GPT-5.4 on 6 of 7 Tuvaluan task slices. 41.8 vs 36.1 chrF++
-              on the shared benchmark. This is not a benchmark trick — it is a complete production system:
-              the largest Tuvaluan corpus ever built (342k pairs), Tinker-trained on a MoE base, a live
-              football news product collecting real user signals from 11,000 speakers, and an evaluation
-              harness that proves specialized infrastructure beats raw scale for underserved languages.
+              Our 3B-active model outperformed GPT-5.4 on 6 of 7 Tuvaluan language tasks.
+              We won an NVIDIA DGX Spark at GTC 2026 — and we're sending it to Tuvalu so
+              11,000 speakers can run their own sovereign AI agents in their own language.
             </p>
 
             <div class="demo-cta-row">
-              <A href="/chat/eval" class="demo-button demo-button--gold">
-                See the benchmark results
+              <a href="#newsletter" class="demo-button demo-button--gold">
+                Follow the mission
+              </a>
+              <A href="/chat/eval" class="demo-button demo-button--ghost">
+                See benchmark results
               </A>
               <A href="/chat" class="demo-button demo-button--ghost">
-                Try the model live
+                Try the model
               </A>
-              <A href="/chat/training" class="demo-button demo-button--ghost">
-                Watch training
-              </A>
+            </div>
+
+            <div class="demo-milestones">
+              <For each={milestones}>
+                {(m) => (
+                  <div class="demo-milestone">
+                    <p class="demo-milestone__value">{m.value}</p>
+                    <p class="demo-milestone__label">{m.label}</p>
+                    <p class="demo-milestone__detail">{m.detail}</p>
+                  </div>
+                )}
+              </For>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ THE RESULT ═══ */}
+      <section class="demo-section">
+        <div class="demo-shell">
+          <div class="demo-result-grid">
+            <div class="demo-result-grid__copy">
+              <p class="demo-kicker demo-kicker--dark">The result</p>
+              <h2 class="demo-section__title">
+                3B parameters. Beats frontier models.
+              </h2>
+              <p class="demo-section__text">
+                We built the largest Tuvaluan-English corpus ever assembled (342k pairs),
+                trained a two-stage model on Thinking Machines' Tinker platform, and evaluated
+                it against GPT-5.4, Claude Sonnet, Gemini, and Google Translate on 7 task slices.
+              </p>
+              <p class="demo-section__text">
+                Our model leads on 6 of 7. Specialization beats scale when the infrastructure
+                is right.
+              </p>
             </div>
 
             <div class="demo-leaderboard">
@@ -184,42 +278,53 @@ export default function DemoPage() {
                 )}
               </For>
             </div>
+          </div>
+        </div>
+      </section>
 
-            <div class="demo-stats">
-              <For each={proofStats}>
-                {(stat) => (
-                  <div class="demo-stat">
-                    <p class="demo-stat__value">{stat.value}</p>
-                    <p class="demo-stat__label">{stat.label}</p>
-                    <p class="demo-stat__note">{stat.note}</p>
-                  </div>
-                )}
-              </For>
+      {/* ═══ GTC WIN + TWEET ═══ */}
+      <section class="demo-section demo-section--dark">
+        <div class="demo-shell">
+          <div class="demo-gtc-grid">
+            <div class="demo-gtc-grid__copy">
+              <p class="demo-kicker">GTC 2026</p>
+              <h2 class="demo-section__title demo-section__title--light">
+                3rd place. DGX Spark. Going to Tuvalu.
+              </h2>
+              <p class="demo-section__text">
+                The SemiAnalysis hackathon at NVIDIA GTC 2026 challenged teams to build
+                real AI systems, not demos. We placed 3rd and won an NVIDIA DGX Spark.
+              </p>
+              <p class="demo-section__text">
+                We're not keeping it. The DGX Spark is going to Tuvalu — so a nation
+                of 11,000 people can run AI agents that speak their language, on their
+                own hardware, under their own control. Sovereign AI starts with sovereign
+                infrastructure.
+              </p>
+            </div>
+            <div class="demo-gtc-grid__tweet">
+              <TweetEmbed tweetUrl="https://twitter.com/SemiAnalysis_/status/2033375212700340715" />
             </div>
           </div>
         </div>
       </section>
 
+      {/* ═══ EXPLORE THE SYSTEM ═══ */}
       <section class="demo-section">
         <div class="demo-shell">
           <div class="demo-section__intro">
-            <p class="demo-kicker demo-kicker--dark">Explore the complete system</p>
-            <h2 class="demo-section__title">Four views of frontier-class Tuvaluan AI</h2>
-            <p class="demo-section__text">
-              Every layer of this project is live and interactive. Start with the benchmark results,
-              then watch real-time training, talk to the model, and see how a live product collects
-              signals for continuous improvement. This is what SOTA infrastructure looks like in practice.
-            </p>
+            <p class="demo-kicker demo-kicker--dark">Explore the system</p>
+            <h2 class="demo-section__title">Everything is live and open</h2>
           </div>
 
           <div class="demo-link-grid">
-            <For each={launchLinks}>
+            <For each={exploreLinks}>
               {(link) => (
                 <A href={link.href} class="demo-link-card">
                   <p class="demo-link-card__eyebrow">{link.eyebrow}</p>
                   <h3 class="demo-link-card__title">{link.title}</h3>
                   <p class="demo-link-card__body">{link.body}</p>
-                  <span class="demo-link-card__cta">Launch page</span>
+                  <span class="demo-link-card__cta">Open &rarr;</span>
                 </A>
               )}
             </For>
@@ -227,94 +332,114 @@ export default function DemoPage() {
         </div>
       </section>
 
-      <section class="demo-section demo-section--dark">
-        <div class="demo-shell demo-shell--narrow">
+      {/* ═══ GALLERY ═══ */}
+      <section class="demo-section demo-section--sand">
+        <div class="demo-shell">
           <div class="demo-section__intro">
-            <p class="demo-kicker">Why this wins</p>
-            <h2 class="demo-section__title demo-section__title--light">
-              We built SOTA infrastructure, not a benchmark trick.
-            </h2>
+            <p class="demo-kicker demo-kicker--dark">On the ground</p>
+            <h2 class="demo-section__title">This work comes from a real place</h2>
           </div>
-
-          <div class="demo-reason-list">
-            <For each={reasons}>
-              {(reason, index) => (
-                <div class="demo-reason">
-                  <div class="demo-reason__index">0{index() + 1}</div>
-                  <p class="demo-reason__title">{reason.title}</p>
-                  <p class="demo-reason__text">{reason.detail}</p>
-                </div>
+          <div class="demo-gallery">
+            <For each={gallery}>
+              {(image) => (
+                <figure class={`demo-gallery__item ${image.tall ? "demo-gallery__item--tall" : ""}`}>
+                  <img src={image.src} alt={image.alt} class="demo-gallery__image" loading="lazy" />
+                  <figcaption class="demo-gallery__caption">
+                    <p class="demo-gallery__title">{image.title}</p>
+                  </figcaption>
+                </figure>
               )}
             </For>
           </div>
         </div>
       </section>
 
-      <section class="demo-section">
-        <div class="demo-shell">
-          <div class="demo-story">
-            <div class="demo-story__copy">
-              <p class="demo-kicker demo-kicker--dark">The real story</p>
-              <h2 class="demo-section__title">How 3B parameters beat GPT-5.4</h2>
-              <p class="demo-section__text">
-                You do not need 100B+ parameters to beat frontier models. You need the right
-                infrastructure: a 342k-pair corpus pipeline, careful decontamination, two-stage
-                Tinker training on a 3B-active MoE base, expert-written evaluation, and a live
-                product that turns user behavior into model-improvement signals. Every layer matters.
-              </p>
-              <p class="demo-section__text">
-                Tuvaluan has roughly 11,000 speakers. GPT-5.4 barely sees them. Our Stage B model
-                wins on 6 of 7 task slices because it was built for this language, not as an
-                afterthought. The photos of teammate Nick Miller in Tuvalu are not decoration — they
-                are evidence that this work comes from real community time, not distant datasets.
-              </p>
-              <div class="demo-story__links">
-                <a
-                  href="https://huggingface.co/datasets/FriezaForce/tv2en-cleaned"
-                  class="demo-inline-link"
-                >
-                  Cleaned dataset
-                </a>
-                <a
-                  href="https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a"
-                  class="demo-inline-link"
-                >
-                  Stage A model card
-                </a>
-                <a
-                  href="https://tuvalugpt.tv"
-                  class="demo-inline-link"
-                >
-                  Live site
-                </a>
+      {/* ═══ LANGUAGE LAB ═══ */}
+      <section class="demo-section demo-section--dark demo-section--lab">
+        <div class="demo-shell demo-shell--narrow">
+          <div class="demo-lab">
+            <p class="demo-kicker">What's next</p>
+            <h2 class="demo-section__title demo-section__title--light demo-lab__title">
+              The Language Lab
+            </h2>
+            <p class="demo-lab__tagline">
+              Preserving dying languages. Enabling sovereign AI.
+            </p>
+            <p class="demo-section__text">
+              Tuvaluan was the proof. Now we're building an open-source Language Lab — a
+              nonprofit 501(c)(3) that gives endangered language communities the tools,
+              models, and hardware to run their own AI systems.
+            </p>
+            <p class="demo-section__text">
+              The playbook is proven: build the corpus, train a specialized model, ship
+              a real product, collect feedback, improve. We did it for Tuvaluan with
+              342k pairs and 3B active parameters. We're doing it next for the Pacific
+              languages closest to disappearing.
+            </p>
+
+            <div class="demo-lab__languages">
+              <p class="demo-lab__languages-label">First target languages</p>
+              <div class="demo-lab__language-tags">
+                <For each={upcomingLanguages}>
+                  {(lang) => <span class="demo-lab__tag">{lang}</span>}
+                </For>
               </div>
             </div>
 
-            <div class="demo-story__highlight">
-              <div class="demo-highlight-card">
-                <p class="demo-highlight-card__eyebrow">Core insight</p>
-                <p class="demo-highlight-card__quote">
-                  GPT-5.4 has 100x our active parameters and the entire internet
-                  as training data. We beat it with 342k pairs and disciplined
-                  infrastructure. That&apos;s the argument: specialization wins
-                  for communities frontier models ignore.
+            <div class="demo-lab__pillars">
+              <div class="demo-lab__pillar">
+                <p class="demo-lab__pillar-num">01</p>
+                <p class="demo-lab__pillar-title">Open corpus infrastructure</p>
+                <p class="demo-lab__pillar-text">
+                  Scalable pipelines for scraping, aligning, cleaning, and decontaminating
+                  parallel text for any low-resource language. Published to Hugging Face.
+                </p>
+              </div>
+              <div class="demo-lab__pillar">
+                <p class="demo-lab__pillar-num">02</p>
+                <p class="demo-lab__pillar-title">Community-owned models</p>
+                <p class="demo-lab__pillar-text">
+                  Specialized models trained on community data, evaluated by native speakers,
+                  and deployed on community hardware. Not a cloud API — actual sovereignty.
+                </p>
+              </div>
+              <div class="demo-lab__pillar">
+                <p class="demo-lab__pillar-num">03</p>
+                <p class="demo-lab__pillar-title">Sovereign hardware</p>
+                <p class="demo-lab__pillar-text">
+                  The DGX Spark goes to Tuvalu. Future hardware goes to future communities.
+                  AI agents that speak your language should run on your infrastructure.
                 </p>
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
-          <div class="demo-gallery">
-            <For each={gallery}>
-              {(image) => (
-                <figure class={`demo-gallery__item ${image.tall ? "demo-gallery__item--tall" : ""}`}>
-                  <img src={image.src} alt={image.alt} class="demo-gallery__image" />
-                  <figcaption class="demo-gallery__caption">
-                    <p class="demo-gallery__title">{image.title}</p>
-                    <p class="demo-gallery__text">{image.caption}</p>
-                  </figcaption>
-                </figure>
-              )}
-            </For>
+      {/* ═══ NEWSLETTER ═══ */}
+      <section class="demo-section demo-section--cta" id="newsletter">
+        <div class="demo-shell demo-shell--narrow">
+          <div class="demo-newsletter">
+            <h2 class="demo-newsletter__title">
+              Help us save the next language.
+            </h2>
+            <p class="demo-newsletter__text">
+              Join the Language Lab mailing list. Get updates on new languages, open-source
+              releases, deployment milestones, and ways to contribute — whether you're a
+              linguist, an engineer, or someone who believes every language deserves AI.
+            </p>
+            <NewsletterSignup variant="section" />
+            <div class="demo-newsletter__links">
+              <a href="https://huggingface.co/datasets/FriezaForce/tv2en-cleaned" class="demo-inline-link demo-inline-link--dark">
+                Dataset on HF
+              </a>
+              <a href="https://huggingface.co/FriezaForce/tvl-en-llm-translation-stage-a" class="demo-inline-link demo-inline-link--dark">
+                Model card
+              </a>
+              <a href="https://github.com/G-structure/tuvalu-llm" class="demo-inline-link demo-inline-link--dark">
+                GitHub
+              </a>
+            </div>
           </div>
         </div>
       </section>
