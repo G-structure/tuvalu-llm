@@ -397,18 +397,18 @@ button {
 }
 .review-carousel {
   position: relative; overflow: hidden; border-radius: 1.2rem;
-  background: rgba(0, 0, 0, 0.3); aspect-ratio: 9 / 16; max-height: 520px;
-  margin: 0 auto; width: 100%; max-width: 300px;
+  background: rgba(0, 0, 0, 0.3);
+  margin: 0 auto; width: 100%; max-width: 320px;
 }
 .review-carousel__track {
-  display: flex; height: 100%;
+  display: flex;
   transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .review-carousel__slide {
-  flex: 0 0 100%; height: 100%;
+  flex: 0 0 100%;
 }
 .review-carousel__img {
-  width: 100%; height: 100%; object-fit: cover;
+  width: 100%; height: auto; display: block;
 }
 .review-carousel__dots {
   position: absolute; bottom: 0.8rem; left: 50%;
