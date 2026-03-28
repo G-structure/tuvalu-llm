@@ -510,12 +510,12 @@ button {
 }
 
 .demo-newsletter__contact {
-  margin-top: 1.25rem; font-size: 0.8rem; color: var(--sky-dark); text-align: center;
+  margin-top: 1.25rem; font-size: 0.82rem; color: rgba(1, 58, 99, 0.55); text-align: center;
 }
 .demo-newsletter__contact a {
-  color: var(--gold); text-decoration: underline; text-underline-offset: 2px;
+  color: var(--ocean-deep); text-decoration: underline; text-underline-offset: 2px;
 }
-.demo-newsletter__contact a:hover { color: #fff; }
+.demo-newsletter__contact a:hover { color: var(--gold); }
 
 .newsletter-form { margin-top: 1.5rem; }
 .newsletter-form__row {
