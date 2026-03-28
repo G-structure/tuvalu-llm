@@ -55,9 +55,6 @@ const marked = new Marked({
         ${text ? `<figcaption>${text}</figcaption>` : ""}
       </figure>`;
     },
-    table({ header, rows }: { header: string; rows: string[] }) {
-      return `<div class="blog-table-wrap"><table>${header}${rows.join("")}</table></div>`;
-    },
   },
 });
 
