@@ -291,6 +291,9 @@ export default function DemoPage() {
               <A href="/chat" class="demo-button demo-button--ghost">
                 Try the model
               </A>
+              <A href="/blog/technical-deepdive" class="demo-button demo-button--ghost">
+                Read the technical deep dive
+              </A>
             </div>
 
             <div class="demo-milestones">
