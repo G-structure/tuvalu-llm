@@ -16,6 +16,13 @@ export default function Header(props: HeaderProps) {
         </A>
         <div class="flex items-center gap-3">
           <A
+            href="/blog"
+            class="text-[var(--sky-dark)] hover:text-[var(--gold)] transition-colors no-underline text-sm"
+            title="Blog"
+          >
+            Blog
+          </A>
+          <A
             href="/fatele"
             class="text-[var(--sky-dark)] hover:text-[var(--gold)] transition-colors no-underline text-sm"
             title="Te Fatele"
