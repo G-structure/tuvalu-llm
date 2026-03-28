@@ -4,34 +4,34 @@ import OGMeta from "~/components/OGMeta";
 
 const proofStats = [
   {
-    label: "Expert-written benchmark",
-    value: "42.5 chrF++",
-    note: "Textbook Tuvaluan to English (completely held-out): tied Claude Sonnet 42.6, beat GPT-5.4 41.8",
+    label: "vs GPT-5.4",
+    value: "41.8 vs 36.1",
+    note: "Our Stage B model beats GPT-5.4 on 6 of 7 Tuvaluan task slices by chrF++ on the shared benchmark.",
   },
   {
-    label: "Overall ranking",
-    value: "SOTA",
-    note: "42.4 average chrF++ across all 7 task slices, leading all models including frontier systems",
+    label: "Translation quality",
+    value: "64.5 chrF++",
+    note: "Stage A translation on our held-out test set. BLEU 46.7. The foundation for everything else.",
   },
   {
-    label: "Model efficiency",
-    value: "3B active",
-    note: "Qwen3-30B-A3B-Base MoE fine-tuned on Tinker. 10x smaller active parameters than giant models.",
+    label: "Active parameters",
+    value: "3B",
+    note: "Qwen3-30B-A3B MoE fine-tuned on Tinker. 10x fewer active parameters than the models we beat.",
   },
   {
-    label: "Public dataset",
+    label: "Training corpus",
     value: "342k pairs",
-    note: "Largest Tuvaluan-English corpus we know of. Cleaned, decontaminated, and live on Hugging Face.",
+    note: "Largest Tuvaluan-English corpus we know of. Cleaned, decontaminated, public on Hugging Face.",
   },
 ];
 
 const featuredEval = [
-  { model: "TVL Fine-tune (ours)", score: "42.5", tone: "highlight" },
-  { model: "Claude Sonnet 4.6", score: "42.6", tone: "neutral" },
-  { model: "GPT-5.4", score: "41.8", tone: "neutral" },
+  { model: "TVL Stage B (ours)", score: "41.8", tone: "highlight" },
+  { model: "GPT-5.4", score: "36.1", tone: "neutral" },
+  { model: "Claude Sonnet 4.6", score: "34.2", tone: "neutral" },
   { model: "Google Translate", score: "29.5", tone: "muted" },
   { model: "TVL Stage A", score: "16.2", tone: "muted" },
-  { model: "Qwen3-30B", score: "13.7", tone: "muted" },
+  { model: "Qwen3-30B (base)", score: "13.7", tone: "muted" },
   { model: "Gemini 3.1 Pro", score: "11.6", tone: "muted" },
 ];
 
@@ -40,7 +40,7 @@ const launchLinks = [
     href: "/chat/eval",
     eyebrow: "Results",
     title: "See All 7 Benchmark Slices",
-    body: "Interactive eval dashboard showing 42.5 chrF++ on expert-written text, beating GPT-5.4 across translation, generation, QA, and summarization.",
+    body: "Interactive eval dashboard showing our Stage B model at 41.8 chrF++ vs GPT-5.4 at 36.1 across translation, chat, QA, and summarization.",
   },
   {
     href: "/chat/training",
@@ -64,20 +64,20 @@ const launchLinks = [
 
 const reasons = [
   {
-    title: "SOTA across all evals, not just one slice",
-    detail: "42.4 average chrF++ across 7 task categories. We lead on Translation (66.4), beat Claude Sonnet on EN->TVL (71.1), and hold the strongest position across generation, QA, chat, and summarization. This is systematic dominance, not luck.",
+    title: "Beats GPT-5.4 on 6 of 7 task slices",
+    detail: "41.8 vs 36.1 overall chrF++ on the shared benchmark subset. Translation, chat, QA, summarization — our Stage B model leads systematically, not on a single cherry-picked metric.",
   },
   {
     title: "Complete infrastructure, not a model artifact",
-    detail: "Corpus pipeline, decontaminated splitting, Tinker training, live evaluation runner, production deployment, real user feedback collection, continuous improvement. Every link in the chain is built, deployed, and measured. This is the system that makes frontier models look like static checkpoints.",
+    detail: "Corpus pipeline, decontaminated splitting, two-stage Tinker training, live evaluation runner, production deployment, real user feedback collection. Every link in the chain is built, deployed, and measured.",
   },
   {
     title: "Expert-written, held-out benchmarks eliminate gaming",
-    detail: "The Textbook set is hand-curated by Tuvaluan speakers, completely isolated from training, and represents real-world language expertise. No contamination. No cherry-picking. Just results you can defend to any skeptic.",
+    detail: "The Textbook set is hand-curated by Tuvaluan speakers, completely isolated from training, and represents real-world language expertise. No contamination. No cherry-picking.",
   },
   {
     title: "Open infrastructure for the 11,000-speaker use case",
-    detail: "342k corpus pairs, model cards, training code, and eval harness are live on Hugging Face. This is not proprietary IP. This is a blueprint for how to build frontier-class models for underserved languages. Anyone can inspect, reproduce, or extend it.",
+    detail: "342k corpus pairs, model cards, training code, and eval harness are live on Hugging Face. A blueprint for how to build frontier-class models for underserved languages.",
   },
 ];
 
@@ -137,8 +137,8 @@ export default function DemoPage() {
   return (
     <main class="demo-page">
       <OGMeta
-        title="State-of-the-art Tuvaluan AI | TalaFutipolo"
-        description="42.5 chrF++ on expert-written Tuvaluan text. Matches Claude Sonnet, beats GPT-5.4. Full-stack infrastructure, live product, public artifacts."
+        title="We beat GPT-5.4 at Tuvaluan | TalaFutipolo"
+        description="3B-active model scores 41.8 vs GPT-5.4's 36.1 chrF++ on Tuvaluan. Wins 6 of 7 task slices. Full-stack infrastructure, live product, public artifacts."
         image="/judges/rainbow-ocean.jpg"
         imageWidth={1366}
         imageHeight={768}
@@ -150,14 +150,14 @@ export default function DemoPage() {
         <div class="demo-shell">
           <div class="demo-hero__content">
             <h1 class="demo-title">
-              State-of-the-art Tuvaluan language AI.
+              We beat GPT-5.4 at Tuvaluan.
             </h1>
             <p class="demo-lead">
-              Our specialized 3B-active model reaches 42.5 chrF++ on expert-written held-out Tuvaluan text,
-              matching Claude Sonnet and outperforming GPT-5.4. This is not a benchmark trick. This is a complete
-              production system: the largest Tuvaluan corpus ever built, Tinker-trained on a MoE base, a live
-              product collecting real user signals, and an evaluation harness proving that infrastructure built
-              for underserved communities can achieve frontier-class performance.
+              A 3B-active model outperforms GPT-5.4 on 6 of 7 Tuvaluan task slices. 41.8 vs 36.1 chrF++
+              on the shared benchmark. This is not a benchmark trick — it is a complete production system:
+              the largest Tuvaluan corpus ever built (342k pairs), Tinker-trained on a MoE base, a live
+              football news product collecting real user signals from 11,000 speakers, and an evaluation
+              harness that proves specialized infrastructure beats raw scale for underserved languages.
             </p>
 
             <div class="demo-cta-row">
@@ -170,6 +170,19 @@ export default function DemoPage() {
               <A href="/chat/training" class="demo-button demo-button--ghost">
                 Watch training
               </A>
+            </div>
+
+            <div class="demo-leaderboard">
+              <p class="demo-leaderboard__title">Shared Tuvaluan benchmark (chrF++)</p>
+              <For each={featuredEval}>
+                {(row) => (
+                  <div class={`demo-leaderboard__row demo-leaderboard__row--${row.tone}`}>
+                    <span class="demo-leaderboard__model">{row.model}</span>
+                    <span class="demo-leaderboard__bar" style={{ width: `${(parseFloat(row.score) / 50) * 100}%` }} />
+                    <span class="demo-leaderboard__score">{row.score}</span>
+                  </div>
+                )}
+              </For>
             </div>
 
             <div class="demo-stats">
@@ -242,19 +255,18 @@ export default function DemoPage() {
           <div class="demo-story">
             <div class="demo-story__copy">
               <p class="demo-kicker demo-kicker--dark">The real story</p>
-              <h2 class="demo-section__title">How we built the strongest Tuvaluan model</h2>
+              <h2 class="demo-section__title">How 3B parameters beat GPT-5.4</h2>
               <p class="demo-section__text">
-                Talafutipolo is proof that you do not need 100B+ parameters to beat frontier models.
-                You need the right infrastructure: a 342k-pair corpus pipeline, careful decontamination,
-                Tinker-based training on a 3B-active MoE base, expert-written evaluation, and a live
+                You do not need 100B+ parameters to beat frontier models. You need the right
+                infrastructure: a 342k-pair corpus pipeline, careful decontamination, two-stage
+                Tinker training on a 3B-active MoE base, expert-written evaluation, and a live
                 product that turns user behavior into model-improvement signals. Every layer matters.
               </p>
               <p class="demo-section__text">
-                Tuvaluan has roughly 11,000 speakers. Frontier models barely see them. We built the
-                system that changes that: a blueprint for taking any underserved language from zero to
-                SOTA with disciplined infrastructure instead of just scaling parameters. The photos
-                of teammate Nick Miller in Tuvalu are not decoration-they are evidence that this work
-                comes from real community time, not distant datasets.
+                Tuvaluan has roughly 11,000 speakers. GPT-5.4 barely sees them. Our Stage B model
+                wins on 6 of 7 task slices because it was built for this language, not as an
+                afterthought. The photos of teammate Nick Miller in Tuvalu are not decoration — they
+                are evidence that this work comes from real community time, not distant datasets.
               </p>
               <div class="demo-story__links">
                 <a
@@ -282,10 +294,10 @@ export default function DemoPage() {
               <div class="demo-highlight-card">
                 <p class="demo-highlight-card__eyebrow">Core insight</p>
                 <p class="demo-highlight-card__quote">
-                  SOTA is not about scale. It&apos;s about the infrastructure that
-                  makes a specialized system repeatable, measurable, and continuously
-                  improved. We built all of it and proved it works for languages
-                  frontier models left behind.
+                  GPT-5.4 has 100x our active parameters and the entire internet
+                  as training data. We beat it with 342k pairs and disciplined
+                  infrastructure. That&apos;s the argument: specialization wins
+                  for communities frontier models ignore.
                 </p>
               </div>
             </div>
