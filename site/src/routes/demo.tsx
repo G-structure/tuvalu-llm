@@ -54,6 +54,7 @@ const gallery = [
     title: "Built with the community, not for them.",
     tall: false,
     pos: "center 20%",
+    w: 800, h: 603,
   },
   {
     src: "/judges/rainbow-ocean.webp",
@@ -61,6 +62,7 @@ const gallery = [
     title: "11,000 speakers. Nine atolls. One language to save.",
     tall: false,
     pos: "center center",
+    w: 800, h: 451,
   },
   {
     src: "/judges/nick-coconut-crab.webp",
@@ -68,6 +70,7 @@ const gallery = [
     title: "Fieldwork means getting your hands dirty.",
     tall: true,
     pos: "center 15%",
+    w: 800, h: 1067,
   },
   {
     src: "/judges/island-lagoon.webp",
@@ -75,6 +78,7 @@ const gallery = [
     title: "The entire country is 26 km\u00B2. Smaller than Manhattan.",
     tall: false,
     pos: "center center",
+    w: 800, h: 1067,
   },
   {
     src: "/judges/beach-tree.webp",
@@ -82,6 +86,7 @@ const gallery = [
     title: "4.6 metres above sea level. That's the highest point.",
     tall: true,
     pos: "center center",
+    w: 800, h: 1067,
   },
   {
     src: "/judges/futsal-article.webp",
@@ -89,13 +94,14 @@ const gallery = [
     title: "Football is the language everyone shares. We started there.",
     tall: true,
     pos: "center 10%",
+    w: 800, h: 1423,
   },
 ];
 
 const reviews = [
-  { src: "/reviews/review-1.webp", alt: "Tuvaluan reviewer says 'Very good excellent' after testing the model" },
-  { src: "/reviews/review-2.webp", alt: "Tuvaluan reviewer says 'You got a very good training you learn Tuvalu by your self — Good Tecnology'" },
-  { src: "/reviews/review-3.webp", alt: "Tuvaluan reviewer says 'Yeah that's perfect' after a translation test" },
+  { src: "/reviews/review-1.webp", alt: "Tuvaluan reviewer says 'Very good excellent' after testing the model", w: 600, h: 623 },
+  { src: "/reviews/review-2.webp", alt: "Tuvaluan reviewer says 'You got a very good training you learn Tuvalu by your self — Good Tecnology'", w: 600, h: 583 },
+  { src: "/reviews/review-3.webp", alt: "Tuvaluan reviewer says 'Yeah that's perfect' after a translation test", w: 600, h: 531 },
 ];
 
 const upcomingLanguages = [
@@ -228,7 +234,7 @@ function ReviewCarousel() {
           <For each={reviews}>
             {(r) => (
               <div class="review-carousel__slide">
-                <img src={r.src} alt={r.alt} class="review-carousel__img" loading="lazy" />
+                <img src={r.src} alt={r.alt} width={r.w} height={r.h} class="review-carousel__img" loading="lazy" decoding="async" />
               </div>
             )}
           </For>
@@ -257,7 +263,7 @@ export default function DemoPage() {
       <OGMeta
         title="We beat GPT-5.4 at Tuvaluan — now we're building a Language Lab"
         description="3rd place at GTC 2026. NVIDIA DGX Spark going to Tuvalu. A 3B model that beats GPT-5.4 on 6/7 Tuvaluan task slices. Now building an open Language Lab for dying languages."
-        image="/judges/rainbow-ocean.jpg"
+        image="/judges/rainbow-ocean.webp"
         imageWidth={1366}
         imageHeight={768}
         url="https://tuvalugpt.tv/demo"
@@ -491,7 +497,7 @@ export default function DemoPage() {
             <For each={gallery}>
               {(image) => (
                 <figure class={`demo-gallery__item ${image.tall ? "demo-gallery__item--tall" : ""}`}>
-                  <img src={image.src} alt={image.alt} class="demo-gallery__image" loading="lazy" style={{ "object-position": image.pos }} />
+                  <img src={image.src} alt={image.alt} width={image.w} height={image.h} class="demo-gallery__image" loading="lazy" decoding="async" style={{ "object-position": image.pos }} />
                   <figcaption class="demo-gallery__caption">
                     <p class="demo-gallery__title">{image.title}</p>
                   </figcaption>

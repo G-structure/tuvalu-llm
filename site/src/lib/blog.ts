@@ -50,8 +50,15 @@ const marked = new Marked({
       return `<code class="blog-inline-code">${text}</code>`;
     },
     image({ href, text }: { href: string; text?: string }) {
+      // Known image dimensions to prevent layout shift
+      const dims: Record<string, [number, number]> = {
+        "/blog/pai-vau-cover.webp": [800, 1048],
+        "/blog/tinker-spend-march.webp": [1200, 758],
+      };
+      const [w, h] = dims[href || ""] || [];
+      const sizeAttrs = w ? ` width="${w}" height="${h}"` : "";
       return `<figure class="blog-figure">
-        <img src="${href}" alt="${text || ""}" loading="lazy" decoding="async" />
+        <img src="${href}" alt="${text || ""}"${sizeAttrs} loading="lazy" decoding="async" />
         ${text ? `<figcaption>${text}</figcaption>` : ""}
       </figure>`;
     },

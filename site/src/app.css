@@ -155,7 +155,7 @@ button {
   overflow: hidden;
   background:
     linear-gradient(135deg, rgba(1, 58, 99, 0.94), rgba(0, 96, 160, 0.82)),
-    url("/judges/rainbow-ocean.jpg") center/cover no-repeat;
+    url("/judges/rainbow-ocean.webp") center/cover no-repeat;
   color: white;
 }
 
