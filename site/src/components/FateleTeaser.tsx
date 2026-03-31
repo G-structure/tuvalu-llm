@@ -17,7 +17,7 @@ export default function FateleTeaser() {
         class="block max-w-3xl mx-auto px-4 py-2.5 flex items-center justify-between no-underline text-white"
       >
         <span class="text-xs">
-          Te Fatele
+          Kominiti
           <Show when={typeof count() === "number"}>
             {" "}&middot; {count()} i te masina nei
           </Show>

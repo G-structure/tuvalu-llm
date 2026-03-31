@@ -86,7 +86,7 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
       <div class="flex items-start justify-between gap-4">
         <div>
           <p class="text-xs uppercase tracking-[0.2em] text-[var(--gold)]">
-            Te Fatele
+            Kominiti
           </p>
           <h2 class="mt-1 text-xl font-bold">Coach the Translator</h2>
           <p class="mt-2 text-sm leading-relaxed text-[var(--sky-dark)]">

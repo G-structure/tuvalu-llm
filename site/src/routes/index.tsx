@@ -34,9 +34,11 @@ export default function Home() {
   return (
     <main class="max-w-3xl mx-auto pb-8">
       <OGMeta
-        title="Talafutipolo Tuvalu — Tala Futipolo i te Gagana Tuvalu"
+        title="Talafutipolo"
         description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in the Tuvaluan language."
         url={absoluteUrl("/")}
+        siteName="Talafutipolo"
+        titleSuffix="Tala Futipolo i te Gagana Tuvalu"
       />
 
       <Show when={data()}>
@@ -66,7 +68,7 @@ export default function Home() {
                     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p class="text-xs uppercase tracking-[0.2em] text-[var(--gold)]">
-                          Te Fatele
+                          Kominiti
                         </p>
                         <h2 class="mt-1 text-lg font-bold">
                           Help coach the Tuvaluan model

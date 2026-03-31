@@ -43,7 +43,7 @@ const exploreLinks = [
   {
     href: "/fatele",
     eyebrow: "Community",
-    title: "See the Fatele dashboard",
+    title: "See the Kominiti dashboard",
     body: "Real user feedback signals from across the Tuvaluan islands.",
   },
 ];

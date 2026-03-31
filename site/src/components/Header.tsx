@@ -30,7 +30,7 @@ export default function Header(props: HeaderProps) {
               href="/fatele"
               class="text-[var(--sky-dark)] hover:text-[var(--gold)] transition-colors no-underline text-sm"
             >
-              Fatele
+              Kominiti
             </A>
             <A
               href="/chat"
@@ -96,7 +96,7 @@ export default function Header(props: HeaderProps) {
           aria-label="Main navigation"
         >
           <A href="/blog" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Journal</A>
-          <A href="/fatele" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Fatele</A>
+          <A href="/fatele" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Kominiti</A>
           <A href="/chat" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Chat</A>
           <A href="/chat/training" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Training</A>
           <A href="/chat/eval" class="text-[var(--sky-dark)] hover:text-[var(--gold)] no-underline text-sm py-2" onClick={() => setMenuOpen(false)}>Eval</A>

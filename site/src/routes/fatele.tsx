@@ -35,13 +35,13 @@ export default function FatelePage() {
   return (
     <main class="max-w-3xl mx-auto pb-16 px-4">
       <OGMeta
-        title="Te Fatele | TALAFUTIPOLO"
+        title="Kominiti | TALAFUTIPOLO"
         description="Community dashboard — help translate football news into Tuvaluan"
         url={absoluteUrl("/fatele")}
       />
 
       <div class="pt-6 pb-4 text-center">
-        <h1 class="text-2xl font-bold text-gray-900">Te Fatele</h1>
+        <h1 class="text-2xl font-bold text-gray-900">Kominiti</h1>
         <p class="mt-1 text-sm text-gray-500">
           Te galuega a te kominiti — Community effort
         </p>
