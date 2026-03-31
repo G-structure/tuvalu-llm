@@ -119,14 +119,6 @@ export default function Chat() {
                       text="Tell me a short story in Tuvaluan."
                       onClick={sendMessage}
                     />
-                    <Suggestion
-                      text="What is Tuvalu? Respond in Tuvaluan."
-                      onClick={sendMessage}
-                    />
-                    <Suggestion
-                      text="Explain a Python sort function in Tuvaluan."
-                      onClick={sendMessage}
-                    />
                   </div>
                 </div>
               </div>
