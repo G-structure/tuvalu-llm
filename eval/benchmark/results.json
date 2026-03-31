@@ -1,247 +1,319 @@
 {
-  "tvl": {
+  "tvl-stage-a": {
     "translation_en_to_tvl": {
-      "count": 5,
-      "chrf_pp": 70.80550648216936,
-      "bleu": 55.97623131607128,
-      "exact_match": 0.0,
+      "count": 250,
+      "chrf_pp": 59.81875985015501,
+      "bleu": 42.162532308501596,
+      "exact_match": 0.012,
       "by_domain": {
         "book": {
+          "count": 233,
+          "chrf_pp": 61.92191711949663,
+          "bleu": 44.3658898091838,
+          "exact_match": 0.012875536480686695
+        },
+        "bible": {
           "count": 5,
-          "chrf_pp": 70.80550648216936,
-          "bleu": 55.97623131607128,
+          "chrf_pp": 67.1583681670583,
+          "bleu": 43.28270953058892,
+          "exact_match": 0.0
+        },
+        "dictionary": {
+          "count": 3,
+          "chrf_pp": 5.681818181818182,
+          "bleu": 0.0,
+          "exact_match": 0.0
+        },
+        "daily_text": {
+          "count": 9,
+          "chrf_pp": 44.48776167427377,
+          "bleu": 23.204560747711238,
           "exact_match": 0.0
         }
       }
     },
     "translation_tvl_to_en": {
-      "count": 5,
-      "chrf_pp": 60.32274059354823,
-      "bleu": 40.95126696419608,
-      "exact_match": 0.2,
+      "count": 250,
+      "chrf_pp": 61.53041989707015,
+      "bleu": 44.432823725511746,
+      "exact_match": 0.096,
       "by_domain": {
         "book": {
-          "count": 5,
-          "chrf_pp": 60.32274059354823,
-          "bleu": 40.95126696419608,
-          "exact_match": 0.2
+          "count": 230,
+          "chrf_pp": 61.301188376474634,
+          "bleu": 44.08357562775765,
+          "exact_match": 0.10434782608695652
+        },
+        "dictionary": {
+          "count": 10,
+          "chrf_pp": 27.027960251461387,
+          "bleu": 15.590598860791824,
+          "exact_match": 0.0
+        },
+        "daily_text": {
+          "count": 6,
+          "chrf_pp": 66.17509491133775,
+          "bleu": 50.13691026866646,
+          "exact_match": 0.0
+        },
+        "bible": {
+          "count": 4,
+          "chrf_pp": 52.02761057046994,
+          "bleu": 33.618222682168074,
+          "exact_match": 0.0
         }
       }
     },
     "textbook_en_to_tvl": {
-      "count": 5,
-      "chrf_pp": 39.860502513711054,
-      "bleu": 10.202072072633488,
-      "exact_match": 0.2,
+      "count": 46,
+      "chrf_pp": 41.368030482680304,
+      "bleu": 12.115772278497365,
+      "exact_match": 0.17391304347826086,
       "by_domain": {
-        "tepapa_activity": {
-          "count": 2,
-          "chrf_pp": 20.756233723415683,
-          "bleu": 40.82482904638629,
-          "exact_match": 0.5
-        },
         "childrens_book": {
-          "count": 3,
-          "chrf_pp": 40.225558431552436,
-          "bleu": 10.245918200326923,
+          "count": 25,
+          "chrf_pp": 41.57165043856196,
+          "bleu": 12.362473930801348,
           "exact_match": 0.0
+        },
+        "tepapa_activity": {
+          "count": 21,
+          "chrf_pp": 39.30815095227869,
+          "bleu": 3.9283710065919313,
+          "exact_match": 0.38095238095238093
         }
       }
     },
     "textbook_tvl_to_en": {
-      "count": 5,
-      "chrf_pp": 35.939391197169186,
-      "bleu": 13.162331826405557,
+      "count": 46,
+      "chrf_pp": 32.19610395739723,
+      "bleu": 11.964395302172145,
       "exact_match": 0.0,
       "by_domain": {
-        "childrens_book": {
-          "count": 2,
-          "chrf_pp": 40.02642191512246,
-          "bleu": 14.100784539062142,
+        "tepapa_activity": {
+          "count": 25,
+          "chrf_pp": 15.3999696663965,
+          "bleu": 1.313340045037949,
           "exact_match": 0.0
         },
-        "tepapa_activity": {
-          "count": 3,
-          "chrf_pp": 10.44676897745414,
-          "bleu": 0.0,
+        "childrens_book": {
+          "count": 21,
+          "chrf_pp": 33.90753635870533,
+          "bleu": 13.213957885156054,
           "exact_match": 0.0
         }
       }
     },
     "chat_tvl": {
-      "count": 4,
-      "chrf_pp": 22.344240237666092,
-      "bleu": 2.436748782701133,
-      "exact_match": 0.0,
+      "count": 250,
+      "chrf_pp": 29.066983401588043,
+      "bleu": 10.294057285338514,
+      "exact_match": 0.4,
       "by_source": {
-        "crosslingual": {
-          "count": 2,
-          "chrf_pp": 22.38462015565057,
-          "bleu": 2.354353228995915,
-          "exact_match": 0.0
-        },
         "synthetic_tvl": {
-          "count": 2,
-          "chrf_pp": 19.56252737993791,
-          "bleu": 8.310415003234633,
-          "exact_match": 0.0
+          "count": 125,
+          "chrf_pp": 28.27505376099789,
+          "bleu": 9.42073336602675,
+          "exact_match": 0.344
+        },
+        "crosslingual": {
+          "count": 125,
+          "chrf_pp": 30.08561518761816,
+          "bleu": 11.18575492574008,
+          "exact_match": 0.456
         }
       }
     },
     "qa_tvl": {
-      "count": 2,
-      "chrf_pp": 23.976246294444724,
-      "bleu": 3.90492492115032,
-      "exact_match": 0.0,
+      "count": 120,
+      "chrf_pp": 30.985605669472232,
+      "bleu": 11.269838804661896,
+      "exact_match": 0.25,
       "by_source": {
-        "crosslingual": {
-          "count": 1,
-          "chrf_pp": 32.01112171756045,
-          "bleu": 10.126442477235681,
-          "exact_match": 0.0
-        },
         "synthetic_tvl": {
-          "count": 1,
-          "chrf_pp": 4.62962962962963,
-          "bleu": 0.0,
-          "exact_match": 0.0
+          "count": 60,
+          "chrf_pp": 48.27525602149363,
+          "bleu": 27.65387029974535,
+          "exact_match": 0.4166666666666667
+        },
+        "crosslingual": {
+          "count": 60,
+          "chrf_pp": 19.589471739471946,
+          "bleu": 4.24856640446729,
+          "exact_match": 0.08333333333333333
         }
       }
     },
     "summarization_tvl": {
-      "count": 2,
-      "chrf_pp": 27.90503334791387,
-      "bleu": 3.3470585334394123,
+      "count": 40,
+      "chrf_pp": 37.170511734748644,
+      "bleu": 16.077317708881367,
       "exact_match": 0.0,
       "by_source": {
         "synthetic_tvl": {
-          "count": 2,
-          "chrf_pp": 27.90503334791387,
-          "bleu": 3.3470585334394123,
+          "count": 40,
+          "chrf_pp": 37.170511734748644,
+          "bleu": 16.077317708881367,
           "exact_match": 0.0
         }
       }
     }
   },
-  "tvl-stage-a": {
+  "tvl-stage-b": {
     "translation_en_to_tvl": {
-      "count": 5,
-      "chrf_pp": 53.31235614142914,
-      "bleu": 17.474064833824947,
-      "exact_match": 0.0,
+      "count": 250,
+      "chrf_pp": 59.71386675145186,
+      "bleu": 41.91597024795202,
+      "exact_match": 0.032,
       "by_domain": {
         "book": {
+          "count": 233,
+          "chrf_pp": 61.629486534070665,
+          "bleu": 43.82407294498799,
+          "exact_match": 0.034334763948497854
+        },
+        "bible": {
           "count": 5,
-          "chrf_pp": 53.31235614142914,
-          "bleu": 17.474064833824947,
+          "chrf_pp": 64.4415793780868,
+          "bleu": 38.93989604398811,
+          "exact_match": 0.0
+        },
+        "dictionary": {
+          "count": 3,
+          "chrf_pp": 5.747126436781609,
+          "bleu": 0.0,
+          "exact_match": 0.0
+        },
+        "daily_text": {
+          "count": 9,
+          "chrf_pp": 45.938666973215334,
+          "bleu": 24.70044375815159,
           "exact_match": 0.0
         }
       }
     },
     "translation_tvl_to_en": {
-      "count": 5,
-      "chrf_pp": 43.80126686683487,
-      "bleu": 11.364324525188692,
-      "exact_match": 0.0,
+      "count": 250,
+      "chrf_pp": 61.25801082991277,
+      "bleu": 43.615604020623756,
+      "exact_match": 0.088,
       "by_domain": {
         "book": {
-          "count": 5,
-          "chrf_pp": 43.80126686683487,
-          "bleu": 11.364324525188692,
+          "count": 230,
+          "chrf_pp": 60.63763939466814,
+          "bleu": 42.7477821424839,
+          "exact_match": 0.09565217391304348
+        },
+        "dictionary": {
+          "count": 10,
+          "chrf_pp": 28.659509635950442,
+          "bleu": 14.505328259456203,
+          "exact_match": 0.0
+        },
+        "daily_text": {
+          "count": 6,
+          "chrf_pp": 69.12585124593319,
+          "bleu": 53.4705193129412,
+          "exact_match": 0.0
+        },
+        "bible": {
+          "count": 4,
+          "chrf_pp": 60.79275307638985,
+          "bleu": 45.00845215689754,
           "exact_match": 0.0
         }
       }
     },
     "textbook_en_to_tvl": {
-      "count": 5,
-      "chrf_pp": 18.872804218519246,
-      "bleu": 0.3504106613010515,
-      "exact_match": 0.0,
+      "count": 46,
+      "chrf_pp": 41.48968485614134,
+      "bleu": 11.758200297792829,
+      "exact_match": 0.17391304347826086,
       "by_domain": {
         "childrens_book": {
-          "count": 3,
-          "chrf_pp": 23.651175283673346,
-          "bleu": 0.5496308274037709,
+          "count": 25,
+          "chrf_pp": 41.74404849405299,
+          "bleu": 12.031257196153113,
           "exact_match": 0.0
         },
         "tepapa_activity": {
-          "count": 2,
-          "chrf_pp": 0.667245261055994,
-          "bleu": 0.0,
-          "exact_match": 0.0
+          "count": 21,
+          "chrf_pp": 36.83279225801918,
+          "bleu": 3.6204719215651466,
+          "exact_match": 0.38095238095238093
         }
       }
     },
     "textbook_tvl_to_en": {
-      "count": 5,
-      "chrf_pp": 13.824626145855682,
-      "bleu": 1.5040475558749562,
+      "count": 46,
+      "chrf_pp": 34.86573895639151,
+      "bleu": 17.01539663320659,
       "exact_match": 0.0,
       "by_domain": {
         "tepapa_activity": {
-          "count": 3,
-          "chrf_pp": 1.2395387587786935,
-          "bleu": 0.055898555239264285,
+          "count": 25,
+          "chrf_pp": 13.307982531429364,
+          "bleu": 1.2445745667076313,
           "exact_match": 0.0
         },
         "childrens_book": {
-          "count": 2,
-          "chrf_pp": 23.29575113861791,
-          "bleu": 3.656688976134265,
+          "count": 21,
+          "chrf_pp": 37.12265893572065,
+          "bleu": 17.707558789802054,
           "exact_match": 0.0
         }
       }
     },
     "chat_tvl": {
-      "count": 4,
-      "chrf_pp": 10.353021771386954,
-      "bleu": 0.9107111926260505,
-      "exact_match": 0.0,
+      "count": 250,
+      "chrf_pp": 28.175820779903006,
+      "bleu": 9.794230146016528,
+      "exact_match": 0.372,
       "by_source": {
         "synthetic_tvl": {
-          "count": 2,
-          "chrf_pp": 1.5892511843063803,
-          "bleu": 0.08833043001858623,
-          "exact_match": 0.0
+          "count": 125,
+          "chrf_pp": 27.222604359176838,
+          "bleu": 8.834338847925448,
+          "exact_match": 0.304
         },
         "crosslingual": {
-          "count": 2,
-          "chrf_pp": 12.57722425338914,
-          "bleu": 1.1424997484945922,
-          "exact_match": 0.0
+          "count": 125,
+          "chrf_pp": 29.401518794515784,
+          "bleu": 10.789975755788998,
+          "exact_match": 0.44
         }
       }
     },
     "qa_tvl": {
-      "count": 2,
-      "chrf_pp": 5.564682405477521,
-      "bleu": 0.1851915363092193,
-      "exact_match": 0.0,
+      "count": 120,
+      "chrf_pp": 31.751760108398464,
+      "bleu": 16.51817804953607,
+      "exact_match": 0.225,
       "by_source": {
         "synthetic_tvl": {
-          "count": 1,
-          "chrf_pp": 2.508020843775192,
-          "bleu": 0.26093389428531627,
-          "exact_match": 0.0
+          "count": 60,
+          "chrf_pp": 48.1384413855275,
+          "bleu": 28.9358737413592,
+          "exact_match": 0.4
         },
         "crosslingual": {
-          "count": 1,
-          "chrf_pp": 9.136507645782515,
-          "bleu": 0.3459617148491742,
-          "exact_match": 0.0
+          "count": 60,
+          "chrf_pp": 19.035612976678,
+          "bleu": 6.812665236684553,
+          "exact_match": 0.05
         }
       }
     },
     "summarization_tvl": {
-      "count": 2,
-      "chrf_pp": 11.978457800047208,
-      "bleu": 0.13512195954931494,
+      "count": 40,
+      "chrf_pp": 35.45595740069734,
+      "bleu": 13.721309411419096,
       "exact_match": 0.0,
       "by_source": {
         "synthetic_tvl": {
-          "count": 2,
-          "chrf_pp": 11.978457800047208,
-          "bleu": 0.13512195954931494,
+          "count": 40,
+          "chrf_pp": 35.45595740069734,
+          "bleu": 13.721309411419096,
           "exact_match": 0.0
         }
       }
