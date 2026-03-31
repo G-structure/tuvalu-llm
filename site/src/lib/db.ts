@@ -11,10 +11,14 @@ import type {
 // In dev mode, lazily initialize via wrangler's getPlatformProxy()
 let _devProxy: any = null;
 let _communitySchemaReady: Promise<void> | null = null;
+let _usingDevProxy = false;
 
 async function getDb(): Promise<D1Database> {
   const db = (process.env as any).DB || (globalThis as any).__env__?.DB;
-  if (db) return db;
+  if (db) {
+    _usingDevProxy = false;
+    return db;
+  }
 
   // Dev fallback: use wrangler's local D1 emulation
   if (!_devProxy) {
@@ -22,10 +26,14 @@ async function getDb(): Promise<D1Database> {
     _devProxy = await getPlatformProxy({ persist: { path: ".wrangler/state/v3" } });
     (globalThis as any).__env__ = _devProxy.env;
   }
+  _usingDevProxy = true;
   return _devProxy.env.DB;
 }
 
 async function ensureCommunitySchema(db: D1Database): Promise<void> {
+  if (!_usingDevProxy) {
+    return;
+  }
   if (_communitySchemaReady) {
     await _communitySchemaReady;
     return;

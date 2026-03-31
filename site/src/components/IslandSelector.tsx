@@ -1,4 +1,4 @@
-import { createEffect, createSignal } from "solid-js";
+import { Show, createSignal, onCleanup, onMount } from "solid-js";
 import { ensureCommunitySessionId, getKnownIsland, setKnownIsland } from "~/lib/community";
 import { ISLANDS } from "~/lib/types";
 
@@ -27,8 +27,6 @@ export function promptForIslandIfUnknown(): Promise<void> {
 }
 
 export default function IslandSelector() {
-  let dialogRef: HTMLDialogElement | undefined;
-
   const finishPrompt = () => {
     setShow(false);
     resolvePromise?.();
@@ -58,82 +56,75 @@ export default function IslandSelector() {
     }
   };
 
-  const closePrompt = () => {
-    if (dialogRef?.open) {
-      dialogRef.close();
-      return;
-    }
-    finishPrompt();
-  };
-
   const selectIsland = async (island: string) => {
     const sessionId = ensureCommunitySessionId();
     setKnownIsland(island);
     await syncIslandToSession(island, sessionId);
-    closePrompt();
+    finishPrompt();
   };
 
   const skip = () => {
     ensureCommunitySessionId();
-    closePrompt();
+    finishPrompt();
   };
 
-  createEffect(() => {
-    if (show() && dialogRef && !dialogRef.open) {
-      dialogRef.showModal();
-    }
+  onMount(() => {
+    const handleKeydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && show() && !savingIsland()) {
+        event.preventDefault();
+        skip();
+      }
+    };
+    window.addEventListener("keydown", handleKeydown);
+    onCleanup(() => window.removeEventListener("keydown", handleKeydown));
   });
 
   return (
-    <dialog
-      ref={dialogRef}
-      class="fixed inset-0 z-50 bg-[var(--ocean-deep)] flex items-center justify-center p-6 max-w-none w-full h-full m-0 border-none"
-      aria-labelledby="island-dialog-title"
-      onCancel={(event) => {
-        if (savingIsland()) {
-          event.preventDefault();
-        }
-      }}
-      onClose={finishPrompt}
-    >
-      <div class="w-full max-w-sm text-center mx-auto">
-        <h2 id="island-dialog-title" class="text-2xl font-bold text-[var(--gold)] mb-2">Talofa!</h2>
-        <p class="text-[var(--sky-dark)] mb-6 text-sm">
-          Ko koe mai fea? Where are you from?
-        </p>
+    <Show when={show()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="island-dialog-title"
+        class="fixed inset-0 z-50 bg-[var(--ocean-deep)] flex items-center justify-center p-6"
+      >
+        <div class="w-full max-w-sm text-center mx-auto">
+          <h2 id="island-dialog-title" class="text-2xl font-bold text-[var(--gold)] mb-2">Talofa!</h2>
+          <p class="text-[var(--sky-dark)] mb-6 text-sm">
+            Ko koe mai fea? Where are you from?
+          </p>
 
-        <div class="grid grid-cols-2 gap-3 mb-4">
-          {ISLANDS.slice(0, 9).map((island) => (
-            <button
-              type="button"
-              onClick={() => selectIsland(island)}
-              disabled={savingIsland() !== null}
-              class="py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30"
-            >
-              {island}
-            </button>
-          ))}
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            {ISLANDS.slice(0, 9).map((island) => (
+              <button
+                type="button"
+                onClick={() => selectIsland(island)}
+                disabled={savingIsland() !== null}
+                class="py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30"
+              >
+                {island}
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => selectIsland("I fafo")}
+            disabled={savingIsland() !== null}
+            class="w-full py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30 mb-4"
+          >
+            I fafo (Diaspora)
+          </button>
+
+          <button
+            type="button"
+            onClick={skip}
+            disabled={savingIsland() !== null}
+            class="text-[var(--sky-dark)] text-sm hover:text-[var(--gold)] cursor-pointer bg-transparent border-none"
+          >
+            {savingIsland() ? "Saving..." : "Fano →"}
+          </button>
         </div>
-
-        {/* I fafo (Diaspora) full width */}
-        <button
-          type="button"
-          onClick={() => selectIsland("I fafo")}
-          disabled={savingIsland() !== null}
-          class="w-full py-3 px-4 bg-white/10 text-white rounded-lg text-sm font-medium hover:bg-[var(--gold)]/20 transition-colors cursor-pointer border border-[var(--gold)]/30 mb-4"
-        >
-          I fafo (Diaspora)
-        </button>
-
-        <button
-          type="button"
-          onClick={skip}
-          disabled={savingIsland() !== null}
-          class="text-[var(--sky-dark)] text-sm hover:text-[var(--gold)] cursor-pointer bg-transparent border-none"
-        >
-          {savingIsland() ? "Saving..." : "Fano →"}
-        </button>
       </div>
-    </dialog>
+    </Show>
   );
 }
