@@ -71,12 +71,12 @@ export default function ShareActions(props: {
       </Show>
       <div class="blog-share__actions">
         <button type="button" class="blog-share__primary" onClick={handlePrimaryShare}>
-          <Show when={copied()} fallback={"Copy or share link"}>
+          <Show when={copied()} fallback={"Copy article link"}>
             Link copied
           </Show>
         </button>
         <a href={xUrl()} target="_blank" rel="noreferrer noopener" class="blog-share__link">
-          Post on X
+          Post to X
         </a>
         <a
           href={linkedInUrl()}
@@ -92,7 +92,7 @@ export default function ShareActions(props: {
           rel="noreferrer noopener"
           class="blog-share__link"
         >
-          Submit to HN
+          Share to HN
         </a>
       </div>
     </div>

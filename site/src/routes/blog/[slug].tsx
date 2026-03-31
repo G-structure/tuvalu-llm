@@ -192,9 +192,9 @@ export default function BlogPostPage() {
                         title={post().title}
                         description={post().description}
                         url={url()}
-                        eyebrow="Pass it on"
-                        heading="Know someone who should see this?"
-                        text="Share it with the people building, funding, teaching, or using language technology."
+                        eyebrow="Share Language Lab"
+                        heading="Know someone who cares about Tuvaluan AI?"
+                        text="Send them this post from the lab."
                       />
                     </div>
 
@@ -294,9 +294,9 @@ export default function BlogPostPage() {
                       title={post().title}
                       description={post().description}
                       url={url()}
-                      eyebrow="Spread the word"
-                      heading="Help the right people see this."
-                      text="Post it to X, share it on LinkedIn, or send it to Hacker News while the conversation is live."
+                      eyebrow="Share Language Lab"
+                      heading="Bring more people into the Tuvaluan AI story."
+                      text="If this should reach builders, funders, teachers, or diaspora communities, send it on."
                     />
                   </section>
                 </aside>
