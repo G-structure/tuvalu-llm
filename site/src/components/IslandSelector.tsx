@@ -1,23 +1,32 @@
-import { createSignal, onMount, Show } from "solid-js";
-import { useLocation } from "@solidjs/router";
+import { createSignal, Show } from "solid-js";
 import { ISLANDS } from "~/lib/types";
 
 function generateUUID(): string {
   return crypto.randomUUID();
 }
 
-export default function IslandSelector() {
-  const [show, setShow] = createSignal(false);
+const [show, setShow] = createSignal(false);
+let resolvePromise: (() => void) | null = null;
 
-  const location = useLocation();
-
-  onMount(() => {
-    if (location.pathname === "/demo") return;
-    if (!localStorage.getItem("talafutipolo_island_chosen")) {
-      setShow(true);
-    }
+/**
+ * Call before submitting any feedback. If the user hasn't chosen an island yet,
+ * shows the modal and waits for them to pick/skip. Resolves immediately if
+ * already chosen. Always ensures a session ID exists.
+ */
+export function ensureIslandChosen(): Promise<void> {
+  if (!localStorage.getItem("talafutipolo_session")) {
+    localStorage.setItem("talafutipolo_session", generateUUID());
+  }
+  if (localStorage.getItem("talafutipolo_island_chosen")) {
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    resolvePromise = resolve;
+    setShow(true);
   });
+}
 
+export default function IslandSelector() {
   const selectIsland = (island: string) => {
     localStorage.setItem("talafutipolo_island", island);
     if (!localStorage.getItem("talafutipolo_session")) {
@@ -25,6 +34,8 @@ export default function IslandSelector() {
     }
     localStorage.setItem("talafutipolo_island_chosen", "true");
     setShow(false);
+    resolvePromise?.();
+    resolvePromise = null;
   };
 
   const skip = () => {
@@ -33,6 +44,8 @@ export default function IslandSelector() {
     }
     localStorage.setItem("talafutipolo_island_chosen", "true");
     setShow(false);
+    resolvePromise?.();
+    resolvePromise = null;
   };
 
   return (

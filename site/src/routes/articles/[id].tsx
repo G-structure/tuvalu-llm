@@ -7,6 +7,7 @@ import OGMeta from "~/components/OGMeta";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
 import CoachTranslatorCard from "~/components/CoachTranslatorCard";
+import { ensureIslandChosen } from "~/components/IslandSelector";
 
 const loadArticle = cache(async (id: string) => {
   "use server";
@@ -41,7 +42,8 @@ function SourceName(props: { sourceId: string }) {
   return <>{map[props.sourceId] || props.sourceId}</>;
 }
 
-function sendSignal(articleId: string, signalType: string, paragraphIndex?: number) {
+async function sendSignal(articleId: string, signalType: string, paragraphIndex?: number) {
+  await ensureIslandChosen();
   const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
   const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
   fetch("/api/signal", {
@@ -67,8 +69,9 @@ function BilingualParagraph(props: {
   const [showEn, setShowEn] = createSignal(false);
   const [vote, setVote] = createSignal<"thumbs_up" | "thumbs_down" | null>(null);
 
-  const handleVote = (type: "thumbs_up" | "thumbs_down") => {
+  const handleVote = async (type: "thumbs_up" | "thumbs_down") => {
     if (vote() === type) return;
+    await ensureIslandChosen();
     setVote(type);
     const island = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_island") : null;
     const session = typeof localStorage !== "undefined" ? localStorage.getItem("talafutipolo_session") : null;
