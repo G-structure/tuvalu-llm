@@ -105,22 +105,22 @@ export default function BlogIndex() {
                 <div class="blog-hero__copy">
                   <p class="blog-kicker">Language Lab Journal</p>
                   <h1 class="blog-hero__title">
-                    Serious publishing for serious language technology.
+                    Tuvaluan AI, built to be used.
                   </h1>
                   <p class="blog-hero__lede">
-                    Research notes, launch posts, field reports, and open-source
-                    writing from the team building AI infrastructure for endangered
-                    languages.
+                    Product launches, research updates, field reports, and open-source
+                    work from the team building practical language tools for Tuvaluan
+                    speakers, learners, and communities.
                   </p>
                   <div class="blog-hero__actions">
-                    <A href="/demo" class="blog-button blog-button--primary">
-                      Explore the lab
+                    <A href="/chat" class="blog-button blog-button--primary">
+                      Try the product
+                    </A>
+                    <A href="/demo" class="blog-button blog-button--ghost">
+                      Project overview
                     </A>
                     <a href={SITE_META.feeds.blogRss} class="blog-button blog-button--ghost">
                       RSS
-                    </a>
-                    <a href={SITE_META.feeds.blogJson} class="blog-button blog-button--ghost">
-                      JSON Feed
                     </a>
                   </div>
                 </div>
@@ -129,17 +129,23 @@ export default function BlogIndex() {
                   <div class="blog-stat-card">
                     <span class="blog-stat-card__label">Posts</span>
                     <strong class="blog-stat-card__value">{blog().posts.length}</strong>
-                    <p class="blog-stat-card__detail">Editorial artifacts, not markdown dumps.</p>
+                    <p class="blog-stat-card__detail">
+                      Launches, deep dives, field reports, and product updates.
+                    </p>
                   </div>
                   <div class="blog-stat-card">
                     <span class="blog-stat-card__label">Topics</span>
                     <strong class="blog-stat-card__value">{blog().tags.length}</strong>
-                    <p class="blog-stat-card__detail">Training, evaluation, launches, and open source.</p>
+                    <p class="blog-stat-card__detail">
+                      Model quality, usability, deployment, and open-source work.
+                    </p>
                   </div>
                   <div class="blog-stat-card">
-                    <span class="blog-stat-card__label">Workflow</span>
-                    <strong class="blog-stat-card__value">Markdown</strong>
-                    <p class="blog-stat-card__detail">Edit one file, publish one post, keep the stack lean.</p>
+                    <span class="blog-stat-card__label">Focus</span>
+                    <strong class="blog-stat-card__value">Tuvaluan AI</strong>
+                    <p class="blog-stat-card__detail">
+                      Consumer-facing language tools backed by serious research.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -169,12 +175,14 @@ export default function BlogIndex() {
                     when={secondaryPosts.length > 0}
                     fallback={
                       <section class="blog-panel">
-                        <p class="blog-panel__eyebrow">Issue zero</p>
-                        <h2 class="blog-panel__title">The publication stack is ready for volume.</h2>
+                        <p class="blog-panel__eyebrow">Start here</p>
+                        <h2 class="blog-panel__title">
+                          Follow how Language Lab is turning research into a real product.
+                        </h2>
                         <p class="blog-panel__text">
-                          New markdown documents become real posts with feeds, tags,
-                          archive pages, structured metadata, and the long-form article
-                          treatment already wired in.
+                          The journal tracks the work behind a Tuvaluan assistant people
+                          can actually use, from model quality and evaluation to launches
+                          and deployment.
                         </p>
                       </section>
                     }
@@ -182,7 +190,7 @@ export default function BlogIndex() {
                     <div class="blog-home__section-head">
                       <div>
                         <p class="blog-section-kicker">Latest</p>
-                        <h2 class="blog-section-title">New from the publication</h2>
+                        <h2 class="blog-section-title">Latest from Language Lab</h2>
                       </div>
                     </div>
 
@@ -196,13 +204,13 @@ export default function BlogIndex() {
 
                 <aside class="blog-home__sidebar">
                   <section class="blog-panel">
-                    <p class="blog-panel__eyebrow">What we publish</p>
-                    <h2 class="blog-panel__title">One publication, multiple modes.</h2>
+                    <p class="blog-panel__eyebrow">Inside Language Lab</p>
+                    <h2 class="blog-panel__title">Product, research, and field reality.</h2>
                     <ul class="blog-panel__list">
-                      <li>Technical deep dives with benchmarks, code, and failure cases.</li>
-                      <li>Research updates that explain what changed and why it matters.</li>
-                      <li>Launch posts for product, data, models, and open-source releases.</li>
-                      <li>Field notes from building and deploying in public.</li>
+                      <li>Product launches and updates for the Tuvaluan assistant.</li>
+                      <li>Research notes that explain quality, evaluation, and tradeoffs clearly.</li>
+                      <li>Technical deep dives for readers who want code, benchmarks, and failure cases.</li>
+                      <li>Field notes on deployment, adoption, and real-world use.</li>
                     </ul>
                   </section>
 
@@ -245,18 +253,18 @@ export default function BlogIndex() {
                   </section>
 
                   <section class="blog-panel blog-panel--cta">
-                    <p class="blog-panel__eyebrow">Follow the loop</p>
-                    <h2 class="blog-panel__title">Turn reading into deeper engagement.</h2>
+                    <p class="blog-panel__eyebrow">Go hands-on</p>
+                    <h2 class="blog-panel__title">Read it, then try it.</h2>
                     <p class="blog-panel__text">
-                      Try the live model, inspect the benchmarks, watch the project in
-                      public, and subscribe through the publication feeds.
+                      Open the live assistant, see how the product works, and follow the
+                      work as it gets better.
                     </p>
                     <div class="blog-panel__actions">
                       <A href="/chat" class="blog-button blog-button--primary">
-                        Try the model
+                        Try the product
                       </A>
-                      <A href="/chat/eval" class="blog-button blog-button--ghost">
-                        View evals
+                      <A href="/demo" class="blog-button blog-button--ghost">
+                        Project overview
                       </A>
                     </div>
                   </section>

@@ -22,7 +22,7 @@ export const BLOG_AUTHORS: Record<string, BlogAuthor> = {
     name: "Language Lab",
     role: "Nonprofit research lab",
     bio:
-      "Language Lab builds open-source AI infrastructure for endangered and low-resource languages, starting with Tuvaluan. The publication covers model training, field deployment, product launches, and the engineering work required to make serious language technology exist where it usually does not.",
+      "Language Lab builds practical AI tools for endangered and low-resource languages, starting with Tuvaluan. The journal covers product launches, research updates, field deployment, and the engineering work required to make real language technology available where it usually does not.",
     initials: "LL",
     location: "Tuvalu / Remote",
     href: absoluteUrl("/demo"),

@@ -6,7 +6,7 @@ export const SITE_META = {
   publicationName: "Language Lab Journal",
   publicationShortName: "Language Lab",
   publicationDescription:
-    "Research notes, launch posts, field reports, and open-source writing from the Language Lab.",
+    "Product updates, research notes, field reports, and open-source writing from the Language Lab team building Tuvaluan AI tools.",
   defaultOgImage: "/social/language-lab-blog.jpg",
   defaultOgImageWidth: 1200,
   defaultOgImageHeight: 630,
