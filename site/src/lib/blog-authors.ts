@@ -22,7 +22,7 @@ export const BLOG_AUTHORS: Record<string, BlogAuthor> = {
     name: "Language Lab",
     role: "Nonprofit research lab",
     bio:
-      "Language Lab builds practical AI tools for endangered and low-resource languages, starting with Tuvaluan. The journal covers product launches, research updates, field deployment, and the engineering work required to make real language technology available where it usually does not.",
+      "Language Lab builds practical AI tools for endangered and low-resource languages, starting with Tuvaluan. We share product launches, research updates, field deployment lessons, and the engineering work required to make real language technology available where it usually does not.",
     initials: "LL",
     location: "Tuvalu / Remote",
     href: absoluteUrl("/demo"),
@@ -52,7 +52,7 @@ export function resolveBlogAuthor(value: string): BlogAuthor {
       slug: key,
       name: value.trim(),
       role: "Contributor",
-      bio: `${value.trim()} contributes to the Language Lab publication.`,
+      bio: `${value.trim()} contributes to the Language Lab story.`,
       initials: value
         .trim()
         .split(/\s+/)

@@ -1,5 +1,6 @@
 import { A, createAsync, cache, useParams } from "@solidjs/router";
-import { For, Show } from "solid-js";
+import { For, onMount, Show } from "solid-js";
+import { HttpStatusCode } from "@solidjs/start";
 import AuthorCard from "~/components/blog/AuthorCard";
 import PostCard from "~/components/blog/PostCard";
 import ReadingProgress from "~/components/blog/ReadingProgress";
@@ -8,6 +9,7 @@ import TableOfContents from "~/components/blog/TableOfContents";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import type { BlogPost, BlogPostFull } from "~/lib/blog";
+import { initBlogCopyButtons } from "~/lib/blog";
 import { getAdjacentPosts, getPostBySlug, getRelatedPosts } from "~/lib/blog-data";
 import { absoluteImageUrl, absoluteUrl, formatLongDate, SITE_META } from "~/lib/site";
 
@@ -187,6 +189,9 @@ export default function BlogPostPage() {
                         title={post().title}
                         description={post().description}
                         url={url()}
+                        eyebrow="Pass it on"
+                        heading="Know someone who should see this?"
+                        text="Share it with the people building, funding, teaching, or using language technology."
                       />
                     </div>
 
@@ -203,7 +208,11 @@ export default function BlogPostPage() {
                     </Show>
                   </header>
 
-                  <div class="blog-content" innerHTML={post().html} />
+                  <div
+                    class="blog-content"
+                    innerHTML={post().html}
+                    ref={(el: HTMLDivElement) => onMount(() => initBlogCopyButtons(el))}
+                  />
 
                   <section class="blog-endcap">
                     <div class="blog-endcap__intro">
@@ -239,7 +248,7 @@ export default function BlogPostPage() {
                       <div class="blog-home__section-head">
                         <div>
                           <p class="blog-section-kicker">Related reading</p>
-                          <h2 class="blog-section-title">More from the journal</h2>
+                          <h2 class="blog-section-title">More from Language Lab</h2>
                         </div>
                       </div>
                       <div class="blog-related__grid">
@@ -278,16 +287,13 @@ export default function BlogPostPage() {
                   </Show>
 
                   <section class="blog-panel blog-panel--sticky-share">
-                    <p class="blog-panel__eyebrow">Share</p>
-                    <h2 class="blog-panel__title">Send this to the right people.</h2>
-                    <p class="blog-panel__text">
-                      Good technical writing compounds when it is easy to preview, quote,
-                      and forward.
-                    </p>
                     <ShareActions
                       title={post().title}
                       description={post().description}
                       url={url()}
+                      eyebrow="Spread the word"
+                      heading="Help the right people see this."
+                      text="Post it to X, share it on LinkedIn, or send it to Hacker News while the conversation is live."
                     />
                   </section>
                 </aside>
@@ -303,6 +309,8 @@ export default function BlogPostPage() {
 function NotFound() {
   return (
     <main class="blog-page blog-page--post">
+      <HttpStatusCode code={404} />
+      <OGMeta title="Post not found" description="The link may be wrong or the post may have moved." />
       <div class="blog-shell blog-shell--narrow blog-empty-state">
         <p class="blog-kicker">Language Lab Journal</p>
         <h1 class="blog-section-title">Post not found.</h1>

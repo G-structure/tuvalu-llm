@@ -12,6 +12,9 @@ export default function ShareActions(props: {
   title: string;
   description: string;
   url: string;
+  eyebrow?: string;
+  heading?: string;
+  text?: string;
 }) {
   const [copied, setCopied] = createSignal(false);
 
@@ -53,30 +56,45 @@ export default function ShareActions(props: {
 
   return (
     <div class="blog-share">
-      <button type="button" class="blog-share__primary" onClick={handlePrimaryShare}>
-        <Show when={copied()} fallback={"Copy link"}>
-          Copied
-        </Show>
-      </button>
-      <a href={xUrl()} target="_blank" rel="noreferrer noopener" class="blog-share__link">
-        X
-      </a>
-      <a
-        href={linkedInUrl()}
-        target="_blank"
-        rel="noreferrer noopener"
-        class="blog-share__link"
-      >
-        LinkedIn
-      </a>
-      <a
-        href={hackerNewsUrl()}
-        target="_blank"
-        rel="noreferrer noopener"
-        class="blog-share__link"
-      >
-        Hacker News
-      </a>
+      <Show when={props.heading || props.text}>
+        <div class="blog-share__intro">
+          <Show when={props.eyebrow}>
+            <p class="blog-share__eyebrow">{props.eyebrow}</p>
+          </Show>
+          <Show when={props.heading}>
+            <h3 class="blog-share__heading">{props.heading}</h3>
+          </Show>
+          <Show when={props.text}>
+            <p class="blog-share__text">{props.text}</p>
+          </Show>
+        </div>
+      </Show>
+      <div class="blog-share__actions">
+        <button type="button" class="blog-share__primary" onClick={handlePrimaryShare}>
+          <Show when={copied()} fallback={"Copy or share link"}>
+            Link copied
+          </Show>
+        </button>
+        <a href={xUrl()} target="_blank" rel="noreferrer noopener" class="blog-share__link">
+          Post on X
+        </a>
+        <a
+          href={linkedInUrl()}
+          target="_blank"
+          rel="noreferrer noopener"
+          class="blog-share__link"
+        >
+          Share on LinkedIn
+        </a>
+        <a
+          href={hackerNewsUrl()}
+          target="_blank"
+          rel="noreferrer noopener"
+          class="blog-share__link"
+        >
+          Submit to HN
+        </a>
+      </div>
     </div>
   );
 }

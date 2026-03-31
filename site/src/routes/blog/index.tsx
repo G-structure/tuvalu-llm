@@ -180,9 +180,9 @@ export default function BlogIndex() {
                           Follow how Language Lab is turning research into a real product.
                         </h2>
                         <p class="blog-panel__text">
-                          The journal tracks the work behind a Tuvaluan assistant people
-                          can actually use, from model quality and evaluation to launches
-                          and deployment.
+                          We cover the work behind a Tuvaluan assistant people can
+                          actually use, from model quality and evaluation to launches and
+                          deployment.
                         </p>
                       </section>
                     }
@@ -237,7 +237,7 @@ export default function BlogIndex() {
                     <div class="blog-home__section-head blog-home__section-head--tight">
                       <div>
                         <p class="blog-panel__eyebrow">Archive</p>
-                        <h2 class="blog-panel__title">Publication history</h2>
+                        <h2 class="blog-panel__title">Archive by year</h2>
                       </div>
                     </div>
                     <div class="blog-archive-list">
