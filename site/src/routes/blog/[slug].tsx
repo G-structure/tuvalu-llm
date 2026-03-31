@@ -216,19 +216,19 @@ export default function BlogPostPage() {
 
                   <section class="blog-endcap">
                     <div class="blog-endcap__intro">
-                      <p class="blog-section-kicker">Keep going</p>
-                      <h2 class="blog-section-title">Take the project deeper.</h2>
+                      <p class="blog-section-kicker">What next</p>
+                      <h2 class="blog-section-title">Try the assistant. Check the results.</h2>
                       <p class="blog-panel__text">
-                        Read the next post, inspect the benchmark dashboard, try the live
-                        model, or pull the code and data yourself.
+                        Open the live Tuvaluan assistant, inspect the evaluation results,
+                        or review the code and data behind the system.
                       </p>
                     </div>
                     <div class="blog-endcap__actions">
                       <A href="/chat/eval" class="blog-button blog-button--primary">
-                        View evals
+                        See eval results
                       </A>
                       <A href="/chat" class="blog-button blog-button--ghost">
-                        Try the model
+                        Try the assistant
                       </A>
                       <a
                         href="https://github.com/G-structure/tuvalu-llm"
@@ -236,7 +236,7 @@ export default function BlogPostPage() {
                         rel="noreferrer noopener"
                         class="blog-button blog-button--ghost"
                       >
-                        Open GitHub
+                        Review the code
                       </a>
                     </div>
                   </section>

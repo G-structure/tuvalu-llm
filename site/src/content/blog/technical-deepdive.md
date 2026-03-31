@@ -278,7 +278,7 @@ This is exactly the kind of failure that chrF++ averages hide. The overall score
 
 #### What chrF++ 47.1 Means in Practice
 
-A chrF++ of 47.1 on genuinely held-out children's books means the model produces recognizable Tuvaluan that a native speaker can follow. It does NOT mean the translations are publication-ready. We see consistent issues:
+A chrF++ of 47.1 on genuinely held-out children's books means the model produces recognizable Tuvaluan that a native speaker can follow. It does NOT mean the translations are safe to ship without human review. We see consistent issues:
 
 - **Vocabulary gaps**: Words that appear only in children's literature and not in our Bible/article-heavy corpus
 - **Register mismatch**: The model defaults to a slightly formal tone (Bible influence) when the source is casual children's language
