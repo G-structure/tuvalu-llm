@@ -30,12 +30,14 @@ Tuvaluan belongs to the **Ellicean** subgroup (Wilson 1985), alongside Tokelauan
 
 | Feature | Tuvaluan | Samoan |
 |---------|----------|--------|
-| /h/ phoneme | Yes (*hale* — house) | No (lost in Proto-Samoic) |
-| /k/ vs /t/ | Distinct phonemes | Allophonic (k→ʔ in formal register) |
-| Consonant gemination | Grammatically productive (*ppā* — burst vs *pā* — wall) | Not productive |
+| /k/ vs /t/ | Distinct phonemes (*kai* = eat, *tai* = sea) | /t/ formal, /k/ informal — allophonic |
+| /k/ vs /ʔ/ | /k/ preserved (*vaka*, *ika*, *kai*) | /k/ → glottal stop (*vaʻa*, *iʻa*, *ʻai*) |
+| Consonant gemination | Grammatically productive (*mmala* — overcooked vs *mala* — plague) | Not productive |
 | Glottal stop | Phonemic, written ʻ | Phonemic, written ʻ |
 
-The /h/ distinction alone is diagnostic: if a model produces *fale* (Samoan) instead of *hale* (Tuvaluan) for "house," it's using the wrong language. Our GPT-5.4 Nano eval confirms this — it produces "Sa latou sasaa sina oneone i totonu o le sami..." which is clearly Samoan (*le* instead of *te*, *o le sami* instead of *o te moana*).
+The /k/ retention is the clearest diagnostic. Tuvaluan keeps Proto-Polynesian /k/ intact: *vaka* (canoe), *ika* (fish), *kai* (eat). Samoan systematically shifted /k/ to the glottal stop: *vaʻa*, *iʻa*, *ʻai*. If a model produces *va'a* instead of *vaka*, it's using Samoan phonology. Samoan also has a T/K register split — formal speech uses /t/, colloquial uses /k/ — which has no parallel in Tuvaluan, where /k/ and /t/ are always distinct phonemes.
+
+Our GPT-5.4 Nano eval confirms this confusion in practice — it produces "Sa latou sasaa sina oneone i totonu o le sami..." which is clearly Samoan (*le* instead of *te*, *o le sami* instead of *o te moana*, and *sa* instead of *ne/koo*).
 
 ### Grammar: The Particles Give It Away
 
@@ -43,15 +45,27 @@ Both languages use particles for tense, aspect, and mood — but *different* par
 
 | Function | Tuvaluan | Samoan |
 |----------|----------|--------|
-| Definite article | **te** (sg), **na/ne** (pl) | **le** (sg), **o** (pl) |
-| Perfective | **koo** / **ne** | **ua** / **na** |
-| Inceptive | **kaa** | **'ua** |
-| Negative perfective | **seki** | **lei** |
+| Definite article (sg) | **te** | **le** |
+| Indefinite plural | **ne** / **ni** (dialect-dependent) | ∅ (zero marking) |
+| Past perfective | **ne** | **na** / **sa** |
+| Change-of-state | **koo** | **ʻua** |
+| Inceptive | **kaa** | **ʻua** (same particle, context-dependent) |
+| Negative perfective | **seki** | **leʻi** |
 | Ergative marker | **nee** | **e** |
 
 A model that produces *le tagata* instead of *te tagata* (the person) has switched languages. These particles appear in nearly every sentence, so even small confusion rates cascade into incomprehensible output.
 
-Tuvaluan also has a three-way number distinction in pronouns (singular, dual, plural) where the dual forms diverge from Samoan. And Tuvaluan uses the ergative marker *nee* in transitive constructions — a feature that Samoan handles differently with *e*.
+Tuvaluan also has a three-way number distinction in pronouns — singular, dual, plural — with inclusive/exclusive splits in first person. The dual forms are particularly distinctive:
+
+| Person | Tuvaluan (dual) | Tuvaluan (plural) | Samoan (plural) |
+|--------|----------------|-------------------|-----------------|
+| 1st exclusive | **maaua** | **maatou** | **mātou** |
+| 2nd | **koulua** | **koutou** | **ʻoutou** |
+| 3rd | **laaua** | **laatou** | **lātou** |
+
+Tuvaluan uses dual pronouns pervasively — even as honorifics in formal speech, a feature crosslinguistically unusual among Polynesian languages. Our grammar data (Besnier) is full of constructions like *"E maua peefea nee maaua..."* (how could we two...) and *"...koulua kaa fano?"* (are you two leaving?) that have no direct Samoan equivalent.
+
+And Tuvaluan uses the ergative marker *nee* in transitive constructions (*"Koo lagona nee au"* — I then heard), where Samoan uses *e*. This is a high-frequency particle that appears in nearly every transitive sentence — another place where Samoan-trained models consistently produce the wrong output.
 
 ### Vocabulary: Cognates and False Friends
 
@@ -60,14 +74,15 @@ Most Tuvaluan-Samoan word pairs are recognizably related but *not identical*:
 | English | Tuvaluan | Samoan | Pattern |
 |---------|----------|--------|---------|
 | island/land | **fenua** | **fanua** | e→a vowel shift |
-| greeting | **taloha** | **talofa** | h↔f correspondence |
-| house | **hale** | **fale** | h↔f correspondence |
+| eat | **kai** | **ʻai** | k↔ʔ correspondence |
+| canoe | **vaka** | **vaʻa** | k↔ʔ correspondence |
+| fish | **ika** | **iʻa** | k↔ʔ correspondence |
+| the (article) | **te** | **le** | t↔l correspondence |
 | person | **tagata** | **tagata** | identical |
-| eat | **kai** | **'ai** | k↔ʔ correspondence |
-| canoe | **vaka** | **va'a** | k↔ʔ correspondence |
-| fish | **ika** | **i'a** | k↔ʔ correspondence |
+| greeting | **talofa** | **talofa** | identical |
+| house | **fale** | **fale** | identical |
 
-The h↔f and k↔ʔ correspondences are *systematic* — a model that understood the phonological rules could theoretically convert between the languages. But LLMs don't learn phonological rules; they learn token co-occurrence patterns. And with Samoan having ~40x more training data online, the co-occurrence statistics overwhelm any Tuvaluan signal.
+The k↔ʔ correspondence is the most systematic — Samoan shifted Proto-Polynesian /k/ to a glottal stop across the entire lexicon. A model that understood this single rule could convert half the vocabulary. But LLMs don't learn phonological rules; they learn token co-occurrence patterns. And with Samoan having ~45x more speakers and vastly more digital text, the co-occurrence statistics overwhelm any Tuvaluan signal. The identical words (*tagata*, *talofa*, *fale*) make it even harder — the languages share enough vocabulary that a model can produce "plausible-looking" output by mixing the two, but the result is neither.
 
 ### The Data Desert
 
@@ -77,14 +92,20 @@ This is the core problem. Models default to Samoan because there's vastly more S
 |----------|----------|--------|
 | Speakers | ~11,000 | ~510,000 |
 | Google Translate | No | Yes |
-| Wikipedia | No | Yes (36k+ articles) |
+| Wikipedia | No | Yes (~1,200 articles) |
 | OPUS parallel corpus | No | Yes |
 | ISO 639-1 code | — (only 639-3: tvl) | sm |
 | Frontier AI support | Zero | Partial |
 
-Samoan has a Wikipedia with 36,000+ articles, Google Translate support, missionary-era grammars digitized and online, and a diaspora community producing digital content in Auckland, Los Angeles, and Honolulu. Tuvaluan has a Bible translation, a dictionary hosted on a Japanese university server, and a few government PDFs.
+Samoan has a Wikipedia, Google Translate support, missionary-era grammars digitized and online, and a diaspora community producing digital content in Auckland, Los Angeles, and Honolulu. Tuvaluan has a Bible translation, a dictionary hosted on a Japanese university server, and a few government PDFs.
 
 When a language model encounters Polynesian-looking text and hasn't seen enough Tuvaluan to distinguish it, it does the statistically rational thing: it produces the Polynesian language it knows best. Which is Samoan. Every time.
+
+Here's GPT-5.4 Nano asked to translate an English paragraph into Tuvaluan (from our [Pai & Vau eval](#the-textbook-eval-the-one-that-matters)):
+
+> *"...oe **sa** umia ni pakete o **le** oneone faamaneta. **Sa latou** sasaa sina oneone i totonu o **le** sami..."*
+
+Every bolded word is a Samoan marker: **sa** (Samoan past tense, Tuvaluan uses *ne/koo*), **le** (Samoan article, Tuvaluan uses *te*), **sa latou** (Samoan 3rd plural past, Tuvaluan uses *ne laatou* or *koo laatou*). The model isn't producing bad Tuvaluan — it's producing perfectly grammatical Samoan.
 
 ### Inter-Atoll Dialect Variation (The Extra Hard Part)
 
@@ -92,7 +113,7 @@ Even within Tuvaluan, there's no single standard. Each of Tuvalu's nine atolls h
 
 | English | Nanumean | Vaitupu | Funafuti |
 |---------|----------|---------|----------|
-| fingernail | **moikao** | **mitikao** | **maikao** |
+| finger/toe | **moikao** | **mitikao** | **maikao** |
 
 Our reference translations for the Pai & Vau book use Nanumean Tuvaluan (it's a Nanumean legend). Our training corpus is dominated by Funafuti-standard texts. This dialect mismatch contributes to the gap between our model's output and the reference — the model is producing *correct Tuvaluan* that happens to be the wrong *variety* of Tuvaluan. chrF++ penalizes this the same way it penalizes actual errors.
 
@@ -336,10 +357,10 @@ Here GPT-5.4 wins convincingly. This makes sense: translating *from* a low-resou
 **Claude Sonnet 4.6:** *"I tasi aso ne i ai ni fafine e lua, ko Pai mo Vau, nā umiti ni kete one fakamanogi..."*
 
 Key observations:
-- Our model produces recognizable Tuvaluan with correct particles and structure, though some vocabulary differs from the Nanumean dialect of the reference
-- GPT-5.4 produces plausible Tuvaluan but uses some non-Tuvaluan vocabulary ("fakamaneta" for magical, "kato" for basket)
-- **GPT-5.4 Nano produces Samoan**, not Tuvaluan — confirming that smaller frontier models have no Tuvaluan capability at all
-- Claude uses a mix of Tuvaluan and other Polynesian language features
+- **Our model** produces recognizable Tuvaluan with correct particles (*ne*, *te*, *ki a*) and structure, though some vocabulary differs from the Nanumean dialect of the reference. It uses *ne ‵ligi ne lāua* — correct Tuvaluan ergative marking with *ne* — where the reference uses *ni ‵ligi ni la*, a Nanumean variant.
+- **GPT-5.4** produces plausible Tuvaluan but uses some non-Tuvaluan vocabulary ("fakamaneta" for magical, "kato" for basket). Notably, it gets the article right (*te*) and uses Tuvaluan TAM particles (*ne*), suggesting OpenAI has some real Tuvaluan signal in its training data.
+- **GPT-5.4 Nano produces Samoan**, not Tuvaluan. The markers are unambiguous: *le* instead of *te* (article), *sa* instead of *ne* (past tense), *o le sami* instead of *o te moana* (the sea), *ma* instead of *mo* (and). This is exactly the Samoan-default behavior described in [Why Tuvaluan Is Hard](#why-tuvaluan-is-hard-and-why-ai-gets-it-wrong) — the model doesn't have enough Tuvaluan signal to distinguish it from Samoan.
+- **Claude** uses a mix of Tuvaluan and other Polynesian features. It gets some particles right but introduces non-Tuvaluan vocabulary ("fakamanogi" — not a Tuvaluan word).
 
 #### The Bible Contamination Problem (Caught in Real-Time)
 
@@ -417,7 +438,11 @@ chrF++ 28.2 on chat vs 60.5 on translation. The gap is real. Our model can trans
 
 chrF++ 47.1 on the Pai & Vau book and GPT-5.4 at 45.5 right behind us. That's a 1.6-point lead on en→tvl — not a moat. And on tvl→en, GPT-5.4 beats us by 9 points (51.5 vs 42.4). The Bible contamination hallucination (translating "footprints" as "Job and the wild ass") is the kind of failure that destroys user trust in a single paragraph, regardless of aggregate scores. Getting from 47 to 60+ on truly out-of-domain text requires much more diverse training data, dialect-aware training, and probably native speaker post-training.
 
-### 5. Collapse Under Load
+### 5. Dialect Blindness
+
+Our training corpus is dominated by Funafuti-standard Tuvaluan and JW WOL translations. But Tuvaluan isn't one language — it's nine dialects, one per atoll, with phonological and lexical differences that matter (see [Inter-Atoll Dialect Variation](#inter-atoll-dialect-variation-the-extra-hard-part)). When the Pai & Vau reference uses Nanumean forms like *ni ‵ligi ni la* and our model outputs the Funafuti-standard *ne ‵ligi ne lāua*, chrF++ counts that as an error even though both are valid Tuvaluan. A dialect-aware model would need atoll-tagged training data we don't yet have.
+
+### 6. Collapse Under Load
 
 Model collapse in production is manageable with retry logic, but it shouldn't happen at all. We see collapse rates of ~5-8% on first attempts for longer articles. The temperature escalation (0.0 → 0.3 → 0.7) resolves most cases, but it triples inference cost for affected articles.
 
@@ -434,6 +459,8 @@ The signals feed into a preference dataset we plan to use for DPO/RLHF-style pos
 ### More Diverse Data
 
 We need non-religious Tuvaluan text at scale. Government documents, community newsletters, social media, song lyrics, oral history transcriptions. Most of this exists on paper or in people's memories, not on the internet. Digitization partnerships with Tuvaluan institutions are the path forward.
+
+Critically, we need **dialect-tagged** data. Tuvaluan has nine atoll dialects with real phonological and lexical differences — *moikao* vs *mitikao* vs *maikao* for the same word depending on which atoll you're from. A model trained on mostly Funafuti-standard text produces "correct" Tuvaluan that speakers from Nanumea, Nui, or Vaitupu experience as slightly foreign. Atoll-tagged training would let the model adapt to the speaker's dialect, the same way a good translator adjusts for regional variation.
 
 ### Hardware Deployment
 
