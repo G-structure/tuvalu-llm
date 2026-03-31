@@ -31,6 +31,9 @@ Use those files for presentation copy. Use the docs in this folder for implement
 | [FOOTBALL_SETUP.md](FOOTBALL_SETUP.md) | Local football app setup, feedback loop, interaction export |
 | [SCRAPING_PLAYBOOK.md](SCRAPING_PLAYBOOK.md) | Scraper reproduction details and operational notes |
 | [UNSTRUCTURED_DATA_PIPELINE.md](UNSTRUCTURED_DATA_PIPELINE.md) | OCR and unstructured-source ingestion |
+| [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md) | Inventory of raw assets under `unstruct_lang_data/` and their current usage status |
+| [STAGE_C_NATIVE_GROUNDING_SPEC.md](STAGE_C_NATIVE_GROUNDING_SPEC.md) | Concrete Stage C data spec for grounded native-TVL SFT, preferences, and evals |
+| [STAGE_C_RESEARCH_PLAN.md](STAGE_C_RESEARCH_PLAN.md) | Literature-backed short-horizon Stage C plan based on the papers in `research/` |
 | [SELECTIVE_TRANSLATION_SPEC.md](SELECTIVE_TRANSLATION_SPEC.md) | Rules for preserving code, JSON, and tool schemas during translation |
 | [LOCAL_MLX_TRAINING.md](LOCAL_MLX_TRAINING.md) | Local MLX export and training path |
 
