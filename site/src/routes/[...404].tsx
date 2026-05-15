@@ -1,14 +1,16 @@
-import { A } from "@solidjs/router";
+import { A, useLocation } from "@solidjs/router";
 import OGMeta from "~/components/OGMeta";
 import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 export default function NotFound() {
+  const location = useLocation();
+
   return (
     <main class="max-w-3xl mx-auto p-4 text-center">
       <OGMeta
         title="Page not found"
         description="The page you're looking for doesn't exist."
-        url={absoluteFootballUrl("/404")}
+        url={absoluteFootballUrl(location.pathname)}
         image={FOOTBALL_META.defaultOgImage}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}

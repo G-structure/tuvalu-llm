@@ -34,11 +34,13 @@ export default function CategoryPage() {
 
   const displayName = () =>
     params.slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  const socialTitle = () =>
+    params.slug === "football" ? "Football News" : `${displayName()} Football News`;
 
   return (
     <main class="max-w-3xl mx-auto pb-8">
       <OGMeta
-        title={`${displayName()} Football News`}
+        title={socialTitle()}
         description={`${displayName()} football news in Tuvaluan and English`}
         url={absoluteFootballUrl(`/category/${params.slug}`)}
         image={FOOTBALL_META.defaultOgImage}
