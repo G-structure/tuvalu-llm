@@ -31,11 +31,11 @@ export default function SearchPage() {
         title="Search Football News"
         description="Search football articles in Tuvaluan and English"
         url={absoluteFootballUrl("/search")}
-        image={FOOTBALL_META.defaultOgImage}
+        image={FOOTBALL_META.searchOgImage}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
         imageHeight={FOOTBALL_META.defaultOgImageHeight}
-        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        imageAlt="Talafutipolo social card for searching football news."
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
       />

@@ -91,11 +91,11 @@ export default function Training() {
         title="TVL Training Dashboard"
         description="Live training metrics for the bilingual Tuvaluan-English language model."
         url={absoluteChatUrl("/chat/training")}
-        image={CHAT_META.defaultOgImage}
+        image={CHAT_META.trainingOgImage}
         imageOrigin={SITE_ORIGINS.chat}
         imageWidth={CHAT_META.defaultOgImageWidth}
         imageHeight={CHAT_META.defaultOgImageHeight}
-        imageAlt={CHAT_META.defaultOgImageAlt}
+        imageAlt="TVL Chat social card for live model training metrics."
         siteName={CHAT_META.productName}
         titleSuffix={CHAT_META.productName}
       />

@@ -5,7 +5,12 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
-import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
+import {
+  absoluteFootballUrl,
+  FOOTBALL_CATEGORY_OG_IMAGES,
+  FOOTBALL_META,
+  SITE_ORIGINS,
+} from "~/lib/site";
 
 const PER_PAGE = 20;
 
@@ -36,6 +41,8 @@ export default function CategoryPage() {
     params.slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   const socialTitle = () =>
     params.slug === "football" ? "Football News" : `${displayName()} Football News`;
+  const socialImage = () =>
+    FOOTBALL_CATEGORY_OG_IMAGES[params.slug] || FOOTBALL_META.defaultOgImage;
 
   return (
     <main class="max-w-3xl mx-auto pb-8">
@@ -43,11 +50,11 @@ export default function CategoryPage() {
         title={socialTitle()}
         description={`${displayName()} football news in Tuvaluan and English`}
         url={absoluteFootballUrl(`/category/${params.slug}`)}
-        image={FOOTBALL_META.defaultOgImage}
+        image={socialImage()}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
         imageHeight={FOOTBALL_META.defaultOgImageHeight}
-        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        imageAlt={`Talafutipolo social card for ${socialTitle().toLowerCase()}.`}
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
       />

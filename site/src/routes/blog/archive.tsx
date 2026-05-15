@@ -3,7 +3,7 @@ import { For } from "solid-js";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import { getArchiveGroups } from "~/lib/blog-data";
-import { absoluteUrl, formatLongDate, SITE_META } from "~/lib/site";
+import { absoluteUrl, BLOG_SECTION_OG_IMAGES, formatLongDate, SITE_META } from "~/lib/site";
 
 const loadArchive = cache(async () => {
   "use server";
@@ -23,10 +23,10 @@ export default function BlogArchivePage() {
         title={`Archive — ${SITE_META.publicationName}`}
         description={`Publication archive for the ${SITE_META.publicationName}.`}
         url={absoluteUrl("/blog/archive")}
-        image={SITE_META.defaultOgImage}
+        image={BLOG_SECTION_OG_IMAGES.archive}
         imageWidth={SITE_META.defaultOgImageWidth}
         imageHeight={SITE_META.defaultOgImageHeight}
-        imageAlt={SITE_META.defaultOgImageAlt}
+        imageAlt="Language Lab Journal social card for the publication archive."
         siteName={SITE_META.publicationShortName}
         titleSuffix={SITE_META.publicationShortName}
       />

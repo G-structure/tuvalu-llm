@@ -6,7 +6,7 @@ import PostCard from "~/components/blog/PostCard";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import { getAuthorBySlug, getPostsByAuthor } from "~/lib/blog-data";
-import { absoluteUrl, SITE_META } from "~/lib/site";
+import { absoluteUrl, BLOG_SECTION_OG_IMAGES, SITE_META } from "~/lib/site";
 
 const loadAuthorPage = cache(async (slug: string) => {
   "use server";
@@ -32,10 +32,10 @@ export default function BlogAuthorPage() {
             title={`${page().author.name} — ${SITE_META.publicationName}`}
             description={page().author.bio}
             url={absoluteUrl(`/blog/author/${page().author.slug}`)}
-            image={SITE_META.defaultOgImage}
+            image={BLOG_SECTION_OG_IMAGES.authorLanguageLab}
             imageWidth={SITE_META.defaultOgImageWidth}
             imageHeight={SITE_META.defaultOgImageHeight}
-            imageAlt={SITE_META.defaultOgImageAlt}
+            imageAlt="Language Lab author social card for the Language Lab team."
             siteName={SITE_META.publicationShortName}
             titleSuffix={SITE_META.publicationShortName}
             authorNames={[page().author.name]}

@@ -190,11 +190,11 @@ export default function Eval() {
         title="TVL Model Evaluation"
         description="Evaluation results for the Tuvaluan-English language model across translation, chat, QA, and summarization tasks."
         url={absoluteChatUrl("/chat/eval")}
-        image={CHAT_META.defaultOgImage}
+        image={CHAT_META.evalOgImage}
         imageOrigin={SITE_ORIGINS.chat}
         imageWidth={CHAT_META.defaultOgImageWidth}
         imageHeight={CHAT_META.defaultOgImageHeight}
-        imageAlt={CHAT_META.defaultOgImageAlt}
+        imageAlt="TVL Chat social card for model evaluation results."
         siteName={CHAT_META.productName}
         titleSuffix={CHAT_META.productName}
       />

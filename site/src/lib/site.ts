@@ -10,6 +10,10 @@ export const FOOTBALL_META = {
   productName: "Talafutipolo",
   productTagline: "Tuvaluan football news in Tuvaluan and English.",
   defaultOgImage: "/social/talafutipolo-football.jpg",
+  articleFallbackOgImage: "/social/football-article-fallback.jpg",
+  searchOgImage: "/social/football-search.jpg",
+  communityOgImage: "/social/football-community.jpg",
+  notFoundOgImage: "/social/football-not-found.jpg",
   defaultOgImageWidth: 1200,
   defaultOgImageHeight: 630,
   defaultOgImageAlt:
@@ -19,11 +23,22 @@ export const FOOTBALL_META = {
   },
 } as const;
 
+export const FOOTBALL_CATEGORY_OG_IMAGES: Record<string, string> = {
+  football: "/social/category-football.jpg",
+  "world-cup": "/social/category-world-cup.jpg",
+  "premier-league": "/social/category-premier-league.jpg",
+  transfers: "/social/category-transfers.jpg",
+  scottish: "/social/category-scottish.jpg",
+  championship: "/social/category-championship.jpg",
+};
+
 export const CHAT_META = {
   productName: "TVL Chat",
   productTagline:
     "A bilingual Tuvaluan-English language model for translation, chat, and evaluation.",
   defaultOgImage: "/social/tuvalu-chat.jpg",
+  evalOgImage: "/social/chat-eval.jpg",
+  trainingOgImage: "/social/chat-training.jpg",
   defaultOgImageWidth: 1200,
   defaultOgImageHeight: 630,
   defaultOgImageAlt:
@@ -41,11 +56,21 @@ export const SITE_META = {
   defaultOgImageWidth: 1200,
   defaultOgImageHeight: 630,
   defaultOgImageAlt:
-    "Language Lab Journal social card with an ocean sky backdrop and editorial branding.",
+    "Language Lab Journal social card for open-source AI infrastructure for endangered languages.",
   feeds: {
     blogRss: "/blog/feed.xml",
     blogJson: "/blog/feed.json",
     articlesRss: "/feed.xml",
+  },
+} as const;
+
+export const BLOG_SECTION_OG_IMAGES = {
+  archive: "/social/blog-archive.jpg",
+  authorLanguageLab: "/social/blog-author-language-lab.jpg",
+  tags: {
+    evaluation: "/social/blog-tag-evaluation.jpg",
+    technical: "/social/blog-tag-technical.jpg",
+    training: "/social/blog-tag-training.jpg",
   },
 } as const;
 

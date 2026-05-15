@@ -38,11 +38,11 @@ export default function FatelePage() {
         title="Kominiti"
         description="Community dashboard — help translate football news into Tuvaluan"
         url={absoluteFootballUrl("/fatele")}
-        image={FOOTBALL_META.defaultOgImage}
+        image={FOOTBALL_META.communityOgImage}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
         imageHeight={FOOTBALL_META.defaultOgImageHeight}
-        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        imageAlt="Talafutipolo community social card for football translation work."
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
       />

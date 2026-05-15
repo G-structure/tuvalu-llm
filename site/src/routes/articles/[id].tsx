@@ -180,11 +180,11 @@ export default function ArticlePage() {
               title="Article not found"
               description="This article may have been removed or the ID is invalid."
               url={absoluteFootballUrl(`/articles/${params.id}`)}
-              image={FOOTBALL_META.defaultOgImage}
+              image={FOOTBALL_META.articleFallbackOgImage}
               imageOrigin={SITE_ORIGINS.football}
               imageWidth={FOOTBALL_META.defaultOgImageWidth}
               imageHeight={FOOTBALL_META.defaultOgImageHeight}
-              imageAlt={FOOTBALL_META.defaultOgImageAlt}
+              imageAlt="Talafutipolo fallback social card for football articles."
               siteName={FOOTBALL_META.productName}
               titleSuffix={FOOTBALL_META.productName}
             />
@@ -215,11 +215,11 @@ export default function ArticlePage() {
             <OGMeta
               title={a().title_tvl || a().title_en}
               description={description() || undefined}
-              image={a().image_url || FOOTBALL_META.defaultOgImage}
+              image={a().image_url || FOOTBALL_META.articleFallbackOgImage}
               imageOrigin={SITE_ORIGINS.football}
               imageWidth={a().image_width || FOOTBALL_META.defaultOgImageWidth}
               imageHeight={a().image_height || FOOTBALL_META.defaultOgImageHeight}
-              imageAlt={a().image_alt || FOOTBALL_META.defaultOgImageAlt}
+              imageAlt={a().image_alt || "Talafutipolo fallback social card for football articles."}
               publishedAt={a().published_at}
               category={a().category || undefined}
               type="article"

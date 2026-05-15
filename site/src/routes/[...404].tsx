@@ -11,11 +11,11 @@ export default function NotFound() {
         title="Page not found"
         description="The page you're looking for doesn't exist."
         url={absoluteFootballUrl(location.pathname)}
-        image={FOOTBALL_META.defaultOgImage}
+        image={FOOTBALL_META.notFoundOgImage}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
         imageHeight={FOOTBALL_META.defaultOgImageHeight}
-        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        imageAlt="Talafutipolo social card for a page that was not found."
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
       />

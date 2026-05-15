@@ -5,7 +5,7 @@ import PostCard from "~/components/blog/PostCard";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import { getAllTags, getPostsByTag } from "~/lib/blog-data";
-import { absoluteUrl, SITE_META } from "~/lib/site";
+import { absoluteUrl, BLOG_SECTION_OG_IMAGES, SITE_META } from "~/lib/site";
 
 const loadTagPage = cache(async (slug: string) => {
   "use server";
@@ -32,6 +32,10 @@ export default function BlogTagPage() {
       {(page) => {
         const title = `${page().tag.name} — ${SITE_META.publicationName}`;
         const url = absoluteUrl(`/blog/tag/${page().tag.slug}`);
+        const image =
+          BLOG_SECTION_OG_IMAGES.tags[
+            page().tag.slug as keyof typeof BLOG_SECTION_OG_IMAGES.tags
+          ] || SITE_META.defaultOgImage;
 
         return (
           <main class="blog-page blog-page--taxonomy">
@@ -39,10 +43,10 @@ export default function BlogTagPage() {
               title={title}
               description={`Posts filed under ${page().tag.name} in the ${SITE_META.publicationName}.`}
               url={url}
-              image={SITE_META.defaultOgImage}
+              image={image}
               imageWidth={SITE_META.defaultOgImageWidth}
               imageHeight={SITE_META.defaultOgImageHeight}
-              imageAlt={SITE_META.defaultOgImageAlt}
+              imageAlt={`Language Lab Journal social card for ${page().tag.name} posts.`}
               siteName={SITE_META.publicationShortName}
               titleSuffix={SITE_META.publicationShortName}
               keywords={[page().tag.name]}
