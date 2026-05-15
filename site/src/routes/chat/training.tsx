@@ -1,6 +1,7 @@
 import { createResource, For, Show, createMemo, onCleanup } from "solid-js";
 import { isServer } from "solid-js/web";
-import { Title } from "@solidjs/meta";
+import OGMeta from "~/components/OGMeta";
+import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 interface TrainingStats {
   metrics: Array<Record<string, any>>;
@@ -86,7 +87,18 @@ export default function Training() {
 
   return (
     <>
-      <Title>Training — TVL</Title>
+      <OGMeta
+        title="TVL Training Dashboard"
+        description="Live training metrics for the bilingual Tuvaluan-English language model."
+        url={absoluteChatUrl("/chat/training")}
+        image={CHAT_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.chat}
+        imageWidth={CHAT_META.defaultOgImageWidth}
+        imageHeight={CHAT_META.defaultOgImageHeight}
+        imageAlt={CHAT_META.defaultOgImageAlt}
+        siteName={CHAT_META.productName}
+        titleSuffix={CHAT_META.productName}
+      />
       <div class="chat-theme min-h-screen">
 
         {/* Nav */}

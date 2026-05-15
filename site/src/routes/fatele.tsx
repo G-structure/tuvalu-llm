@@ -4,7 +4,7 @@ import { getFateleStats } from "~/lib/db";
 import type { FateleStats } from "~/lib/types";
 import { ISLANDS } from "~/lib/types";
 import OGMeta from "~/components/OGMeta";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 const loadFatele = cache(async () => {
   "use server";
@@ -35,9 +35,16 @@ export default function FatelePage() {
   return (
     <main class="max-w-3xl mx-auto pb-16 px-4">
       <OGMeta
-        title="Kominiti | TALAFUTIPOLO"
+        title="Kominiti"
         description="Community dashboard — help translate football news into Tuvaluan"
-        url={absoluteUrl("/fatele")}
+        url={absoluteFootballUrl("/fatele")}
+        image={FOOTBALL_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.football}
+        imageWidth={FOOTBALL_META.defaultOgImageWidth}
+        imageHeight={FOOTBALL_META.defaultOgImageHeight}
+        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        siteName={FOOTBALL_META.productName}
+        titleSuffix={FOOTBALL_META.productName}
       />
 
       <div class="pt-6 pb-4 text-center">

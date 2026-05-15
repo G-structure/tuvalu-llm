@@ -1,6 +1,7 @@
 import { createResource, For, Show, createMemo, createSignal } from "solid-js";
 import { isServer } from "solid-js/web";
-import { Title } from "@solidjs/meta";
+import OGMeta from "~/components/OGMeta";
+import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 interface SubResult {
   count: number;
@@ -185,7 +186,18 @@ export default function Eval() {
 
   return (
     <>
-      <Title>TVL Eval | TALAFUTIPOLO</Title>
+      <OGMeta
+        title="TVL Model Evaluation"
+        description="Evaluation results for the Tuvaluan-English language model across translation, chat, QA, and summarization tasks."
+        url={absoluteChatUrl("/chat/eval")}
+        image={CHAT_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.chat}
+        imageWidth={CHAT_META.defaultOgImageWidth}
+        imageHeight={CHAT_META.defaultOgImageHeight}
+        imageAlt={CHAT_META.defaultOgImageAlt}
+        siteName={CHAT_META.productName}
+        titleSuffix={CHAT_META.productName}
+      />
       <div class="chat-theme min-h-screen bg-[var(--color-bg)]">
         {/* Nav */}
         <nav class="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)]">

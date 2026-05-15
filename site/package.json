@@ -6,7 +6,11 @@
   "scripts": {
     "dev": "vinxi dev",
     "build": "vinxi build",
-    "start": "vinxi start"
+    "start": "vinxi start",
+    "deploy": "npm run build && wrangler pages deploy dist --project-name=futipolo-tv --branch=main",
+    "deploy:preview": "npm run build && wrangler pages deploy dist --project-name=futipolo-tv",
+    "deploy:talafutipolo": "npm run build && wrangler pages deploy dist --project-name=talafutipolo --branch=main",
+    "cf-typegen": "wrangler types"
   },
   "dependencies": {
     "@solidjs/meta": "^0.29.4",
@@ -18,12 +22,13 @@
     "vinxi": "^0.5.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241230.0",
+    "@cloudflare/workers-types": "^4.20260515.1",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.19.19",
     "tailwindcss": "^4.0.0",
-    "wrangler": "^4.0.0"
+    "wrangler": "^4.92.0"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   }
 }

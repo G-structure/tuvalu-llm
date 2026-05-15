@@ -3,7 +3,7 @@ import { For, Show } from "solid-js";
 import { searchArticles } from "~/lib/db";
 import ArticleCard from "~/components/ArticleCard";
 import OGMeta from "~/components/OGMeta";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 const loadSearch = cache(async (q: string) => {
   "use server";
@@ -28,9 +28,16 @@ export default function SearchPage() {
   return (
     <main class="max-w-3xl mx-auto pb-16 px-4">
       <OGMeta
-        title="Saili | TALAFUTIPOLO"
+        title="Search Football News"
         description="Search football articles in Tuvaluan and English"
-        url={absoluteUrl("/search")}
+        url={absoluteFootballUrl("/search")}
+        image={FOOTBALL_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.football}
+        imageWidth={FOOTBALL_META.defaultOgImageWidth}
+        imageHeight={FOOTBALL_META.defaultOgImageHeight}
+        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        siteName={FOOTBALL_META.productName}
+        titleSuffix={FOOTBALL_META.productName}
       />
 
       <div class="pt-6 pb-4">

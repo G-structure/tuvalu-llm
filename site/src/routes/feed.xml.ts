@@ -1,5 +1,5 @@
 import { getArticles } from "~/lib/db";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteFootballUrl } from "~/lib/site";
 
 function escapeXml(s: string): string {
   return s
@@ -18,7 +18,7 @@ export async function GET() {
       const title = a.title_tvl || a.title_en;
       const description =
         a.og_description_tvl || a.og_description_en || a.title_en;
-      const link = absoluteUrl(`/articles/${a.id}`);
+      const link = absoluteFootballUrl(`/articles/${a.id}`);
       const pubDate = a.published_at
         ? new Date(a.published_at).toUTCString()
         : "";
@@ -28,7 +28,7 @@ export async function GET() {
       <link>${escapeXml(link)}</link>
       <description>${escapeXml(description)}</description>
       <guid isPermaLink="true">${escapeXml(link)}</guid>${pubDate ? `\n      <pubDate>${pubDate}</pubDate>` : ""}
-      <source url="${escapeXml(absoluteUrl("/feed.xml"))}">TALAFUTIPOLO</source>
+      <source url="${escapeXml(absoluteFootballUrl("/feed.xml"))}">TALAFUTIPOLO</source>
     </item>`;
     })
     .join("\n");
@@ -37,10 +37,10 @@ export async function GET() {
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>TALAFUTIPOLO - Tala Futipolo i te Gagana Tuvalu</title>
-    <link>${absoluteUrl("/")}</link>
+    <link>${absoluteFootballUrl("/")}</link>
     <description>Football news in the Tuvaluan language</description>
     <language>tvl</language>
-    <atom:link href="${absoluteUrl("/feed.xml")}" rel="self" type="application/rss+xml"/>
+    <atom:link href="${absoluteFootballUrl("/feed.xml")}" rel="self" type="application/rss+xml"/>
 ${items}
   </channel>
 </rss>`;

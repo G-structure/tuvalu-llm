@@ -11,6 +11,12 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - futipolo-tv
+          - talafutipolo
     permissions:
       contents: read
       deployments: write
@@ -30,10 +36,10 @@ jobs:
         working-directory: site
         run: npm run build
 
-      - name: Deploy to Cloudflare Pages
+      - name: Deploy to Cloudflare Pages (${{ matrix.project }})
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: site
-          command: pages deploy dist --project-name=talafutipolo
+          command: pages deploy dist --project-name=${{ matrix.project }} --branch=${{ github.ref_name }} --commit-hash=${{ github.sha }}

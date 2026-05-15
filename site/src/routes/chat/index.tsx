@@ -1,10 +1,11 @@
 import { createSignal, For, Show } from "solid-js";
-import { Title } from "@solidjs/meta";
 import type { Message } from "~/lib/types";
 import ChatMessage from "~/components/chat/ChatMessage";
 import ChatInput from "~/components/chat/ChatInput";
 import TypingIndicator from "~/components/chat/TypingIndicator";
 import ModelBadge from "~/components/chat/ModelBadge";
+import OGMeta from "~/components/OGMeta";
+import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 export default function Chat() {
   const [messages, setMessages] = createSignal<Message[]>([]);
@@ -62,7 +63,18 @@ export default function Chat() {
 
   return (
     <>
-      <Title>TVL Chat</Title>
+      <OGMeta
+        title={CHAT_META.productName}
+        description={CHAT_META.productTagline}
+        url={absoluteChatUrl("/chat")}
+        image={CHAT_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.chat}
+        imageWidth={CHAT_META.defaultOgImageWidth}
+        imageHeight={CHAT_META.defaultOgImageHeight}
+        imageAlt={CHAT_META.defaultOgImageAlt}
+        siteName={CHAT_META.productName}
+        titleSuffix="Tuvaluan-English AI"
+      />
       <div class="chat-theme h-screen flex flex-col">
         {/* Header */}
         <nav aria-label="Chat navigation" class="flex items-center justify-between px-6 h-12 border-b border-[var(--color-border)]">

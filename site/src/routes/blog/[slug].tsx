@@ -42,7 +42,8 @@ export default function BlogPostPage() {
   const data = createAsync(() => loadPostPage(params.slug));
 
   return (
-    <Show when={data()} fallback={<NotFound />}>
+    <Show when={data() !== undefined} fallback={<main class="blog-page blog-page--post" />}>
+      <Show when={data()} fallback={<NotFound />}>
       {(page) => {
         const post = () => page().post;
         const url = () => post().canonicalUrl || absoluteUrl(`/blog/${post().slug}`);
@@ -305,6 +306,7 @@ export default function BlogPostPage() {
           </main>
         );
       }}
+      </Show>
     </Show>
   );
 }

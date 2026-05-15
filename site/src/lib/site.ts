@@ -1,8 +1,38 @@
 export const SITE_URL = "https://tuvalugpt.tv";
 
-export const SITE_META = {
+export const SITE_ORIGINS = {
+  football: "https://futipolo.tv",
+  organization: "https://tuvalugpt.tv",
+  chat: "https://tuvalugpt.tv",
+} as const;
+
+export const FOOTBALL_META = {
   productName: "Talafutipolo",
   productTagline: "Tuvaluan football news in Tuvaluan and English.",
+  defaultOgImage: "/social/talafutipolo-football.jpg",
+  defaultOgImageWidth: 1200,
+  defaultOgImageHeight: 630,
+  defaultOgImageAlt:
+    "Talafutipolo social card for football news in Tuvaluan and English.",
+  feeds: {
+    articlesRss: "/feed.xml",
+  },
+} as const;
+
+export const CHAT_META = {
+  productName: "TVL Chat",
+  productTagline:
+    "A bilingual Tuvaluan-English language model for translation, chat, and evaluation.",
+  defaultOgImage: "/social/tuvalu-chat.jpg",
+  defaultOgImageWidth: 1200,
+  defaultOgImageHeight: 630,
+  defaultOgImageAlt:
+    "TVL Chat social card for a bilingual Tuvaluan-English language model.",
+} as const;
+
+export const SITE_META = {
+  productName: "Language Lab",
+  productTagline: "Open-source AI infrastructure for endangered languages.",
   publicationName: "Language Lab Journal",
   publicationShortName: "Language Lab",
   publicationDescription:
@@ -19,14 +49,34 @@ export const SITE_META = {
   },
 } as const;
 
-export function absoluteUrl(path = "/"): string {
-  return new URL(path, SITE_URL).toString();
+export function absoluteUrl(path = "/", origin = SITE_URL): string {
+  return new URL(path, origin).toString();
 }
 
-export function absoluteImageUrl(path?: string | null): string {
+export function absoluteFootballUrl(path = "/"): string {
+  return absoluteUrl(path, SITE_ORIGINS.football);
+}
+
+export function absoluteChatUrl(path = "/"): string {
+  return absoluteUrl(path, SITE_ORIGINS.chat);
+}
+
+export function absoluteImageUrl(path?: string | null, origin = SITE_URL): string {
   if (!path) return absoluteUrl(SITE_META.defaultOgImage);
   if (/^https?:\/\//i.test(path)) return path;
-  return absoluteUrl(path);
+  return absoluteUrl(path, origin);
+}
+
+export function absoluteFootballImageUrl(path?: string | null): string {
+  if (!path) return absoluteFootballUrl(FOOTBALL_META.defaultOgImage);
+  if (/^https?:\/\//i.test(path)) return path;
+  return absoluteFootballUrl(path);
+}
+
+export function absoluteChatImageUrl(path?: string | null): string {
+  if (!path) return absoluteChatUrl(CHAT_META.defaultOgImage);
+  if (/^https?:\/\//i.test(path)) return path;
+  return absoluteChatUrl(path);
 }
 
 export function parseIsoLikeDate(value?: string | null): Date | null {

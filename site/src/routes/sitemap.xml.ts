@@ -5,7 +5,7 @@ import {
 } from "~/lib/blog-data";
 import { getAllAuthors } from "~/lib/blog-authors";
 import { getArticleCount, getArticles, getCategories } from "~/lib/db";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteChatUrl, absoluteFootballUrl, absoluteUrl } from "~/lib/site";
 
 function xmlEscape(value: string): string {
   return value
@@ -28,15 +28,15 @@ export async function GET() {
   const authors = getAllAuthors();
 
   const entries = [
-    { loc: absoluteUrl("/"), lastmod: undefined },
+    { loc: absoluteFootballUrl("/"), lastmod: undefined },
     { loc: absoluteUrl("/blog"), lastmod: posts[0]?.updatedAt || posts[0]?.publishedAt },
     { loc: absoluteUrl("/blog/archive"), lastmod: archive[0]?.posts[0]?.publishedAt },
     { loc: absoluteUrl("/demo"), lastmod: undefined },
-    { loc: absoluteUrl("/fatele"), lastmod: undefined },
-    { loc: absoluteUrl("/search"), lastmod: undefined },
-    { loc: absoluteUrl("/chat"), lastmod: undefined },
-    { loc: absoluteUrl("/chat/eval"), lastmod: undefined },
-    { loc: absoluteUrl("/chat/training"), lastmod: undefined },
+    { loc: absoluteFootballUrl("/fatele"), lastmod: undefined },
+    { loc: absoluteFootballUrl("/search"), lastmod: undefined },
+    { loc: absoluteChatUrl("/chat"), lastmod: undefined },
+    { loc: absoluteChatUrl("/chat/eval"), lastmod: undefined },
+    { loc: absoluteChatUrl("/chat/training"), lastmod: undefined },
     ...posts.map((post) => ({
       loc: absoluteUrl(`/blog/${post.slug}`),
       lastmod: post.updatedAt || post.publishedAt,
@@ -54,11 +54,11 @@ export async function GET() {
         ?.publishedAt,
     })),
     ...categories.map((category) => ({
-      loc: absoluteUrl(`/category/${category.slug}`),
+      loc: absoluteFootballUrl(`/category/${category.slug}`),
       lastmod: undefined,
     })),
     ...articles.map((article) => ({
-      loc: absoluteUrl(`/articles/${article.id}`),
+      loc: absoluteFootballUrl(`/articles/${article.id}`),
       lastmod: article.published_at || undefined,
     })),
   ];

@@ -11,6 +11,7 @@ interface OGMetaProps {
   title: string;
   description?: string;
   image?: string | null;
+  imageOrigin?: string;
   imageWidth?: number | null;
   imageHeight?: number | null;
   imageAlt?: string | null;
@@ -30,7 +31,7 @@ interface OGMetaProps {
 export default function OGMeta(props: OGMetaProps) {
   const canonicalUrl = () => props.url;
   const hasImage = () => props.image !== null;
-  const imageUrl = () => hasImage() ? absoluteImageUrl(props.image || SITE_META.defaultOgImage) : "";
+  const imageUrl = () => hasImage() ? absoluteImageUrl(props.image || SITE_META.defaultOgImage, props.imageOrigin) : "";
   const imageWidth = () => props.imageWidth || SITE_META.defaultOgImageWidth;
   const imageHeight = () => props.imageHeight || SITE_META.defaultOgImageHeight;
   const imageAlt = () => props.imageAlt || SITE_META.defaultOgImageAlt;

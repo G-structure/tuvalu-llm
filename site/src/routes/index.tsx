@@ -5,7 +5,7 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 const PER_PAGE = 20;
 
@@ -34,11 +34,15 @@ export default function Home() {
   return (
     <main class="max-w-3xl mx-auto pb-8">
       <OGMeta
-        title="Talafutipolo"
-        description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in the Tuvaluan language."
-        url={absoluteUrl("/")}
-        image={null}
-        siteName="Talafutipolo"
+        title={FOOTBALL_META.productName}
+        description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in Tuvaluan and English."
+        url={absoluteFootballUrl("/")}
+        image={FOOTBALL_META.defaultOgImage}
+        imageOrigin={SITE_ORIGINS.football}
+        imageWidth={FOOTBALL_META.defaultOgImageWidth}
+        imageHeight={FOOTBALL_META.defaultOgImageHeight}
+        imageAlt={FOOTBALL_META.defaultOgImageAlt}
+        siteName={FOOTBALL_META.productName}
         titleSuffix="Tala Futipolo i te Gagana Tuvalu"
       />
 

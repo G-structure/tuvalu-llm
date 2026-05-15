@@ -5,7 +5,7 @@ import { getArticle } from "~/lib/db";
 import type { Article } from "~/lib/types";
 import { formatDate } from "~/lib/time";
 import OGMeta from "~/components/OGMeta";
-import { absoluteUrl } from "~/lib/site";
+import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
 import CoachTranslatorCard from "~/components/CoachTranslatorCard";
@@ -170,21 +170,33 @@ export default function ArticlePage() {
   const [langMode, setLangMode] = createSignal<LanguageMode>("tv");
 
   return (
-    <Show
-      when={article()}
-      fallback={
-        <main class="max-w-3xl mx-auto p-4 text-center">
-          <HttpStatusCode code={404} />
-          <OGMeta title="Article not found" description="This article may have been removed or the ID is invalid." />
-          <h1 class="text-xl font-bold text-gray-900 mt-8">
-            Article not found
-          </h1>
-          <p class="mt-2 text-gray-500">
-            This article may have been removed or the ID is invalid.
-          </p>
-        </main>
-      }
-    >
+    <Show when={article() !== undefined} fallback={<main class="max-w-3xl mx-auto pb-12" />}>
+      <Show
+        when={article()}
+        fallback={
+          <main class="max-w-3xl mx-auto p-4 text-center">
+            <HttpStatusCode code={404} />
+            <OGMeta
+              title="Article not found"
+              description="This article may have been removed or the ID is invalid."
+              url={absoluteFootballUrl(`/articles/${params.id}`)}
+              image={FOOTBALL_META.defaultOgImage}
+              imageOrigin={SITE_ORIGINS.football}
+              imageWidth={FOOTBALL_META.defaultOgImageWidth}
+              imageHeight={FOOTBALL_META.defaultOgImageHeight}
+              imageAlt={FOOTBALL_META.defaultOgImageAlt}
+              siteName={FOOTBALL_META.productName}
+              titleSuffix={FOOTBALL_META.productName}
+            />
+            <h1 class="text-xl font-bold text-gray-900 mt-8">
+              Article not found
+            </h1>
+            <p class="mt-2 text-gray-500">
+              This article may have been removed or the ID is invalid.
+            </p>
+          </main>
+        }
+      >
       {(a) => {
         const title = () =>
           langMode() === "en"
@@ -203,13 +215,17 @@ export default function ArticlePage() {
             <OGMeta
               title={a().title_tvl || a().title_en}
               description={description() || undefined}
-              image={a().image_url}
-              imageWidth={a().image_width}
-              imageHeight={a().image_height}
+              image={a().image_url || FOOTBALL_META.defaultOgImage}
+              imageOrigin={SITE_ORIGINS.football}
+              imageWidth={a().image_width || FOOTBALL_META.defaultOgImageWidth}
+              imageHeight={a().image_height || FOOTBALL_META.defaultOgImageHeight}
+              imageAlt={a().image_alt || FOOTBALL_META.defaultOgImageAlt}
               publishedAt={a().published_at}
               category={a().category || undefined}
               type="article"
-              url={absoluteUrl(`/articles/${a().id}`)}
+              url={absoluteFootballUrl(`/articles/${a().id}`)}
+              siteName={FOOTBALL_META.productName}
+              titleSuffix={FOOTBALL_META.productName}
             />
 
             {/* Top bar with back + language toggle */}
@@ -369,6 +385,7 @@ export default function ArticlePage() {
           </main>
         );
       }}
+      </Show>
     </Show>
   );
 }
