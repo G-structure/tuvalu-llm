@@ -1,5 +1,6 @@
 import { A, useLocation } from "@solidjs/router";
 import OGMeta from "~/components/OGMeta";
+import { NOINDEX_ROBOTS } from "~/lib/seo";
 import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 export default function NotFound() {
@@ -18,6 +19,7 @@ export default function NotFound() {
         imageAlt="Talafutipolo social card for a page that was not found."
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
+        robots={NOINDEX_ROBOTS}
       />
       <div class="mt-16">
         <h1 class="text-4xl font-bold text-gray-900">Seki kitea</h1>

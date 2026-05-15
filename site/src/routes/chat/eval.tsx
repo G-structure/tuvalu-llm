@@ -1,6 +1,8 @@
 import { createResource, For, Show, createMemo, createSignal } from "solid-js";
 import { isServer } from "solid-js/web";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import { breadcrumbList } from "~/lib/seo";
 import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 interface SubResult {
@@ -197,6 +199,26 @@ export default function Eval() {
         imageAlt="TVL Chat social card for model evaluation results."
         siteName={CHAT_META.productName}
         titleSuffix={CHAT_META.productName}
+      />
+      <StructuredData
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "Dataset",
+            name: "TVL Model Evaluation",
+            description:
+              "Evaluation results for the Tuvaluan-English language model across translation, chat, QA, and summarization tasks.",
+            url: absoluteChatUrl("/chat/eval"),
+            creator: {
+              "@id": `${SITE_ORIGINS.organization}/#organization`,
+            },
+            inLanguage: ["tvl", "en"],
+          },
+          breadcrumbList([
+            { name: CHAT_META.productName, url: absoluteChatUrl("/chat") },
+            { name: "Evaluation", url: absoluteChatUrl("/chat/eval") },
+          ]),
+        ]}
       />
       <div class="chat-theme min-h-screen bg-[var(--color-bg)]">
         {/* Nav */}

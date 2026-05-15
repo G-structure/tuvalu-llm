@@ -1,7 +1,8 @@
-import { absoluteFootballUrl } from "~/lib/site";
+import type { APIEvent } from "@solidjs/start/server";
 
-export async function GET() {
-  const body = `User-agent: *\nAllow: /\n\nSitemap: ${absoluteFootballUrl("/sitemap.xml")}\n`;
+export async function GET(event: APIEvent) {
+  const origin = new URL(event.request.url).origin;
+  const body = `User-agent: *\nAllow: /\n\nSitemap: ${new URL("/sitemap.xml", origin).toString()}\n`;
   return new Response(body, {
     status: 200,
     headers: {

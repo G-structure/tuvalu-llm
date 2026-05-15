@@ -26,6 +26,7 @@ interface OGMetaProps {
   authorNames?: string[];
   locale?: string;
   alternateLinks?: AlternateLink[];
+  robots?: string;
 }
 
 export default function OGMeta(props: OGMetaProps) {
@@ -45,12 +46,9 @@ export default function OGMeta(props: OGMetaProps) {
       <Meta name="description" content={description()} />
       <Meta
         name="robots"
-        content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"
+        content={props.robots || "index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"}
       />
 
-      {props.keywords?.length ? (
-        <Meta name="keywords" content={props.keywords.join(", ")} />
-      ) : null}
       {props.authorNames?.length ? (
         <Meta name="author" content={props.authorNames.join(", ")} />
       ) : null}

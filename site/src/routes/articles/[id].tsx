@@ -5,6 +5,12 @@ import { getArticle } from "~/lib/db";
 import type { Article } from "~/lib/types";
 import { formatDate } from "~/lib/time";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import {
+  footballNewsArticleStructuredData,
+  NOINDEX_ROBOTS,
+  sourceName,
+} from "~/lib/seo";
 import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 import type { LanguageMode } from "~/components/LanguageToggle";
 import LanguageToggle from "~/components/LanguageToggle";
@@ -37,12 +43,7 @@ function splitParagraphs(body: string): string[] {
 }
 
 function SourceName(props: { sourceId: string }) {
-  const map: Record<string, string> = {
-    goal: "Goal.com",
-    fifa: "FIFA.com",
-    sky: "Sky Sports",
-  };
-  return <>{map[props.sourceId] || props.sourceId}</>;
+  return <>{sourceName(props.sourceId)}</>;
 }
 
 async function sendSignal(articleId: string, signalType: string, paragraphIndex?: number) {
@@ -187,6 +188,7 @@ export default function ArticlePage() {
               imageAlt="Talafutipolo fallback social card for football articles."
               siteName={FOOTBALL_META.productName}
               titleSuffix={FOOTBALL_META.productName}
+              robots={NOINDEX_ROBOTS}
             />
             <h1 class="text-xl font-bold text-gray-900 mt-8">
               Article not found
@@ -227,6 +229,7 @@ export default function ArticlePage() {
               siteName={FOOTBALL_META.productName}
               titleSuffix={FOOTBALL_META.productName}
             />
+            <StructuredData data={footballNewsArticleStructuredData(a())} />
 
             {/* Top bar with back + language toggle */}
             <div class="flex items-center justify-between px-4 py-2">

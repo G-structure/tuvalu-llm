@@ -1,7 +1,9 @@
 import { A } from "@solidjs/router";
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import OGMeta from "~/components/OGMeta";
-import { absoluteUrl } from "~/lib/site";
+import StructuredData from "~/components/StructuredData";
+import { languageLabOrganization, languageLabWebsite } from "~/lib/seo";
+import { absoluteUrl, SITE_META } from "~/lib/site";
 
 // ─── Data ───
 
@@ -265,9 +267,26 @@ export default function DemoPage() {
         title="We beat GPT-5.4 at Tuvaluan — now we're building a Language Lab"
         description="3rd place at GTC 2026. NVIDIA DGX Spark going to Tuvalu. A 3B model that beats GPT-5.4 on 6/7 Tuvaluan task slices. Now building an open Language Lab for dying languages."
         image="/judges/rainbow-ocean.webp"
-        imageWidth={1366}
-        imageHeight={768}
+        imageWidth={800}
+        imageHeight={451}
         url={absoluteUrl("/demo")}
+      />
+      <StructuredData
+        data={[
+          languageLabOrganization(),
+          languageLabWebsite(),
+          {
+            "@context": "https://schema.org",
+            "@type": "AboutPage",
+            name: "Language Lab",
+            description: SITE_META.productTagline,
+            url: absoluteUrl("/demo"),
+            mainEntity: {
+              "@id": "https://tuvalugpt.tv/#organization",
+            },
+            inLanguage: ["en", "tvl"],
+          },
+        ]}
       />
 
       {/* ═══ HERO ═══ */}

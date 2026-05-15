@@ -32,6 +32,8 @@ export default function ArticleCard(props: ArticleCardProps) {
           <img
             src={props.article.image_url}
             alt={props.article.image_alt || title()}
+            width={props.article.image_width || undefined}
+            height={props.article.image_height || undefined}
             loading="eager"
             fetchpriority="high"
             decoding="async"
@@ -66,6 +68,8 @@ export default function ArticleCard(props: ArticleCardProps) {
         <img
           src={props.article.image_url}
           alt={props.article.image_alt || title()}
+          width={props.article.image_width || undefined}
+          height={props.article.image_height || undefined}
           loading="lazy"
           decoding="async"
           class="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg shrink-0"

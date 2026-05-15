@@ -1,6 +1,8 @@
 import { createResource, For, Show, createMemo, onCleanup } from "solid-js";
 import { isServer } from "solid-js/web";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import { breadcrumbList } from "~/lib/seo";
 import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 interface TrainingStats {
@@ -98,6 +100,26 @@ export default function Training() {
         imageAlt="TVL Chat social card for live model training metrics."
         siteName={CHAT_META.productName}
         titleSuffix={CHAT_META.productName}
+      />
+      <StructuredData
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            name: "TVL Training Dashboard",
+            description:
+              "Live training metrics for the bilingual Tuvaluan-English language model.",
+            url: absoluteChatUrl("/chat/training"),
+            isPartOf: {
+              "@id": `${SITE_ORIGINS.organization}/#website`,
+            },
+            inLanguage: ["tvl", "en"],
+          },
+          breadcrumbList([
+            { name: CHAT_META.productName, url: absoluteChatUrl("/chat") },
+            { name: "Training", url: absoluteChatUrl("/chat/training") },
+          ]),
+        ]}
       />
       <div class="chat-theme min-h-screen">
 

@@ -103,7 +103,7 @@ const ARTICLE_LIST_SELECT = `
     a.id, a.source_id, a.url,
     a.title_en, a.author,
     a.published_at, a.category,
-    a.image_url, a.image_alt,
+    a.image_url, a.image_alt, a.image_width, a.image_height,
     t.title_tvl
   FROM articles a
   INNER JOIN translations t ON t.article_id = a.id

@@ -5,6 +5,11 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import {
+  breadcrumbList,
+  footballCollectionPage,
+} from "~/lib/seo";
 import {
   absoluteFootballUrl,
   FOOTBALL_CATEGORY_OG_IMAGES,
@@ -43,13 +48,18 @@ export default function CategoryPage() {
     params.slug === "football" ? "Football News" : `${displayName()} Football News`;
   const socialImage = () =>
     FOOTBALL_CATEGORY_OG_IMAGES[params.slug] || FOOTBALL_META.defaultOgImage;
+  const canonicalUrl = () =>
+    absoluteFootballUrl(
+      page() === 1 ? `/category/${params.slug}` : `/category/${params.slug}?page=${page()}`
+    );
+  const description = () => `${displayName()} football news in Tuvaluan and English`;
 
   return (
     <main class="max-w-3xl mx-auto pb-8">
       <OGMeta
         title={socialTitle()}
-        description={`${displayName()} football news in Tuvaluan and English`}
-        url={absoluteFootballUrl(`/category/${params.slug}`)}
+        description={description()}
+        url={canonicalUrl()}
         image={socialImage()}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
@@ -57,6 +67,20 @@ export default function CategoryPage() {
         imageAlt={`Talafutipolo social card for ${socialTitle().toLowerCase()}.`}
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
+      />
+      <StructuredData
+        data={[
+          footballCollectionPage({
+            name: socialTitle(),
+            description: description(),
+            url: canonicalUrl(),
+            image: socialImage(),
+          }),
+          breadcrumbList([
+            { name: FOOTBALL_META.productName, url: absoluteFootballUrl("/") },
+            { name: socialTitle(), url: canonicalUrl() },
+          ]),
+        ]}
       />
 
       <Show when={data()}>

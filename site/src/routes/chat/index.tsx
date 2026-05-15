@@ -5,6 +5,8 @@ import ChatInput from "~/components/chat/ChatInput";
 import TypingIndicator from "~/components/chat/TypingIndicator";
 import ModelBadge from "~/components/chat/ModelBadge";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import { languageLabOrganization, languageLabWebsite } from "~/lib/seo";
 import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
 
 export default function Chat() {
@@ -74,6 +76,25 @@ export default function Chat() {
         imageAlt={CHAT_META.defaultOgImageAlt}
         siteName={CHAT_META.productName}
         titleSuffix="Tuvaluan-English AI"
+      />
+      <StructuredData
+        data={[
+          languageLabOrganization(),
+          languageLabWebsite(),
+          {
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: CHAT_META.productName,
+            applicationCategory: "AIApplication",
+            operatingSystem: "Web",
+            url: absoluteChatUrl("/chat"),
+            description: CHAT_META.productTagline,
+            publisher: {
+              "@id": `${SITE_ORIGINS.organization}/#organization`,
+            },
+            inLanguage: ["tvl", "en"],
+          },
+        ]}
       />
       <div class="chat-theme h-screen flex flex-col">
         {/* Header */}

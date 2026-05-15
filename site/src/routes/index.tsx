@@ -5,6 +5,12 @@ import type { Article, Category } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
+import StructuredData from "~/components/StructuredData";
+import {
+  footballCollectionPage,
+  footballWebsite,
+  languageLabOrganization,
+} from "~/lib/seo";
 import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 const PER_PAGE = 20;
@@ -30,13 +36,16 @@ export default function Home() {
   const [searchParams] = useSearchParams();
   const page = () => Math.max(1, parseInt(searchParams.page || "1", 10) || 1);
   const data = createAsync(() => loadHome(page()));
+  const canonicalUrl = () => absoluteFootballUrl(page() === 1 ? "/" : `/?page=${page()}`);
+  const description =
+    "Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in Tuvaluan and English.";
 
   return (
     <main class="max-w-3xl mx-auto pb-8">
       <OGMeta
         title={FOOTBALL_META.productName}
-        description="Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in Tuvaluan and English."
-        url={absoluteFootballUrl("/")}
+        description={description}
+        url={canonicalUrl()}
         image={FOOTBALL_META.defaultOgImage}
         imageOrigin={SITE_ORIGINS.football}
         imageWidth={FOOTBALL_META.defaultOgImageWidth}
@@ -44,6 +53,18 @@ export default function Home() {
         imageAlt={FOOTBALL_META.defaultOgImageAlt}
         siteName={FOOTBALL_META.productName}
         titleSuffix="Tala Futipolo i te Gagana Tuvalu"
+      />
+      <StructuredData
+        data={[
+          languageLabOrganization(),
+          footballWebsite(),
+          footballCollectionPage({
+            name: FOOTBALL_META.productName,
+            description,
+            url: canonicalUrl(),
+            image: FOOTBALL_META.defaultOgImage,
+          }),
+        ]}
       />
 
       <Show when={data()}>
@@ -54,6 +75,15 @@ export default function Home() {
 
           return (
             <>
+              <div class="px-4 pt-4 pb-2">
+                <h1 class="text-2xl font-bold text-gray-900">
+                  Talafutipolo
+                </h1>
+                <p class="mt-1 text-sm text-gray-500">
+                  Football news in Tuvaluan and English.
+                </p>
+              </div>
+
               {/* Category filter pills */}
               <Show when={d().categories.length > 0}>
                 <CategoryPills categories={d().categories} />

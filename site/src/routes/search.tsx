@@ -3,6 +3,7 @@ import { For, Show } from "solid-js";
 import { searchArticles } from "~/lib/db";
 import ArticleCard from "~/components/ArticleCard";
 import OGMeta from "~/components/OGMeta";
+import { NOINDEX_ROBOTS } from "~/lib/seo";
 import { absoluteFootballUrl, FOOTBALL_META, SITE_ORIGINS } from "~/lib/site";
 
 const loadSearch = cache(async (q: string) => {
@@ -38,6 +39,7 @@ export default function SearchPage() {
         imageAlt="Talafutipolo social card for searching football news."
         siteName={FOOTBALL_META.productName}
         titleSuffix={FOOTBALL_META.productName}
+        robots={NOINDEX_ROBOTS}
       />
 
       <div class="pt-6 pb-4">
