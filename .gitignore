@@ -4,9 +4,11 @@
 # Claude Code
 .claude/
 .venv-mlx-smoke
-# Data (large, not tracked)
-data/
-logs/
+# Data (large, not tracked) — anchored to repo root so tv/data/ source
+# isn't accidentally caught
+/data/
+/logs/
+/runs/
 
 # Secrets
 .env
