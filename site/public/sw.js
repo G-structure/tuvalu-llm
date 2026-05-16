@@ -2,7 +2,7 @@ const CACHE_VERSION = "fenua-pwa-v3";
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const ASSET_CACHE = `${CACHE_VERSION}-assets`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
-const OFFLINE_URL = "/offline.html";
+const OFFLINE_URL = "/offline";
 
 const APP_SHELL_URLS = [
   "/",
