@@ -9,6 +9,10 @@ const VALID_RATINGS = new Set([
   "needs_work",
   "sounded_funny",
   "fix_words",
+  "helpful",
+  "not_right",
+  "say_more",
+  "phrase_comment",
 ]);
 
 function json(data: unknown, status = 200) {
@@ -49,7 +53,11 @@ export async function POST(event: APIEvent) {
           | "good"
           | "needs_work"
           | "sounded_funny"
-          | "fix_words",
+          | "fix_words"
+          | "helpful"
+          | "not_right"
+          | "say_more"
+          | "phrase_comment",
         correction_text: asString((body as any).correction_text, 1200) || null,
         selected_text: asString((body as any).selected_text, 1200) || null,
         island: asString((body as any).island, 80) || null,

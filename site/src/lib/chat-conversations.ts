@@ -1,5 +1,9 @@
 import type { APIEvent } from "@solidjs/start/server";
 import type { Message } from "./types";
+import {
+  hasChatMessageFeedback,
+  normalizeChatMessageFeedback,
+} from "./chat-feedback";
 
 export type ChatConsentState = "sync_training" | "local_only";
 
@@ -195,6 +199,18 @@ function safeJson(value: unknown): string | null {
   }
 }
 
+function parseJson(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 function normalizeMessages(messages: Message[]): Message[] {
   return messages
     .filter(
@@ -207,12 +223,20 @@ function normalizeMessages(messages: Message[]): Message[] {
         message.content.trim()
     )
     .slice(-80)
-    .map((message) => ({
-      id: cleanText(message.id, 120) || undefined,
-      role: message.role,
-      content: message.content.trim().slice(0, 4000),
-      created_at: cleanText(message.created_at, 80) || undefined,
-    }));
+    .map((message) => {
+      const normalized: Message = {
+        id: cleanText(message.id, 120) || undefined,
+        role: message.role,
+        content: message.content.trim().slice(0, 4000),
+        created_at: cleanText(message.created_at, 80) || undefined,
+        edited_at: cleanText(message.edited_at, 80) || undefined,
+      };
+      const feedback = normalizeChatMessageFeedback((message as any).feedback);
+      if (message.role === "assistant" && hasChatMessageFeedback(feedback)) {
+        normalized.feedback = feedback;
+      }
+      return normalized;
+    });
 }
 
 export function normalizeChatConversation(
@@ -324,7 +348,16 @@ export async function upsertChatConversation(
         message.content,
         index,
         message.created_at || null,
-        null
+        safeJson(
+          message.feedback
+            ? {
+                edited_at: message.edited_at || null,
+                feedback: message.feedback,
+              }
+            : message.edited_at
+              ? { edited_at: message.edited_at }
+              : null
+        )
       )
       .run();
   }
@@ -394,7 +427,7 @@ export async function listChatConversations(
   for (const summary of summaries) {
     const { results: rows } = await db
       .prepare(
-        `SELECT id, role, content, client_created_at
+        `SELECT id, role, content, client_created_at, metadata_json
          FROM chat_messages
          WHERE conversation_id = ? AND session_id = ?
          ORDER BY sequence ASC`
@@ -404,12 +437,26 @@ export async function listChatConversations(
 
     records.push({
       ...summary,
-      messages: (rows as any[]).map((row) => ({
-        id: row.id,
-        role: row.role,
-        content: row.content,
-        created_at: row.client_created_at || undefined,
-      })),
+      messages: (rows as any[]).map((row) => {
+        const metadata = parseJson(row.metadata_json);
+        const feedback = normalizeChatMessageFeedback(
+          metadata?.feedback as any
+        );
+        const message: Message = {
+          id: row.id,
+          role: row.role,
+          content: row.content,
+          created_at: row.client_created_at || undefined,
+          edited_at:
+            typeof metadata?.edited_at === "string"
+              ? metadata.edited_at
+              : undefined,
+        };
+        if (message.role === "assistant" && hasChatMessageFeedback(feedback)) {
+          message.feedback = feedback;
+        }
+        return message;
+      }),
     });
   }
 
@@ -462,7 +509,11 @@ export async function insertChatFeedback(
       | "good"
       | "needs_work"
       | "sounded_funny"
-      | "fix_words";
+      | "fix_words"
+      | "helpful"
+      | "not_right"
+      | "say_more"
+      | "phrase_comment";
     correction_text?: string | null;
     selected_text?: string | null;
     island?: string | null;

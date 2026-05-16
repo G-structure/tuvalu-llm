@@ -9,11 +9,26 @@ import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import { languageLabOrganization, languageLabWebsite } from "~/lib/seo";
 import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
+import {
+  normalizeChatMessageFeedback,
+  type ChatFeedbackEvent,
+  type ChatMessageFeedback,
+} from "~/lib/chat-feedback";
 
 const STORAGE_KEY = "fenua.chat.conversations.v1";
 const ACTIVE_KEY = "fenua.chat.active.v1";
 const SYNC_KEY = "fenua.chat.sync.v1";
+const SETTINGS_KEY = "fenua.chat.settings.v1";
+const RAIL_KEY = "fenua.chat.rail.v1";
+const FEEDBACK_EVENTS_KEY = "fenua.chat.feedback-events.v1";
 const MAX_LOCAL_CONVERSATIONS = 24;
+const MAX_LOCAL_FEEDBACK_EVENTS = 240;
+
+interface ChatSettings {
+  autoScroll: boolean;
+  showTimestamps: boolean;
+  wideMessages: boolean;
+}
 
 interface StoredConversation {
   id: string;
@@ -92,7 +107,16 @@ function readLocalConversations(): StoredConversation[] {
         id: String(conversation.id),
         title: String(conversation.title || "New chat"),
         messages: Array.isArray(conversation.messages)
-          ? conversation.messages.filter((message: Message) => message?.content)
+          ? conversation.messages
+              .filter((message: Message) => message?.content)
+              .map((message: Message) =>
+                message.role === "assistant" && message.feedback
+                  ? {
+                      ...message,
+                      feedback: normalizeChatMessageFeedback(message.feedback),
+                    }
+                  : message
+              )
           : [],
         created_at: String(conversation.created_at || nowIso()),
         updated_at: String(conversation.updated_at || nowIso()),
@@ -130,6 +154,47 @@ function formatConversationTime(value: string): string {
   });
 }
 
+function conversationGroup(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "Older";
+  const now = new Date();
+  const date = new Date(timestamp);
+  const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const startYesterday = startToday - 24 * 60 * 60 * 1000;
+  const startWeek = startToday - 7 * 24 * 60 * 60 * 1000;
+  if (date.getTime() >= startToday) return "Today";
+  if (date.getTime() >= startYesterday) return "Yesterday";
+  if (date.getTime() >= startWeek) return "Previous 7 days";
+  return "Older";
+}
+
+function readSettings(): ChatSettings {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+    return {
+      autoScroll: parsed.autoScroll !== false,
+      showTimestamps: parsed.showTimestamps === true,
+      wideMessages: parsed.wideMessages === true,
+    };
+  } catch {
+    return { autoScroll: true, showTimestamps: false, wideMessages: false };
+  }
+}
+
+function cacheLocalFeedbackEvent(entry: Record<string, unknown>) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(FEEDBACK_EVENTS_KEY) || "[]");
+    const current = Array.isArray(parsed) ? parsed : [];
+    const next = [
+      entry,
+      ...current.filter((item) => item?.id !== entry.id),
+    ].slice(0, MAX_LOCAL_FEEDBACK_EVENTS);
+    localStorage.setItem(FEEDBACK_EVENTS_KEY, JSON.stringify(next));
+  } catch {
+    // Local feedback caching is best-effort; D1 sync still handles online sessions.
+  }
+}
+
 export default function Chat() {
   const [conversations, setConversations] = createSignal<StoredConversation[]>([]);
   const [activeId, setActiveId] = createSignal("");
@@ -138,6 +203,18 @@ export default function Chat() {
   const [pendingConversationId, setPendingConversationId] = createSignal("");
   const [syncEnabled, setSyncEnabled] = createSignal(true);
   const [syncState, setSyncState] = createSignal<"saved" | "saving" | "offline">("saved");
+  const [settings, setSettings] = createSignal<ChatSettings>({
+    autoScroll: true,
+    showTimestamps: false,
+    wideMessages: false,
+  });
+  const [railCollapsed, setRailCollapsed] = createSignal(false);
+  const [mobileRailOpen, setMobileRailOpen] = createSignal(false);
+  const [settingsOpen, setSettingsOpen] = createSignal(false);
+  const [composerText, setComposerText] = createSignal("");
+  const [editingMessage, setEditingMessage] = createSignal<Message | null>(null);
+  const [renamingId, setRenamingId] = createSignal("");
+  const [renameDraft, setRenameDraft] = createSignal("");
   let messagesEnd: HTMLDivElement | undefined;
 
   const activeConversation = createMemo(() =>
@@ -145,6 +222,16 @@ export default function Chat() {
   );
 
   const messages = createMemo(() => activeConversation()?.messages || []);
+  const conversationGroups = createMemo(() => {
+    const groups: { label: string; items: StoredConversation[] }[] = [];
+    for (const conversation of conversations()) {
+      const label = conversationGroup(conversation.updated_at);
+      const group = groups.find((item) => item.label === label);
+      if (group) group.items.push(conversation);
+      else groups.push({ label, items: [conversation] });
+    }
+    return groups;
+  });
 
   const isConstrainedNetwork = () => {
     const connection = (navigator as any).connection;
@@ -166,6 +253,7 @@ export default function Chat() {
   };
 
   const scrollToBottom = () => {
+    if (!settings().autoScroll) return;
     setTimeout(
       () =>
         messagesEnd?.scrollIntoView({
@@ -262,7 +350,14 @@ export default function Chat() {
           id: conversation.id,
           title: conversation.title || "New chat",
           messages: Array.isArray(conversation.messages)
-            ? conversation.messages
+            ? conversation.messages.map((message: Message) =>
+                message.role === "assistant" && message.feedback
+                  ? {
+                      ...message,
+                      feedback: normalizeChatMessageFeedback(message.feedback),
+                    }
+                  : message
+              )
             : [],
           created_at: conversation.created_at || nowIso(),
           updated_at: conversation.updated_at || conversation.created_at || nowIso(),
@@ -302,6 +397,8 @@ export default function Chat() {
 
     setSessionId(sid);
     setSyncEnabled(canSync);
+    setSettings(readSettings());
+    setRailCollapsed(localStorage.getItem(RAIL_KEY) === "collapsed");
     replaceConversations(
       initial,
       initial.some((conversation) => conversation.id === storedActive)
@@ -328,7 +425,21 @@ export default function Chat() {
     }
   };
 
+  const updateSettings = (patch: Partial<ChatSettings>) => {
+    const next = { ...settings(), ...patch };
+    setSettings(next);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
+  };
+
+  const setCollapsedPreference = (collapsed: boolean) => {
+    setRailCollapsed(collapsed);
+    localStorage.setItem(RAIL_KEY, collapsed ? "collapsed" : "expanded");
+  };
+
   const startNewChat = () => {
+    setEditingMessage(null);
+    setComposerText("");
+    setMobileRailOpen(false);
     const conversation = {
       ...createConversation(),
       consent_state: syncEnabled()
@@ -339,6 +450,10 @@ export default function Chat() {
   };
 
   const deleteConversation = async (id: string) => {
+    if (editingMessage()) {
+      setEditingMessage(null);
+      setComposerText("");
+    }
     const remaining = conversations().filter((conversation) => conversation.id !== id);
     const next = remaining.length ? remaining : [createConversation()];
     const nextActive = activeId() === id ? next[0].id : activeId();
@@ -350,6 +465,34 @@ export default function Chat() {
         { method: "DELETE" }
       ).catch(() => {});
     }
+  };
+
+  const selectConversation = (id: string) => {
+    setActiveId(id);
+    setEditingMessage(null);
+    setComposerText("");
+    setMobileRailOpen(false);
+    persistLocal(conversations(), id);
+    scrollToBottom();
+  };
+
+  const renameConversation = (id: string, title: string) => {
+    const nextTitle = title.trim();
+    if (!nextTitle) {
+      setRenamingId("");
+      setRenameDraft("");
+      return;
+    }
+    const next = conversations().map((conversation) =>
+      conversation.id === id
+        ? { ...conversation, title: nextTitle, updated_at: nowIso() }
+        : conversation
+    );
+    replaceConversations(next, activeId());
+    const renamed = next.find((conversation) => conversation.id === id);
+    if (renamed) void syncConversation(renamed);
+    setRenamingId("");
+    setRenameDraft("");
   };
 
   const updateMessages = (
@@ -372,6 +515,63 @@ export default function Chat() {
     });
   };
 
+  const submitAssistantRequest = async (
+    conversationId: string,
+    requestMessages: Message[]
+  ) => {
+    setLoading(true);
+    setPendingConversationId(conversationId);
+    scrollToBottom();
+
+    const assistantMessageId = newId("msg");
+
+    try {
+      const resp = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: requestMessages,
+          temperature: 0.3,
+          max_tokens: isConstrainedNetwork() ? 512 : 1024,
+          conversation_id: conversationId,
+          session_id: sessionId(),
+          title: titleFromMessages(requestMessages),
+          assistant_message_id: assistantMessageId,
+          language_mode: "tvl-en",
+          island: getKnownIsland(),
+          consent_state: syncEnabled() ? "sync_training" : "local_only",
+          source: "web",
+        }),
+      });
+
+      if (!resp.ok) {
+        const offline = addOfflineMessage(conversationId, requestMessages);
+        if (offline) void syncConversation(offline);
+        return;
+      }
+
+      const data = await resp.json();
+      const assistantMessage: Message = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: data.content,
+        created_at: nowIso(),
+      };
+      const saved = updateMessages(conversationId, [
+        ...requestMessages,
+        assistantMessage,
+      ]);
+      if (saved) void syncConversation(saved);
+    } catch {
+      const offline = addOfflineMessage(conversationId, requestMessages);
+      if (offline) void syncConversation(offline);
+    } finally {
+      setLoading(false);
+      setPendingConversationId("");
+      scrollToBottom();
+    }
+  };
+
   const sendMessage = async (text: string) => {
     const current = activeConversation() || createConversation();
     if (!activeConversation()) commitConversation(current);
@@ -385,58 +585,52 @@ export default function Chat() {
     const requestMessages = [...current.messages, userMessage];
     const updated = updateMessages(current.id, requestMessages);
     if (updated) void syncConversation(updated);
+    await submitAssistantRequest(current.id, requestMessages);
+  };
 
-    setLoading(true);
-    setPendingConversationId(current.id);
-    scrollToBottom();
+  const editUserMessage = async (message: Message, text: string) => {
+    const current = activeConversation();
+    if (!current || loading()) return;
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const targetIndex = current.messages.findIndex(
+      (entry) => entry.id === message.id && entry.role === "user"
+    );
+    if (targetIndex < 0) return;
+    const editedMessage: Message = {
+      ...current.messages[targetIndex],
+      content: trimmed,
+      created_at: current.messages[targetIndex].created_at || nowIso(),
+      edited_at: nowIso(),
+    };
+    const requestMessages = [...current.messages.slice(0, targetIndex), editedMessage];
+    const updated = updateMessages(current.id, requestMessages);
+    if (updated) void syncConversation(updated);
+    setEditingMessage(null);
+    setComposerText("");
+    await submitAssistantRequest(current.id, requestMessages);
+  };
 
-    const assistantMessageId = newId("msg");
+  const regenerateLastResponse = async () => {
+    const current = activeConversation();
+    if (!current || loading()) return;
+    const last = current.messages[current.messages.length - 1];
+    const requestMessages =
+      last?.role === "assistant" ? current.messages.slice(0, -1) : current.messages;
+    if (!requestMessages.some((message) => message.role === "user")) return;
+    const updated = updateMessages(current.id, requestMessages);
+    if (updated) void syncConversation(updated);
+    await submitAssistantRequest(current.id, requestMessages);
+  };
 
-    try {
-      const resp = await fetch("/api/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: requestMessages,
-          temperature: 0.3,
-          max_tokens: isConstrainedNetwork() ? 512 : 1024,
-          conversation_id: current.id,
-          session_id: sessionId(),
-          title: titleFromMessages(requestMessages),
-          assistant_message_id: assistantMessageId,
-          language_mode: "tvl-en",
-          island: getKnownIsland(),
-          consent_state: syncEnabled() ? "sync_training" : "local_only",
-          source: "web",
-        }),
-      });
-
-      if (!resp.ok) {
-        const offline = addOfflineMessage(current.id, requestMessages);
-        if (offline) void syncConversation(offline);
-        return;
-      }
-
-      const data = await resp.json();
-      const assistantMessage: Message = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: data.content,
-        created_at: nowIso(),
-      };
-      const saved = updateMessages(current.id, [
-        ...requestMessages,
-        assistantMessage,
-      ]);
-      if (saved) void syncConversation(saved);
-    } catch {
-      const offline = addOfflineMessage(current.id, requestMessages);
-      if (offline) void syncConversation(offline);
-    } finally {
-      setLoading(false);
-      setPendingConversationId("");
-      scrollToBottom();
+  const submitComposer = (text: string) => {
+    const editing = editingMessage();
+    if (editing) {
+      void editUserMessage(editing, text);
+      return;
     }
+    setComposerText("");
+    void sendMessage(text);
   };
 
   const addOfflineMessage = (
@@ -454,37 +648,76 @@ export default function Chat() {
       },
     ]);
 
-  const sendFeedback = async (
+  const updateMessageFeedback = (
     message: Message,
-    rating: "good" | "needs_work" | "sounded_funny" | "fix_words",
-    detail?: {
-      reasons?: string[];
-      note?: string;
-      selected_text?: string;
-      correction_text?: string;
-    }
+    feedback: ChatMessageFeedback
   ) => {
     const conversation = activeConversation();
-    if (!conversation || !syncEnabled() || !sessionId()) return;
+    if (!conversation || !message.id) return;
+
+    const nextMessages = conversation.messages.map((entry) =>
+      entry.id === message.id && entry.role === "assistant"
+        ? { ...entry, feedback }
+        : entry
+    );
+    const updated = updateMessages(conversation.id, nextMessages);
+    if (updated) void syncConversation(updated);
+  };
+
+  const sendFeedbackEvent = (
+    message: Message,
+    event: ChatFeedbackEvent,
+    feedback: ChatMessageFeedback
+  ) => {
+    const conversation = activeConversation();
+    if (!conversation) return;
+
+    const correctionText =
+      event.replacementText ||
+      event.freeformComment ||
+      (event.type === "say_more" ? feedback.say_more : feedback.note) ||
+      null;
+
+    const payload = {
+      id: event.id || newId("feedback"),
+      conversation_id: conversation.id,
+      message_id: message.id || null,
+      session_id: sessionId() || "local",
+      rating: event.type,
+      correction_text: correctionText,
+      selected_text: event.originalText || null,
+      island: getKnownIsland(),
+      metadata: {
+        title: conversation.title,
+        action: event.action,
+        correctionKind: event.correctionKind || null,
+        feedback_rating: feedback.rating,
+        reasons: event.selectedReasons || feedback.reasons,
+        note: feedback.note,
+        say_more: feedback.say_more,
+        selectionExpanded: event.selectionExpanded === true,
+        selectionStart: event.selectionStart ?? null,
+        selectionEnd: event.selectionEnd ?? null,
+        replacementText: event.replacementText || null,
+        correction_count: feedback.corrections.length,
+        cached_at: nowIso(),
+      },
+    };
+
+    cacheLocalFeedbackEvent({
+      ...payload,
+      event,
+      feedback,
+      created_at: event.created_at,
+      sync_state: syncEnabled() && sessionId() ? "queued_remote" : "local_only",
+    });
+
+    if (!syncEnabled() || !sessionId()) return;
 
     fetch("/api/chat/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: newId("feedback"),
-        conversation_id: conversation.id,
-        message_id: message.id || null,
-        session_id: sessionId(),
-        rating,
-        correction_text: detail?.correction_text || detail?.note || null,
-        selected_text: detail?.selected_text || null,
-        island: getKnownIsland(),
-        metadata: {
-          title: conversation.title,
-          reasons: detail?.reasons || [],
-          note: detail?.note || "",
-        },
-      }),
+      body: JSON.stringify({ ...payload, session_id: sessionId() }),
     }).catch(() => {});
   };
 
@@ -524,6 +757,16 @@ export default function Chat() {
       <div class="chat-theme chat-shell chat-shell--saved flex flex-col">
         <nav aria-label="Chat navigation" class="chat-nav">
           <div class="chat-nav__left">
+            <button
+              type="button"
+              class="chat-nav__icon chat-nav__menu"
+              aria-label="Open saved conversations"
+              onClick={() => setMobileRailOpen(true)}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true">
+                <path d="M4 6h16M4 12h16M4 18h10" />
+              </svg>
+            </button>
             <a href="/" class="chat-nav__brand">
               <span class="chat-nav__brand-mark" aria-hidden="true" />
               <span>
@@ -538,22 +781,56 @@ export default function Chat() {
             <a href="/chat/training" class="chat-nav__link">
               Training
             </a>
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              class="chat-nav__button"
+            >
+              Settings
+            </button>
             <button type="button" onClick={startNewChat} class="chat-nav__button">
               New chat
             </button>
           </div>
         </nav>
 
-        <div class="chat-body">
-          <aside class="chat-rail" aria-label="Saved conversations">
+        <div class={`chat-body ${railCollapsed() ? "chat-body--rail-collapsed" : ""}`}>
+          <Show when={mobileRailOpen()}>
+            <button
+              type="button"
+              class="chat-rail-scrim"
+              aria-label="Close saved conversations"
+              onClick={() => setMobileRailOpen(false)}
+            />
+          </Show>
+          <aside class={`chat-rail ${railCollapsed() ? "is-collapsed" : ""} ${mobileRailOpen() ? "is-open" : ""}`} aria-label="Saved conversations">
             <div class="chat-rail__header">
               <div>
                 <p>Saved chats</p>
                 <strong>{conversations().length}</strong>
               </div>
-              <button type="button" onClick={startNewChat} aria-label="New chat">
-                +
-              </button>
+              <div class="chat-rail__header-actions">
+                <button type="button" onClick={startNewChat} aria-label="New chat">
+                  +
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (mobileRailOpen()) setMobileRailOpen(false);
+                    else setCollapsedPreference(!railCollapsed());
+                  }}
+                  aria-label={
+                    mobileRailOpen()
+                      ? "Close conversations"
+                      : railCollapsed()
+                        ? "Expand conversations"
+                        : "Collapse conversations"
+                  }
+                  class="chat-rail__collapse"
+                >
+                  {mobileRailOpen() ? "x" : railCollapsed() ? ">" : "<"}
+                </button>
+              </div>
             </div>
 
             <div class="chat-sync-card">
@@ -577,27 +854,84 @@ export default function Chat() {
             </div>
 
             <div class="chat-rail__list">
-              <For each={conversations()}>
-                {(conversation) => (
-                  <button
-                    type="button"
-                    class={`chat-thread-card ${
-                      activeId() === conversation.id ? "is-active" : ""
-                    }`}
-                    onClick={() => {
-                      setActiveId(conversation.id);
-                      persistLocal(conversations(), conversation.id);
-                      scrollToBottom();
-                    }}
-                  >
-                    <span class="chat-thread-card__title">
-                      {conversation.title}
-                    </span>
-                    <span class="chat-thread-card__meta">
-                      {conversation.messages.length} messages
-                      <span>{formatConversationTime(conversation.updated_at)}</span>
-                    </span>
-                  </button>
+              <For each={conversationGroups()}>
+                {(group) => (
+                  <section class="chat-thread-group">
+                    <h3>{group.label}</h3>
+                    <For each={group.items}>
+                      {(conversation) => {
+                        const isRenaming = () => renamingId() === conversation.id;
+                        return (
+                          <div class={`chat-thread-row ${activeId() === conversation.id ? "is-active" : ""}`}>
+                            <Show
+                              when={isRenaming()}
+                              fallback={
+                                <>
+                                  <button
+                                    type="button"
+                                    class="chat-thread-card"
+                                    title={conversation.title}
+                                    onClick={() => selectConversation(conversation.id)}
+                                  >
+                                    <span class="chat-thread-card__initial" aria-hidden="true">
+                                      {conversation.title.slice(0, 1).toUpperCase()}
+                                    </span>
+                                    <span class="chat-thread-card__copy">
+                                      <span class="chat-thread-card__title">
+                                        {conversation.title}
+                                      </span>
+                                      <span class="chat-thread-card__meta">
+                                        {conversation.messages.length} messages
+                                        <span>{formatConversationTime(conversation.updated_at)}</span>
+                                      </span>
+                                    </span>
+                                  </button>
+                                  <div class="chat-thread-actions">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRenamingId(conversation.id);
+                                        setRenameDraft(conversation.title);
+                                      }}
+                                    >
+                                      Rename
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => void deleteConversation(conversation.id)}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
+                                </>
+                              }
+                            >
+                              <form
+                                class="chat-thread-rename"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  renameConversation(conversation.id, renameDraft());
+                                }}
+                              >
+                                <input
+                                  value={renameDraft()}
+                                  onInput={(event) => setRenameDraft(event.currentTarget.value)}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "Escape") {
+                                      setRenamingId("");
+                                      setRenameDraft("");
+                                    }
+                                  }}
+                                  aria-label="Rename conversation"
+                                />
+                                <button type="submit">Save</button>
+                              </form>
+                            </Show>
+                          </div>
+                        );
+                      }}
+                    </For>
+                  </section>
                 )}
               </For>
             </div>
@@ -620,16 +954,25 @@ export default function Chat() {
                   : "Local only"}
               </div>
               <Show when={activeConversation()?.messages.length}>
-                <button
-                  type="button"
-                  class="chat-thread-delete"
-                  onClick={() => {
-                    const id = activeId();
-                    if (id) void deleteConversation(id);
-                  }}
-                >
-                  Delete
-                </button>
+                <div class="chat-thread-bar__actions">
+                  <button
+                    type="button"
+                    onClick={() => void regenerateLastResponse()}
+                    disabled={loading()}
+                  >
+                    Regenerate
+                  </button>
+                  <button
+                    type="button"
+                    class="chat-thread-delete"
+                    onClick={() => {
+                      const id = activeId();
+                      if (id) void deleteConversation(id);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
               </Show>
             </div>
 
@@ -664,13 +1007,30 @@ export default function Chat() {
                 }
               >
                 <For each={messages()}>
-                  {(msg) => (
+                  {(msg, index) => (
                     <ChatMessage
                       message={msg}
-                      onFeedback={
-                        msg.role === "assistant" && syncEnabled()
-                          ? sendFeedback
+                      showTimestamp={settings().showTimestamps}
+                      wide={settings().wideMessages}
+                      canRegenerate={
+                        msg.role === "assistant" &&
+                        index() === messages().length - 1 &&
+                        !loading()
+                      }
+                      onRegenerate={regenerateLastResponse}
+                      onEdit={
+                        msg.role === "user"
+                          ? (message) => {
+                              setEditingMessage(message);
+                              setComposerText(message.content);
+                            }
                           : undefined
+                      }
+                      onFeedbackChange={
+                        msg.role === "assistant" ? updateMessageFeedback : undefined
+                      }
+                      onFeedbackEvent={
+                        msg.role === "assistant" ? sendFeedbackEvent : undefined
                       }
                     />
                   )}
@@ -691,12 +1051,27 @@ export default function Chat() {
               </p>
             </div>
             <ChatInput
-              onSend={sendMessage}
+              value={composerText()}
+              onValueChange={setComposerText}
+              editing={!!editingMessage()}
+              onCancelEdit={() => {
+                setEditingMessage(null);
+                setComposerText("");
+              }}
+              onSend={submitComposer}
               disabled={loading() && pendingConversationId() === activeId()}
             />
           </section>
         </div>
       </div>
+      <ChatSettingsModal
+        open={settingsOpen()}
+        settings={settings()}
+        syncEnabled={syncEnabled()}
+        onClose={() => setSettingsOpen(false)}
+        onSettingsChange={updateSettings}
+        onSyncChange={setSyncPreference}
+      />
     </>
   );
 }
@@ -718,5 +1093,95 @@ function Suggestion(props: {
         <span class="chat-suggestion__body">{props.suggestion.detail}</span>
       </span>
     </button>
+  );
+}
+
+function ChatSettingsModal(props: {
+  open: boolean;
+  settings: ChatSettings;
+  syncEnabled: boolean;
+  onClose: () => void;
+  onSettingsChange: (patch: Partial<ChatSettings>) => void;
+  onSyncChange: (enabled: boolean) => void;
+}) {
+  return (
+    <Show when={props.open}>
+      <div class="chat-settings-overlay" role="presentation" onClick={props.onClose}>
+        <section
+          class="chat-settings-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="chat-settings-title"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div class="chat-settings-modal__head">
+            <div>
+              <p>Workspace</p>
+              <h2 id="chat-settings-title">Chat settings</h2>
+            </div>
+            <button type="button" onClick={props.onClose} aria-label="Close settings">
+              x
+            </button>
+          </div>
+
+          <div class="chat-settings-list">
+            <SettingSwitch
+              title="Sync conversations"
+              body="Store JSON transcripts in D1 for saved chats and training review."
+              checked={props.syncEnabled}
+              onChange={props.onSyncChange}
+            />
+            <SettingSwitch
+              title="Show timestamps"
+              body="Display message times inside the thread."
+              checked={props.settings.showTimestamps}
+              onChange={(checked) => props.onSettingsChange({ showTimestamps: checked })}
+            />
+            <SettingSwitch
+              title="Wide messages"
+              body="Use the roomier message layout from the reference UI."
+              checked={props.settings.wideMessages}
+              onChange={(checked) => props.onSettingsChange({ wideMessages: checked })}
+            />
+            <SettingSwitch
+              title="Auto-scroll replies"
+              body="Keep the latest message pinned while replies arrive."
+              checked={props.settings.autoScroll}
+              onChange={(checked) => props.onSettingsChange({ autoScroll: checked })}
+            />
+          </div>
+
+          <p class="chat-settings-modal__note">
+            Local-only mode still sends prompts to the model service to generate replies.
+            It only changes whether this site stores transcripts for later use.
+          </p>
+        </section>
+      </div>
+    </Show>
+  );
+}
+
+function SettingSwitch(props: {
+  title: string;
+  body: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <div class="chat-setting-switch">
+      <span>
+        <strong>{props.title}</strong>
+        <em>{props.body}</em>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={props.checked}
+        class={`chat-sync-toggle ${props.checked ? "is-on" : ""}`}
+        onClick={() => props.onChange(!props.checked)}
+      >
+        <span />
+      </button>
+    </div>
   );
 }

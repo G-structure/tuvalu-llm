@@ -3,15 +3,11 @@ import {
   normalizeChatConversation,
   upsertChatConversation,
 } from "~/lib/chat-conversations";
+import { getChatBackendUrl } from "~/lib/chat-backend";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_MESSAGES = 50;
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
-
-function getBackendUrl(event: APIEvent): string {
-  const cfEnv = (event.context as any)?.cloudflare?.env;
-  return cfEnv?.CHAT_BACKEND_URL || process.env.CHAT_BACKEND_URL || "http://localhost:8787";
-}
 
 function cleanText(value: unknown, max: number): string {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -75,7 +71,7 @@ function validateChatBody(body: unknown):
 }
 
 export async function POST(event: APIEvent) {
-  const backendUrl = getBackendUrl(event);
+  const backendUrl = getChatBackendUrl(event);
   const targetUrl = `${backendUrl}/api/chat`;
 
   try {

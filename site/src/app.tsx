@@ -14,14 +14,6 @@ function Shell(props: { children: any }) {
   const location = useLocation();
   const isChatRoute = () => location.pathname.startsWith("/chat");
   const isBlogRoute = () => location.pathname.startsWith("/blog");
-  const isContainedScrollRoute = () =>
-    location.pathname === "/" ||
-    location.pathname === "/demo" ||
-    location.pathname === "/fatele" ||
-    location.pathname.startsWith("/articles") ||
-    location.pathname.startsWith("/category") ||
-    location.pathname === "/search" ||
-    location.pathname.startsWith("/blog");
 
   return (
     <MetaProvider>
@@ -68,7 +60,7 @@ function Shell(props: { children: any }) {
           <Suspense fallback={<div class="chat-theme min-h-screen" />}>{props.children}</Suspense>
         }
       >
-        <div class={isContainedScrollRoute() ? "min-h-screen" : "min-h-screen pb-12"}>
+        <div class="site-app-shell">
           <Header />
           <Suspense>
             {props.children}

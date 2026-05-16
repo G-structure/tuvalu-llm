@@ -171,69 +171,6 @@ export default function Home() {
                   </Show>
 
                   <aside class="home-side-rail">
-                    <section class="home-rail-card">
-                      <div class="home-rail-card__head">
-                        <h2>Kominiti</h2>
-                        <p>Fenua tu'atasi, lotou fakatasi.</p>
-                      </div>
-                      <div class="home-community-list">
-                        <div class="home-community-row">
-                          <span class="home-community-row__icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                              <circle cx="9" cy="7" r="4" />
-                              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                            </svg>
-                          </span>
-                          <span>
-                            <strong>{d().stats.total_this_month}</strong>
-                            <em>Signals this month</em>
-                          </span>
-                        </div>
-                        <div class="home-community-row">
-                          <span class="home-community-row__icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                            </svg>
-                          </span>
-                          <span>
-                            <strong>{d().stats.article_feedback_count}</strong>
-                            <em>Article coach notes</em>
-                          </span>
-                        </div>
-                        <div class="home-community-row">
-                          <span class="home-community-row__icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M8 2v4" />
-                              <path d="M16 2v4" />
-                              <rect width="18" height="18" x="3" y="4" rx="2" />
-                              <path d="M3 10h18" />
-                            </svg>
-                          </span>
-                          <span>
-                            <strong>{d().categories.length}</strong>
-                            <em>Article beats</em>
-                          </span>
-                        </div>
-                        <div class="home-community-row">
-                          <span class="home-community-row__icon">
-                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                              <path d="M8 21h8" />
-                              <path d="M12 17v4" />
-                              <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
-                              <path d="M5 7H3a3 3 0 0 0 3 3" />
-                              <path d="M19 7h2a3 3 0 0 1-3 3" />
-                            </svg>
-                          </span>
-                          <span>
-                            <strong>{d().stats.corrections_count}</strong>
-                            <em>Fakaleiga fou</em>
-                          </span>
-                        </div>
-                      </div>
-                    </section>
-
                     <section class="home-rail-card home-rail-card--learning">
                       <div class="home-rail-card__head">
                         <h2>Fenua learning loop</h2>

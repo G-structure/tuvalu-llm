@@ -1,3 +1,5 @@
+import type { ChatMessageFeedback } from "./chat-feedback";
+
 export interface Article {
   id: string;
   source_id: string;
@@ -92,6 +94,8 @@ export interface Message {
   role: "user" | "assistant" | "system";
   content: string;
   created_at?: string;
+  edited_at?: string;
+  feedback?: ChatMessageFeedback;
 }
 
 export interface ChatRequest {

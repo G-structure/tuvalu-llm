@@ -3,9 +3,18 @@ import { createSignal } from "solid-js";
 export default function ChatInput(props: {
   onSend: (text: string) => void;
   disabled: boolean;
+  value?: string;
+  editing?: boolean;
+  onCancelEdit?: () => void;
+  onValueChange?: (text: string) => void;
 }) {
-  const [text, setText] = createSignal("");
+  const [localText, setLocalText] = createSignal("");
   let inputRef: HTMLTextAreaElement | undefined;
+  const text = () => props.value ?? localText();
+  const setText = (value: string) => {
+    props.onValueChange?.(value);
+    if (props.value === undefined) setLocalText(value);
+  };
 
   const resizeInput = () => {
     if (!inputRef) return;
@@ -19,7 +28,7 @@ export default function ChatInput(props: {
     const t = text().trim();
     if (!t || props.disabled) return;
     props.onSend(t);
-    setText("");
+    if (!props.editing) setText("");
     requestAnimationFrame(resizeInput);
   };
 
@@ -34,8 +43,23 @@ export default function ChatInput(props: {
     <div class="chat-input-wrap">
       <form
         onSubmit={handleSubmit}
-        class="chat-input-form"
+        class={`chat-input-form ${props.editing ? "is-editing" : ""}`}
       >
+        {props.editing && (
+          <div class="chat-input-edit-banner">
+            <span>Editing your message</span>
+            <button
+              type="button"
+              onClick={() => {
+                setText("");
+                props.onCancelEdit?.();
+                requestAnimationFrame(resizeInput);
+              }}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <label for="chat-input" class="sr-only">Message</label>
         <textarea
           ref={inputRef}
@@ -54,7 +78,7 @@ export default function ChatInput(props: {
         <button
           type="submit"
           disabled={props.disabled || !text().trim()}
-          aria-label="Send message"
+          aria-label={props.editing ? "Save edited message" : "Send message"}
           class="chat-send-button"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">

@@ -1,8 +1,8 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { hasDb, getTrainingMetrics, getTrainingConfig, getLatestMetric } from "~/lib/chat-db";
+import { getChatBackendUrl } from "~/lib/chat-backend";
 import { offlineTrainingStats } from "~/lib/training-snapshot";
 
-const BACKEND_URL = process.env.CHAT_BACKEND_URL || "http://localhost:8787";
 const DEFAULT_RUN_ID = "stage_b_llama8b";
 
 function json(data: unknown, status = 200) {
@@ -12,11 +12,11 @@ function json(data: unknown, status = 200) {
   });
 }
 
-export async function GET(_event: APIEvent) {
+export async function GET(event: APIEvent) {
   // If D1 is not available (local dev), proxy to Python backend
   if (!hasDb()) {
     try {
-      const resp = await fetch(`${BACKEND_URL}/api/training-stats`);
+      const resp = await fetch(`${getChatBackendUrl(event)}/api/training-stats`);
       if (!resp.ok) return json(offlineTrainingStats("Backend unavailable"));
       return new Response(resp.body, {
         headers: { "Content-Type": "application/json" },
