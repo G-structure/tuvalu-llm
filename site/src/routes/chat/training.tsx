@@ -1,63 +1,67 @@
-import { createResource, For, Show, createMemo, onCleanup } from "solid-js";
+import { createResource, For, Show, createMemo, onCleanup, onMount } from "solid-js";
 import { isServer } from "solid-js/web";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
 import { breadcrumbList } from "~/lib/seo";
 import { absoluteChatUrl, CHAT_META, SITE_ORIGINS } from "~/lib/site";
+import { offlineTrainingStats, type TrainingStats } from "~/lib/training-snapshot";
 
-interface TrainingStats {
-  metrics: Array<Record<string, any>>;
-  mix_stats: Record<string, any>;
-  checkpoints: Array<Record<string, any>>;
-  current_step: number;
-  total_steps: number;
-  progress_pct: number;
-  model_name: string;
-  sampler_path: string;
-  sampler_step: string;
-}
+const REFRESH_MS = 15000;
 
 async function fetchStats(): Promise<TrainingStats | undefined> {
-  if (isServer) return undefined;
-  const resp = await fetch("/api/training-stats");
-  if (!resp.ok) throw new Error("Failed to fetch");
-  return resp.json();
+  if (isServer) return offlineTrainingStats("Training backend unavailable");
+  try {
+    const resp = await fetch("/api/training-stats");
+    if (!resp.ok) return offlineTrainingStats("Training backend unavailable");
+    const data = (await resp.json()) as TrainingStats;
+    return data?.metrics ? data : offlineTrainingStats("Training data unavailable");
+  } catch {
+    return offlineTrainingStats("Training backend unavailable");
+  }
 }
 
 export default function Training() {
   const [stats, { refetch, mutate }] = createResource(fetchStats);
-  // Poll without flashing: refetch in background, only update when new data arrives
-  const timer = setInterval(async () => {
-    try {
+
+  onMount(() => {
+    void (async () => {
       const next = await fetchStats();
       if (next) mutate(next);
-    } catch { /* keep stale data visible */ }
-  }, 15000);
-  onCleanup(() => clearInterval(timer));
+    })();
+
+    const timer = setInterval(async () => {
+      const next = await fetchStats();
+      if (next) mutate(next);
+    }, REFRESH_MS);
+    onCleanup(() => clearInterval(timer));
+  });
 
   const latestRunMetrics = createMemo(() => {
     if (!stats()) return [];
     const all = stats()!.metrics;
     let lastRestart = 0;
     for (let i = all.length - 1; i >= 0; i--) {
-      if (all[i].step === 0) { lastRestart = i; break; }
+      if (all[i].step === 0) {
+        lastRestart = i;
+        break;
+      }
     }
     return all.slice(lastRestart);
   });
 
-  const trainMetrics = createMemo(() => {
-    return latestRunMetrics().filter(
-      (m: any) => "train_nll" in m || "train_mean_nll" in m
-    ).map((m: any) => ({ ...m, nll: m.train_nll ?? m.train_mean_nll }));
-  });
+  const trainMetrics = createMemo(() =>
+    latestRunMetrics()
+      .filter((m: any) => "train_nll" in m || "train_mean_nll" in m)
+      .map((m: any) => ({ ...m, nll: m.train_nll ?? m.train_mean_nll }))
+  );
 
-  const valMetrics = createMemo(() => {
-    return latestRunMetrics().filter((m: any) => "validation_mean_nll" in m);
-  });
+  const valMetrics = createMemo(() =>
+    latestRunMetrics().filter((m: any) => "validation_mean_nll" in m)
+  );
 
-  const genEvalMetrics = createMemo(() => {
-    return latestRunMetrics().filter((m: any) => "gen_eval_chrf_pp" in m);
-  });
+  const genEvalMetrics = createMemo(() =>
+    latestRunMetrics().filter((m: any) => "gen_eval_chrf_pp" in m)
+  );
 
   const latest = createMemo(() => {
     const t = trainMetrics();
@@ -71,20 +75,59 @@ export default function Training() {
   });
 
   const etaHours = createMemo(() => {
-    if (!stats()) return null;
-    const s = stats()!;
-    const remaining = s.total_steps - s.current_step;
-    const secPerStep = 5;
-    return (remaining * secPerStep / 3600).toFixed(1);
+    if (!stats() || stats()!.status === "offline") return null;
+    const remaining = Math.max(0, stats()!.total_steps - stats()!.current_step);
+    return ((remaining * 5) / 3600).toFixed(1);
   });
 
   const trainTrend = createMemo(() => {
     const t = trainMetrics();
-    if (t.length < 20) return null;
+    if (t.length < 4) return null;
     const recent = t[t.length - 1].nll;
-    const prev = t[t.length - 20].nll;
-    const delta = ((recent - prev) / prev * 100).toFixed(1);
+    const prev = t[Math.max(0, t.length - 4)].nll;
+    if (!prev) return null;
+    const delta = (((recent - prev) / prev) * 100).toFixed(1);
     return { direction: recent < prev ? "down" : "up", delta };
+  });
+
+  const isOffline = createMemo(() => stats()?.status === "offline");
+
+  const sourceMix = createMemo(() => {
+    const train = stats()?.mix_stats?.train;
+    const bySource = train?.by_source || {};
+    const total =
+      Number(train?.count) ||
+      Object.values(bySource).reduce((sum, value) => sum + Number(value || 0), 0) ||
+      1;
+
+    return Object.entries(bySource)
+      .map(([source, count]) => ({
+        source,
+        count: Number(count || 0),
+        pct: (Number(count || 0) / total) * 100,
+      }))
+      .sort((a, b) => b.count - a.count);
+  });
+
+  const taskFamilies = createMemo(() => {
+    const byFamily = stats()?.mix_stats?.train?.by_task_family || {};
+    return Object.entries(byFamily)
+      .map(([family, count]) => ({ family, count: Number(count || 0) }))
+      .sort((a, b) => b.count - a.count);
+  });
+
+  const latestCheckpoint = createMemo(() => {
+    const checkpoints = stats()?.checkpoints || [];
+    return checkpoints.length ? checkpoints[checkpoints.length - 1] : null;
+  });
+
+  const progressWidth = createMemo(() =>
+    `${Math.min(100, Math.max(1.5, stats()?.progress_pct || 0))}%`
+  );
+
+  const exactMatchLabel = createMemo(() => {
+    const exact = latest().gen?.gen_eval_exact_match;
+    return exact != null ? `${(exact * 100).toFixed(1)}% exact` : "";
   });
 
   return (
@@ -121,386 +164,454 @@ export default function Training() {
           ]),
         ]}
       />
-      <div class="chat-theme min-h-screen">
 
-        {/* Nav */}
-        <nav class="border-b border-[var(--color-border)] h-12 flex items-center px-6">
-          <div class="max-w-5xl w-full mx-auto flex items-center justify-between">
-            <div class="flex items-center gap-6">
-              <a href="/chat" class="text-[13px] text-[var(--color-text-secondary)] hover:text-[var(--color-text)] transition-colors flex items-center gap-1.5">
-                <span class="text-[var(--color-accent)] text-[10px]">&#10038;</span>
-                TVL Chat
-              </a>
-              <span class="text-[var(--color-border-subtle)]">/</span>
-              <span class="text-[13px] text-[var(--color-text)] font-medium">Training</span>
-            </div>
-            <div class="flex items-center gap-4">
-              <a href="/chat/eval" class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors">
-                Eval
-              </a>
-              <button
-                onClick={() => refetch()}
-                class="text-[12px] text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)] transition-colors"
-              >
-                Refresh
-              </button>
-            </div>
+      <div class="chat-theme training-shell">
+        <nav aria-label="Training navigation" class="chat-nav training-nav">
+          <div class="chat-nav__left">
+            <a href="/" class="chat-nav__brand">
+              <span class="chat-nav__brand-mark" aria-hidden="true" />
+              <span>
+                <strong>Fenua</strong>
+                <em>Intelligence</em>
+              </span>
+            </a>
+            <h1 class="chat-nav__title">Training Lab</h1>
+          </div>
+          <div class="chat-nav__actions training-nav__actions">
+            <a href="/chat" class="chat-nav__link">
+              Chat
+            </a>
+            <a href="/chat/eval" class="chat-nav__link">
+              Eval
+            </a>
+            <button type="button" onClick={() => refetch()} class="chat-nav__button">
+              Refresh
+            </button>
           </div>
         </nav>
 
-        <Show
-          when={stats()}
-          fallback={
-            <div class="flex items-center justify-center h-64">
-              <div class="flex gap-1.5">
-                <span class="typing-dot w-2 h-2 bg-[var(--color-accent)] rounded-full" />
-                <span class="typing-dot w-2 h-2 bg-[var(--color-accent)] rounded-full" />
-                <span class="typing-dot w-2 h-2 bg-[var(--color-accent)] rounded-full" />
-              </div>
-            </div>
-          }
-        >
-          <div class="max-w-5xl mx-auto px-6 py-8 space-y-8">
-
-            {/* Header section */}
-            <div class="flex items-end justify-between">
-              <div>
-                <h1 class="text-[20px] font-semibold tracking-tight text-[var(--color-text)]">
-                  Stage B Training
-                </h1>
-                <p class="text-[13px] text-[var(--color-text-muted)] mt-1">
-                  {stats()!.model_name} · Bilingual capability adapter
-                </p>
-              </div>
-              <div class="text-right">
-                <div class="flex items-center gap-2 justify-end">
-                  <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)]" />
-                  <span class="text-[12px] text-[var(--color-text-secondary)]">Training</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress */}
-            <div>
-              <div class="flex items-baseline justify-between mb-3">
-                <div class="flex items-baseline gap-3">
-                  <span class="text-[32px] font-semibold tracking-tight tabular">
-                    {stats()!.progress_pct}%
-                  </span>
-                  <span class="text-[13px] text-[var(--color-text-muted)] tabular">
-                    Step {stats()!.current_step.toLocaleString()} of {stats()!.total_steps.toLocaleString()}
-                  </span>
-                </div>
-                <Show when={etaHours()}>
-                  <span class="text-[12px] text-[var(--color-text-muted)] tabular">
-                    ~{etaHours()}h remaining
-                  </span>
-                </Show>
-              </div>
-              <div class="w-full bg-white/[0.04] rounded-full h-1.5">
-                <div
-                  class="progress-bar-animated h-1.5 rounded-full transition-all duration-1000 ease-out"
-                  style={{ width: `${Math.max(0.5, stats()!.progress_pct)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Metrics row */}
-            <div class="grid grid-cols-4 gap-px bg-[var(--color-border)] rounded-lg overflow-hidden">
-              <Metric
-                label="Train NLL"
-                value={latest().train?.nll?.toFixed(4) ?? "—"}
-                sub={latest().train ? `Step ${latest().train.step.toLocaleString()}` : ""}
-                trend={trainTrend()}
-              />
-              <Metric
-                label="Val NLL"
-                value={latest().val?.validation_mean_nll?.toFixed(4) ?? "—"}
-                sub={latest().val ? `Step ${latest().val.step.toLocaleString()}` : ""}
-              />
-              <Metric
-                label="chrF++"
-                value={latest().gen?.gen_eval_chrf_pp?.toFixed(1) ?? "—"}
-                sub={latest().gen ? `Step ${latest().gen.step.toLocaleString()}` : ""}
-              />
-              <Metric
-                label="BLEU"
-                value={latest().gen?.gen_eval_bleu?.toFixed(1) ?? "—"}
-                sub={latest().gen ? `Exact ${(latest().gen.gen_eval_exact_match * 100).toFixed(1)}%` : ""}
-              />
-            </div>
-
-            {/* Loss chart */}
-            <Show when={trainMetrics().length > 5}>
-              <Card>
-                <div class="flex items-center justify-between mb-6">
-                  <span class="text-[13px] font-medium text-[var(--color-text)]">Loss</span>
-                  <div class="flex items-center gap-5 text-[11px] text-[var(--color-text-muted)]">
-                    <span class="flex items-center gap-1.5">
-                      <span class="w-5 h-[1.5px] bg-[var(--color-accent)] rounded" /> Train
-                    </span>
-                    <Show when={valMetrics().length > 0}>
-                      <span class="flex items-center gap-1.5">
-                        <span class="w-5 h-[1.5px] rounded" style="background: #f0c674; opacity: 0.7" /> Val
-                      </span>
-                    </Show>
-                  </div>
-                </div>
-                <LossChart data={trainMetrics()} valData={valMetrics()} />
-              </Card>
-            </Show>
-
-            {/* Two columns */}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Dataset composition */}
-              <Show when={stats()!.mix_stats?.train}>
-                <Card>
-                  <div class="flex items-center justify-between mb-5">
-                    <span class="text-[13px] font-medium text-[var(--color-text)]">Dataset composition</span>
-                    <span class="text-[11px] text-[var(--color-text-muted)] tabular">
-                      {stats()!.mix_stats.train.count?.toLocaleString()} examples · {stats()!.mix_stats.train.total_tokens_human}
-                    </span>
-                  </div>
-                  <div class="space-y-4">
-                    <For each={Object.entries(stats()!.mix_stats.train.by_source || {}).sort((a, b) => (b[1] as number) - (a[1] as number))}>
-                      {([source, count]) => {
-                        const total = stats()!.mix_stats.train.count || 1;
-                        const pct = ((count as number) / total * 100);
-                        return (
-                          <div>
-                            <div class="flex items-center justify-between mb-1.5">
-                              <span class="text-[12px] text-[var(--color-text-secondary)] capitalize">{source.replace(/_/g, " ")}</span>
-                              <span class="text-[12px] text-[var(--color-text-muted)] tabular">
-                                {pct.toFixed(1)}%
-                              </span>
-                            </div>
-                            <div class="w-full bg-white/[0.04] rounded-full h-1">
-                              <div
-                                class="h-1 rounded-full transition-all duration-500"
-                                style={{
-                                  width: `${pct}%`,
-                                  background: sourceColor(source),
-                                  opacity: "0.7",
-                                }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      }}
-                    </For>
-                  </div>
-                </Card>
-              </Show>
-
-              {/* Gen eval history */}
-              <Card>
-                <span class="text-[13px] font-medium text-[var(--color-text)] block mb-5">Evaluations</span>
-                <Show
-                  when={genEvalMetrics().length > 0}
-                  fallback={
-                    <p class="text-[12px] text-[var(--color-text-muted)]">
-                      First generation eval at step 500.
+        <Show when={stats()} fallback={<TrainingSkeleton />}>
+          {(s) => (
+            <main class="training-main">
+              <div class="training-main__inner">
+                <section class="training-hero" aria-label="Training status">
+                  <div class="training-hero__copy">
+                    <p class="training-kicker">Fenua model training</p>
+                    <h2>Stage B bilingual adapter</h2>
+                    <p>
+                      A clearer view of the model run: loss, generation evals,
+                      dataset mix, and the community signals feeding the next
+                      Tuvaluan-English iteration.
                     </p>
+                    <div class="training-hero__chips">
+                      <span>{s().model_name || "TVL model"}</span>
+                      <span>{s().sampler_path || "Sampler pending"}</span>
+                    </div>
+                  </div>
+
+                  <aside class="training-progress-panel">
+                    <div class="training-status-row">
+                      <span
+                        class={`training-status-dot ${isOffline() ? "is-paused" : ""}`}
+                      />
+                      <strong>{isOffline() ? "Offline snapshot" : "Live training"}</strong>
+                    </div>
+                    <div
+                      class="training-progress-ring"
+                      style={{ "--progress": progressWidth() }}
+                    >
+                      <span>{s().progress_pct}%</span>
+                    </div>
+                    <div class="training-progress-copy">
+                      <strong>
+                        {s().current_step.toLocaleString()} /{" "}
+                        {s().total_steps.toLocaleString()} steps
+                      </strong>
+                      <span>
+                        {etaHours() ? `About ${etaHours()}h remaining` : "Latest packaged run"}
+                      </span>
+                    </div>
+                    <div class="training-progress-track">
+                      <span style={{ width: progressWidth() }} />
+                    </div>
+                  </aside>
+                </section>
+
+                <Show when={isOffline()}>
+                  <div class="training-offline-banner">
+                    Showing a packaged local snapshot because the live training
+                    backend is not reachable in this environment.
+                  </div>
+                </Show>
+
+                <section class="training-metric-grid" aria-label="Current metrics">
+                  <MetricCard
+                    label="Train NLL"
+                    value={formatMetric(latest().train?.nll, 4)}
+                    sub={latest().train ? `Step ${latest().train.step.toLocaleString()}` : "No train metric"}
+                    trend={trainTrend()}
+                  />
+                  <MetricCard
+                    label="Validation NLL"
+                    value={formatMetric(latest().val?.validation_mean_nll, 4)}
+                    sub={latest().val ? `Step ${latest().val.step.toLocaleString()}` : "No validation metric"}
+                    tone="gold"
+                  />
+                  <MetricCard
+                    label="chrF++"
+                    value={formatMetric(latest().gen?.gen_eval_chrf_pp, 1)}
+                    sub={latest().gen ? `Step ${latest().gen.step.toLocaleString()}` : "First eval pending"}
+                  />
+                  <MetricCard
+                    label="BLEU"
+                    value={formatMetric(latest().gen?.gen_eval_bleu, 1)}
+                    sub={exactMatchLabel() || "Exact match pending"}
+                    tone="red"
+                  />
+                </section>
+
+                <section class="training-status-grid">
+                  <InfoTile label="Last updated" value={formatUpdated(s().updated_at)} />
+                  <InfoTile
+                    label="Checkpoint"
+                    value={
+                      latestCheckpoint()
+                        ? `${latestCheckpoint()!.label || "Checkpoint"} at ${Number(latestCheckpoint()!.step || 0).toLocaleString()}`
+                        : "No checkpoint yet"
+                    }
+                  />
+                  <InfoTile label="Sampler step" value={s().sampler_step || "Not set"} />
+                </section>
+
+                <TrainingPanel
+                  eyebrow="Loss curve"
+                  title="Training is moving in the right direction"
+                  action={
+                    <div class="training-legend" aria-label="Chart legend">
+                      <span><i class="is-train" /> Train</span>
+                      <span><i class="is-val" /> Validation</span>
+                    </div>
                   }
                 >
-                  <table class="w-full text-[12px]">
-                    <thead>
-                      <tr class="text-[var(--color-text-muted)]">
-                        <th class="text-left py-2 font-normal">Step</th>
-                        <th class="text-right py-2 font-normal">chrF++</th>
-                        <th class="text-right py-2 font-normal">BLEU</th>
-                        <th class="text-right py-2 font-normal">Exact</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <For each={genEvalMetrics().slice().reverse()}>
-                        {(m: any, idx) => (
-                          <tr class={`border-t border-[var(--color-border)] ${idx() === 0 ? "text-[var(--color-text)]" : "text-[var(--color-text-secondary)]"}`}>
-                            <td class="py-2.5 tabular">{m.step.toLocaleString()}</td>
-                            <td class="py-2.5 text-right tabular">{m.gen_eval_chrf_pp?.toFixed(1)}</td>
-                            <td class="py-2.5 text-right tabular">{m.gen_eval_bleu?.toFixed(1)}</td>
-                            <td class="py-2.5 text-right tabular">{(m.gen_eval_exact_match * 100).toFixed(1)}%</td>
-                          </tr>
+                  <Show
+                    when={trainMetrics().length > 5}
+                    fallback={<EmptyPanel text="Loss history will appear after the first few train metrics arrive." />}
+                  >
+                    <LossChart data={trainMetrics()} valData={valMetrics()} />
+                  </Show>
+                </TrainingPanel>
+
+                <div class="training-two-column">
+                  <TrainingPanel
+                    eyebrow="Dataset"
+                    title="What the model is learning from"
+                    meta={
+                      s().mix_stats?.train?.count
+                        ? `${s().mix_stats.train.count.toLocaleString()} examples`
+                        : undefined
+                    }
+                  >
+                    <Show
+                      when={sourceMix().length > 0}
+                      fallback={<EmptyPanel text="Dataset composition is not available for this run yet." />}
+                    >
+                      <div class="training-bars">
+                        <For each={sourceMix()}>
+                          {(item) => (
+                            <div class="training-bar-row">
+                              <div>
+                                <strong>{humanize(item.source)}</strong>
+                                <span>{formatCount(item.count)}</span>
+                              </div>
+                              <div class="training-bar-track">
+                                <span
+                                  style={{
+                                    width: `${Math.max(2, item.pct)}%`,
+                                    background: sourceColor(item.source),
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </For>
+                      </div>
+                    </Show>
+                  </TrainingPanel>
+
+                  <TrainingPanel eyebrow="Evaluations" title="Generation quality">
+                    <Show
+                      when={genEvalMetrics().length > 0}
+                      fallback={<EmptyPanel text="Generation evals start after the first scheduled eval step." />}
+                    >
+                      <div class="training-table-wrap">
+                        <table class="training-table">
+                          <thead>
+                            <tr>
+                              <th>Step</th>
+                              <th>chrF++</th>
+                              <th>BLEU</th>
+                              <th>Exact</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <For each={genEvalMetrics().slice().reverse().slice(0, 6)}>
+                              {(metric: any, idx) => (
+                                <tr class={idx() === 0 ? "is-latest" : ""}>
+                                  <td>{metric.step.toLocaleString()}</td>
+                                  <td>{formatMetric(metric.gen_eval_chrf_pp, 1)}</td>
+                                  <td>{formatMetric(metric.gen_eval_bleu, 1)}</td>
+                                  <td>{formatPercent(metric.gen_eval_exact_match)}</td>
+                                </tr>
+                              )}
+                            </For>
+                          </tbody>
+                        </table>
+                      </div>
+                    </Show>
+                  </TrainingPanel>
+                </div>
+
+                <Show when={taskFamilies().length > 0}>
+                  <TrainingPanel eyebrow="Coverage" title="Task families">
+                    <div class="training-task-grid">
+                      <For each={taskFamilies()}>
+                        {(item) => (
+                          <div class="training-task-tile">
+                            <strong>{formatCount(item.count)}</strong>
+                            <span>{humanize(item.family)}</span>
+                          </div>
                         )}
                       </For>
-                    </tbody>
-                  </table>
+                    </div>
+                  </TrainingPanel>
                 </Show>
-              </Card>
-            </div>
 
-            {/* Task families */}
-            <Show when={stats()!.mix_stats?.train?.by_task_family}>
-              <Card>
-                <span class="text-[13px] font-medium text-[var(--color-text)] block mb-5">Task families</span>
-                <div class="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-4">
-                  <For each={Object.entries(stats()!.mix_stats.train.by_task_family || {}).sort((a, b) => (b[1] as number) - (a[1] as number))}>
-                    {([family, count]) => (
-                      <div>
-                        <div class="text-[16px] font-semibold tabular text-[var(--color-text)]">{formatCount(count as number)}</div>
-                        <div class="text-[11px] text-[var(--color-text-muted)] capitalize mt-0.5">{family}</div>
-                      </div>
-                    )}
-                  </For>
-                </div>
-              </Card>
-            </Show>
-
-            {/* Footer */}
-            <div class="text-center py-4 text-[11px] text-[var(--color-text-muted)]">
-              Tuvalu mo te Atua — Te gagana o Tuvalu
-            </div>
-
-          </div>
+                <footer class="training-footer">
+                  Tuvalu mo te Atua - Te gagana o Tuvalu
+                </footer>
+              </div>
+            </main>
+          )}
         </Show>
       </div>
     </>
   );
 }
 
-
-function Card(props: { children: any }) {
+function TrainingSkeleton() {
   return (
-    <div class="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-lg p-5">
-      {props.children}
-    </div>
+    <main class="training-main">
+      <div class="training-main__inner">
+        <div class="training-skeleton">
+          <span />
+          <span />
+          <span />
+        </div>
+      </div>
+    </main>
   );
 }
 
+function TrainingPanel(props: {
+  eyebrow: string;
+  title: string;
+  meta?: string;
+  action?: any;
+  children: any;
+}) {
+  return (
+    <section class="training-panel">
+      <div class="training-panel__head">
+        <div>
+          <p>{props.eyebrow}</p>
+          <h3>{props.title}</h3>
+          <Show when={props.meta}>
+            <span>{props.meta}</span>
+          </Show>
+        </div>
+        <div class="training-panel__action">{props.action}</div>
+      </div>
+      {props.children}
+    </section>
+  );
+}
 
-function Metric(props: {
+function MetricCard(props: {
   label: string;
   value: string;
   sub?: string;
+  tone?: "blue" | "gold" | "red";
   trend?: { direction: string; delta: string } | null;
 }) {
   return (
-    <div class="bg-[var(--color-surface)] p-4">
-      <div class="text-[11px] text-[var(--color-text-muted)] mb-2">{props.label}</div>
-      <div class="flex items-baseline gap-2">
-        <span class="text-[22px] font-semibold tabular tracking-tight">{props.value}</span>
+    <article class={`training-metric-card training-metric-card--${props.tone || "blue"}`}>
+      <span>{props.label}</span>
+      <div>
+        <strong>{props.value}</strong>
         <Show when={props.trend}>
-          <span class={`text-[11px] tabular ${props.trend?.direction === "down" ? "text-[var(--color-accent)]" : "text-[#f87171]"}`}>
-            {props.trend?.direction === "down" ? "↓" : "↑"}{Math.abs(parseFloat(props.trend?.delta || "0"))}%
-          </span>
+          <em class={props.trend?.direction === "down" ? "is-good" : "is-up"}>
+            {props.trend?.direction === "down" ? "down" : "up"}{" "}
+            {Math.abs(parseFloat(props.trend?.delta || "0"))}%
+          </em>
         </Show>
       </div>
-      <Show when={props.sub}>
-        <div class="text-[11px] text-[var(--color-text-muted)] mt-1 tabular">{props.sub}</div>
-      </Show>
+      <p>{props.sub}</p>
+    </article>
+  );
+}
+
+function InfoTile(props: { label: string; value: string }) {
+  return (
+    <div class="training-info-tile">
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
     </div>
   );
 }
 
+function EmptyPanel(props: { text: string }) {
+  return <div class="training-empty">{props.text}</div>;
+}
 
 function LossChart(props: { data: any[]; valData: any[] }) {
   const width = 880;
-  const height = 200;
-  const pad = { t: 12, r: 12, b: 28, l: 48 };
+  const height = 240;
+  const pad = { t: 18, r: 16, b: 34, l: 48 };
   const chartW = width - pad.l - pad.r;
   const chartH = height - pad.t - pad.b;
 
   const paths = createMemo(() => {
-    const d = props.data;
-    if (d.length < 2) return { train: "", val: "", area: "", xLabels: [], yLabels: [] };
+    const trainData = props.data;
+    if (trainData.length < 2) return { train: "", val: "", area: "", xLabels: [], yLabels: [] };
 
-    const maxStep = d[d.length - 1].step;
-    const minStep = d[0].step;
-    const allNll = d.map((m: any) => m.nll);
+    const allSteps = [
+      ...trainData.map((m: any) => m.step),
+      ...props.valData.map((m: any) => m.step),
+    ];
+    const minStep = Math.min(...allSteps);
+    const maxStep = Math.max(...allSteps);
+    const allNll = [
+      ...trainData.map((m: any) => m.nll),
+      ...props.valData.map((m: any) => m.validation_mean_nll),
+    ].filter((value) => Number.isFinite(value));
     const maxNll = Math.max(...allNll);
-    const minNll = Math.min(...allNll) * 0.95;
+    const minNll = Math.min(...allNll) * 0.94;
     const range = maxNll - minNll || 1;
 
-    const sx = (s: number) => pad.l + ((s - minStep) / (maxStep - minStep || 1)) * chartW;
-    const sy = (v: number) => pad.t + (1 - (v - minNll) / range) * chartH;
+    const sx = (step: number) => pad.l + ((step - minStep) / (maxStep - minStep || 1)) * chartW;
+    const sy = (value: number) => pad.t + (1 - (value - minNll) / range) * chartH;
 
-    const step = Math.max(1, Math.floor(d.length / 300));
-    const sampled = d.filter((_: any, i: number) => i % step === 0 || i === d.length - 1);
+    const sampleStep = Math.max(1, Math.floor(trainData.length / 260));
+    const sampled = trainData.filter(
+      (_: any, index: number) => index % sampleStep === 0 || index === trainData.length - 1
+    );
 
     const train = sampled
-      .map((m: any, i: number) => `${i === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.nll).toFixed(1)}`)
+      .map((m: any, index: number) => `${index === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.nll).toFixed(1)}`)
       .join(" ");
 
-    const area = train + ` L${sx(sampled[sampled.length - 1].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} L${sx(sampled[0].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} Z`;
+    const area =
+      `${train} L${sx(sampled[sampled.length - 1].step).toFixed(1)},${(pad.t + chartH).toFixed(1)}` +
+      ` L${sx(sampled[0].step).toFixed(1)},${(pad.t + chartH).toFixed(1)} Z`;
 
     const val = props.valData.length > 1
       ? props.valData
-          .map((m: any, i: number) => `${i === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.validation_mean_nll).toFixed(1)}`)
+          .map((m: any, index: number) =>
+            `${index === 0 ? "M" : "L"}${sx(m.step).toFixed(1)},${sy(m.validation_mean_nll).toFixed(1)}`
+          )
           .join(" ")
       : "";
 
-    const xCount = 5;
-    const xLabels = Array.from({ length: xCount }, (_, i) => {
-      const s = minStep + ((maxStep - minStep) * i) / (xCount - 1);
-      return { x: sx(s), label: Math.round(s).toLocaleString() };
+    const xLabels = Array.from({ length: 5 }, (_, index) => {
+      const step = minStep + ((maxStep - minStep) * index) / 4;
+      return { x: sx(step), label: Math.round(step).toLocaleString() };
     });
 
-    const yCount = 4;
-    const yLabels = Array.from({ length: yCount }, (_, i) => {
-      const v = minNll + (range * i) / (yCount - 1);
-      return { y: sy(v), label: v.toFixed(2) };
+    const yLabels = Array.from({ length: 4 }, (_, index) => {
+      const value = minNll + (range * index) / 3;
+      return { y: sy(value), label: value.toFixed(2) };
     });
 
     return { train, val, area, xLabels, yLabels };
   });
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} class="w-full" style={{ "max-height": "240px" }}>
+    <svg viewBox={`0 0 ${width} ${height}`} class="training-chart" role="img" aria-label="Training and validation loss chart">
       <defs>
-        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#2ec4b6" stop-opacity="0.12" />
-          <stop offset="100%" stop-color="#2ec4b6" stop-opacity="0" />
+        <linearGradient id="trainingLossArea" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#75d6f4" stop-opacity="0.2" />
+          <stop offset="100%" stop-color="#75d6f4" stop-opacity="0" />
         </linearGradient>
       </defs>
 
-      {/* Grid lines */}
       <For each={paths().yLabels}>
         {(yl) => (
           <>
-            <line x1={pad.l} x2={width - pad.r} y1={yl.y} y2={yl.y} stroke="rgba(255,255,255,0.04)" stroke-width="1" />
-            <text x={pad.l - 8} y={yl.y + 3.5} text-anchor="end" fill="rgba(255,255,255,0.3)" font-size="10" font-family="system-ui, sans-serif">{yl.label}</text>
+            <line x1={pad.l} x2={width - pad.r} y1={yl.y} y2={yl.y} class="training-chart__grid" />
+            <text x={pad.l - 9} y={yl.y + 4} text-anchor="end" class="training-chart__label">
+              {yl.label}
+            </text>
           </>
         )}
       </For>
       <For each={paths().xLabels}>
         {(xl) => (
-          <text x={xl.x} y={height - 6} text-anchor="middle" fill="rgba(255,255,255,0.3)" font-size="10" font-family="system-ui, sans-serif">{xl.label}</text>
+          <text x={xl.x} y={height - 8} text-anchor="middle" class="training-chart__label">
+            {xl.label}
+          </text>
         )}
       </For>
 
-      {/* Area */}
       <Show when={paths().area}>
-        <path d={paths().area} fill="url(#areaFill)" />
+        <path d={paths().area} fill="url(#trainingLossArea)" />
       </Show>
-
-      {/* Train */}
       <Show when={paths().train}>
-        <path d={paths().train} fill="none" stroke="#2ec4b6" stroke-width="1.5" />
+        <path d={paths().train} class="training-chart__train" />
       </Show>
-
-      {/* Val */}
       <Show when={paths().val}>
-        <path d={paths().val} fill="none" stroke="#f0c674" stroke-width="1.5" stroke-opacity="0.6" stroke-dasharray="4,3" />
+        <path d={paths().val} class="training-chart__val" />
       </Show>
     </svg>
   );
 }
 
-
 function sourceColor(source: string): string {
   const colors: Record<string, string> = {
-    english: "#60a5fa",
-    synthetic_tvl: "#34d399",
-    crosslingual: "#2ec4b6",
-    anchor: "#f0c674",
-    real_tvl_chat: "#f87171",
+    anchor: "#061b35",
+    crosslingual: "#00a7d8",
+    english: "#ffc400",
+    real_tvl_chat: "#c83b32",
+    synthetic_tvl: "#75d6f4",
   };
-  return colors[source] || "rgba(255,255,255,0.3)";
+  return colors[source] || "#607585";
 }
 
+function formatMetric(value: number | undefined | null, digits: number): string {
+  return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "-";
+}
+
+function formatPercent(value: number | undefined | null): string {
+  return typeof value === "number" && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "-";
+}
 
 function formatCount(n: number): string {
   if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
-  if (n >= 1000) return `${(n / 1000).toFixed(0)}K`;
+  if (n >= 1000) return `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K`;
   return n.toString();
+}
+
+function humanize(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
+function formatUpdated(value?: string): string {
+  if (!value) return "Recent snapshot";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Recent snapshot";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }

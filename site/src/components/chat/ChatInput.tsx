@@ -5,6 +5,14 @@ export default function ChatInput(props: {
   disabled: boolean;
 }) {
   const [text, setText] = createSignal("");
+  let inputRef: HTMLTextAreaElement | undefined;
+
+  const resizeInput = () => {
+    if (!inputRef) return;
+    inputRef.style.height = "0px";
+    inputRef.style.height = `${Math.min(inputRef.scrollHeight, 190)}px`;
+    inputRef.style.overflowY = inputRef.scrollHeight > 190 ? "auto" : "hidden";
+  };
 
   const handleSubmit = (e: Event) => {
     e.preventDefault();
@@ -12,6 +20,7 @@ export default function ChatInput(props: {
     if (!t || props.disabled) return;
     props.onSend(t);
     setText("");
+    requestAnimationFrame(resizeInput);
   };
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -22,36 +31,37 @@ export default function ChatInput(props: {
   };
 
   return (
-    <div class="pb-5 pt-3 px-4">
+    <div class="chat-input-wrap">
       <form
         onSubmit={handleSubmit}
-        class="max-w-3xl mx-auto relative"
+        class="chat-input-form"
       >
         <label for="chat-input" class="sr-only">Message</label>
         <textarea
+          ref={inputRef}
           id="chat-input"
           value={text()}
-          onInput={(e) => setText(e.currentTarget.value)}
+          onInput={(e) => {
+            setText(e.currentTarget.value);
+            resizeInput();
+          }}
           onKeyDown={handleKeyDown}
-          placeholder="Message TVL Chat..."
+          placeholder="Ask in Tuvaluan or English"
           disabled={props.disabled}
           rows={1}
-          class="w-full bg-[var(--color-input-bg)] text-[var(--color-text)] rounded-xl pl-4 pr-12 py-3.5 text-[14px] resize-none focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]/40 border border-[var(--color-border)] placeholder:text-[var(--color-text-muted)] disabled:opacity-50"
+          class="chat-input"
         />
         <button
           type="submit"
           disabled={props.disabled || !text().trim()}
           aria-label="Send message"
-          class="absolute right-2.5 bottom-2.5 bg-[var(--color-accent)] text-[#080f1a] w-7 h-7 rounded-md flex items-center justify-center transition-opacity disabled:opacity-15 hover:brightness-110"
+          class="chat-send-button"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M3 13L13 8L3 3V7L9 8L3 9V13Z" fill="currentColor" />
           </svg>
         </button>
       </form>
-      <p class="text-center text-[11px] text-[var(--color-text-muted)] mt-2">
-        TVL Chat is an experimental bilingual Tuvaluan-English model currently in training.
-      </p>
     </div>
   );
 }

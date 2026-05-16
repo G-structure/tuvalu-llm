@@ -27,7 +27,7 @@ export default function SearchPage() {
   const results = createAsync(() => loadSearch(q()));
 
   return (
-    <main class="max-w-3xl mx-auto pb-16 px-4">
+    <main class="site-page lagoon-subpage search-dashboard-page">
       <OGMeta
         title="Search Football News"
         description="Search football articles in Tuvaluan and English"
@@ -42,55 +42,79 @@ export default function SearchPage() {
         robots={NOINDEX_ROBOTS}
       />
 
-      <div class="pt-6 pb-4">
-        <h1 class="text-xl font-bold text-gray-900">Saili (Search)</h1>
-      </div>
-
-      {/* Search form */}
-      <form action="/search" method="get" class="mb-6" role="search">
-        <div class="flex gap-2">
-          <label for="search-input" class="sr-only">Search articles</label>
-          <input
-            id="search-input"
-            type="search"
-            name="q"
-            value={q()}
-            maxLength={200}
-            placeholder="Saili tala... (Search articles)"
-            class="flex-1 px-4 py-3 border border-[var(--sky-dark)] rounded-lg text-sm bg-white focus:outline-none focus:border-[var(--ocean-bright)]"
-          />
-          <button
-            type="submit"
-            class="px-5 py-3 bg-[var(--ocean-deep)] text-white rounded-lg text-sm font-medium cursor-pointer border-none hover:bg-[var(--ocean)] transition-colors"
-          >
-            Saili
-          </button>
-        </div>
-      </form>
-
-      {/* Results */}
-      <Show when={q().length >= 2}>
-        <Show
-          when={results() && results()!.length > 0}
-          fallback={
-            <div class="p-8 text-center text-gray-400">
-              <p class="text-lg font-medium">Seki kitea</p>
-              <p class="mt-2 text-sm">
-                No results for "{q()}"
-              </p>
-            </div>
-          }
-        >
-          <p class="text-sm text-gray-500 mb-4">
-            {results()!.length} tala ne kitea (results found)
-          </p>
-          <div class="divide-y divide-gray-100">
-            <For each={results()!}>
-              {(article) => <ArticleCard article={article} />}
-            </For>
+      <section class="site-hero site-hero--compact lagoon-subhero">
+        <div class="site-shell site-shell--wide lagoon-subhero__grid">
+          <div>
+            <p class="site-kicker">Saili</p>
+            <h1 class="site-title">Search the Tuvaluan football wire.</h1>
+            <p class="site-lede">
+              Find stories, sources, names, and translated football phrases across
+              the Talafutipolo archive.
+            </p>
           </div>
+          <aside class="lagoon-subhero__panel">
+            <span>Archive mode</span>
+            <strong>TVL</strong>
+            <em>Tuvaluan-first search</em>
+          </aside>
+        </div>
+      </section>
+
+      <div class="site-shell site-shell--wide search-dashboard">
+        {/* Search form */}
+        <section class="search-console">
+          <form action="/search" method="get" class="search-form" role="search">
+            <label for="search-input" class="sr-only">Search articles</label>
+            <input
+              id="search-input"
+              type="search"
+              name="q"
+              value={q()}
+              maxLength={200}
+              placeholder="Saili tala... (Search articles)"
+              class="search-form__input"
+            />
+            <button
+              type="submit"
+              class="site-button site-button--primary search-form__button"
+            >
+              Saili
+            </button>
+          </form>
+          <div class="search-console__chips" aria-label="Suggested searches">
+            <A href="/search?q=world%20cup">World Cup</A>
+            <A href="/search?q=tuvalu">Tuvalu</A>
+            <A href="/search?q=training">Training</A>
+          </div>
+        </section>
+
+        {/* Results */}
+        <Show when={q().length >= 2}>
+          <Show
+            when={results() && results()!.length > 0}
+            fallback={
+              <div class="site-empty">
+                <strong>Seki kitea</strong>
+                <span>No results for "{q()}"</span>
+              </div>
+            }
+          >
+            <div class="site-section-head search-results-head">
+              <div>
+                <p class="site-kicker">Results</p>
+                <h2 class="site-section-title">
+                  {results()!.length} tala ne kitea
+                </h2>
+              </div>
+            </div>
+            <div class="home-card-grid search-results-grid">
+              <For each={results()!}>
+                {(article) => <ArticleCard article={article} tile />}
+              </For>
+            </div>
+          </Show>
         </Show>
-      </Show>
+      </div>
     </main>
   );
 }

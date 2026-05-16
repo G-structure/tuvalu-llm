@@ -1,22 +1,28 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { hasDb, getTrainingMetrics, getTrainingConfig, getLatestMetric } from "~/lib/chat-db";
+import { offlineTrainingStats } from "~/lib/training-snapshot";
 
 const BACKEND_URL = process.env.CHAT_BACKEND_URL || "http://localhost:8787";
 const DEFAULT_RUN_ID = "stage_b_llama8b";
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
 export async function GET(_event: APIEvent) {
   // If D1 is not available (local dev), proxy to Python backend
   if (!hasDb()) {
     try {
       const resp = await fetch(`${BACKEND_URL}/api/training-stats`);
+      if (!resp.ok) return json(offlineTrainingStats("Backend unavailable"));
       return new Response(resp.body, {
         headers: { "Content-Type": "application/json" },
       });
     } catch {
-      return new Response(JSON.stringify({ error: "Backend unavailable" }), {
-        status: 503,
-        headers: { "Content-Type": "application/json" },
-      });
+      return json(offlineTrainingStats("Backend unavailable"));
     }
   }
 
@@ -39,6 +45,10 @@ export async function GET(_event: APIEvent) {
       };
     });
 
+    if (metrics.length === 0) {
+      return json(offlineTrainingStats("Training data unavailable"));
+    }
+
     const currentStep = latestTrain ? latestTrain.step : 0;
     const totalSteps = runInfo?.total_steps ?? 0;
     const progressPct =
@@ -54,15 +64,11 @@ export async function GET(_event: APIEvent) {
       model_name: runInfo?.model_name ?? "",
       sampler_path: runInfo?.sampler_path ?? "",
       sampler_step: runInfo?.sampler_step ?? "",
+      status: "training",
     };
 
-    return new Response(JSON.stringify(result), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return json(result);
   } catch (e: any) {
-    return new Response(
-      JSON.stringify({ error: e.message || "D1 query failed" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+    return json(offlineTrainingStats(e.message || "D1 query failed"));
   }
 }

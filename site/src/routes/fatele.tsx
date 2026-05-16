@@ -33,7 +33,7 @@ export default function FatelePage() {
   const maxModeCount = () => Math.max(1, ...modePrefs().map((d) => d.count), 1);
 
   return (
-    <main class="max-w-3xl mx-auto pb-16 px-4">
+    <main class="site-page lagoon-subpage community-dashboard-page">
       <OGMeta
         title="Kominiti"
         description="Community dashboard — help translate football news into Tuvaluan"
@@ -47,129 +47,159 @@ export default function FatelePage() {
         titleSuffix={FOOTBALL_META.productName}
       />
 
-      <div class="pt-6 pb-4 text-center">
-        <h1 class="text-2xl font-bold text-gray-900">Kominiti</h1>
-        <p class="mt-1 text-sm text-gray-500">
-          Te galuega a te kominiti — Community effort
-        </p>
-      </div>
-
-      {/* Hero stat */}
-      <Show when={stats()}>
-        {(s) => (
-          <div class="bg-[var(--ocean-deep)] text-white rounded-xl p-6 mb-6">
-            <div class="text-center">
-              <div class="text-4xl font-bold text-[var(--gold)]">{s().total_this_month}</div>
-              <div class="text-sm text-[var(--sky-dark)] mt-1">
-                fakailoga i te masina nei (signals this month)
-              </div>
-            </div>
-
-            <div class="mt-5 grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div class="rounded-xl bg-white/10 p-3 text-center">
-                <div class="text-xl font-bold">{s().article_feedback_count}</div>
-                <div class="mt-1 text-xs text-[var(--sky-dark)]">
-                  coach notes
-                </div>
-              </div>
-              <div class="rounded-xl bg-white/10 p-3 text-center">
-                <div class="text-xl font-bold">{s().corrections_count}</div>
-                <div class="mt-1 text-xs text-[var(--sky-dark)]">
-                  corrections
-                </div>
-              </div>
-              <div class="rounded-xl bg-white/10 p-3 text-center">
-                <div class="text-xl font-bold">{s().helpful_yes}</div>
-                <div class="mt-1 text-xs text-[var(--sky-dark)]">
-                  helpful votes
-                </div>
-              </div>
-              <div class="rounded-xl bg-white/10 p-3 text-center">
-                <div class="text-xl font-bold">{s().helpful_no}</div>
-                <div class="mt-1 text-xs text-[var(--sky-dark)]">
-                  needs-work votes
-                </div>
-              </div>
-            </div>
+      <section class="site-hero site-hero--compact lagoon-subhero">
+        <div class="site-shell site-shell--wide lagoon-subhero__grid">
+          <div>
+            <p class="site-kicker">Kominiti</p>
+            <h1 class="site-title">Kominiti signal room.</h1>
+            <p class="site-lede">
+              Real reading notes from across the islands, shaped into
+              translation data that can help Fenua sound more natural in
+              Tuvaluan and English.
+            </p>
           </div>
-        )}
-      </Show>
+          <Show when={stats()}>
+            {(s) => (
+              <aside class="lagoon-subhero__panel">
+                <span>This month</span>
+                <strong>{s().total_this_month}</strong>
+                <em>community signals</em>
+              </aside>
+            )}
+          </Show>
+        </div>
+      </section>
 
-      <div class="grid gap-6 md:grid-cols-2">
-        <section>
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
-            Island Participation
-          </h2>
-          <div class="space-y-3">
-            <For each={islandData()}>
-              {(d) => (
-                <div>
-                  <div class="flex justify-between text-sm mb-1">
-                    <span class="font-medium text-gray-700">{d.island}</span>
-                    <span class="text-gray-400">{d.count}</span>
-                  </div>
-                  <div class="h-3 bg-[var(--sky-dark)] rounded-full overflow-hidden">
-                    <div
-                      class="h-full bg-[var(--gold)] rounded-full transition-all duration-500"
-                      style={{ width: `${(d.count / maxCount()) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </For>
-          </div>
-        </section>
-
-        <section>
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 mb-3">
-            Reading Mode Preference
-          </h2>
-          <Show
-            when={modePrefs().length > 0}
-            fallback={
-              <div class="rounded-xl border border-[var(--sky-dark)] bg-white p-4 text-sm text-gray-500">
-                No mode votes yet. Open any article and submit a coaching note.
+      <div class="site-shell site-shell--wide community-dashboard-shell">
+        <Show when={stats()}>
+          {(s) => (
+            <section class="community-overview">
+              <div class="community-overview__copy">
+                <p class="site-kicker">This month</p>
+                <h2>{s().total_this_month} signals collected</h2>
+                <p>
+                  Each vote, note, and correction becomes a reusable review
+                  item for improving Tuvaluan translations.
+                </p>
               </div>
-            }
-          >
-            <div class="space-y-3">
-              <For each={modePrefs()}>
+
+              <div class="community-metrics" aria-label="Community signal counts">
+                <div class="community-metric">
+                  <strong>{s().article_feedback_count}</strong>
+                  <span>coach notes</span>
+                </div>
+                <div class="community-metric">
+                  <strong>{s().corrections_count}</strong>
+                  <span>corrections</span>
+                </div>
+                <div class="community-metric">
+                  <strong>{s().helpful_yes}</strong>
+                  <span>helpful votes</span>
+                </div>
+                <div class="community-metric">
+                  <strong>{s().helpful_no}</strong>
+                  <span>needs-work votes</span>
+                </div>
+              </div>
+            </section>
+          )}
+        </Show>
+
+        <div class="community-grid">
+          <section class="community-panel">
+            <div class="community-panel__head">
+              <div>
+                <p class="site-kicker">Participation</p>
+                <h2>Island signals</h2>
+              </div>
+              <span>{ISLANDS.length} islands</span>
+            </div>
+            <div class="community-bars">
+              <For each={islandData()}>
                 {(d) => (
-                  <div>
-                    <div class="flex justify-between text-sm mb-1">
-                      <span class="font-medium text-gray-700">{d.mode}</span>
-                      <span class="text-gray-400">{d.count}</span>
+                  <div class="community-bar-row">
+                    <div>
+                      <span>{d.island}</span>
+                      <span>{d.count}</span>
                     </div>
-                    <div class="h-3 bg-[var(--sky-dark)] rounded-full overflow-hidden">
+                    <div class="community-bar">
                       <div
-                        class="h-full bg-[var(--ocean-bright)] rounded-full transition-all duration-500"
-                        style={{ width: `${(d.count / maxModeCount()) * 100}%` }}
+                        class="community-bar__fill community-bar__fill--gold"
+                        style={{ width: `${(d.count / maxCount()) * 100}%` }}
                       />
                     </div>
                   </div>
                 )}
               </For>
             </div>
-          </Show>
-        </section>
-      </div>
+          </section>
 
-      {/* Help text */}
-      <div class="mt-8 p-4 bg-white rounded-xl text-sm text-gray-600 leading-relaxed border border-[var(--sky-dark)]">
-        <p class="font-medium text-gray-900 mb-2">Pefea e fesoasoani ai?</p>
-        <p>
-          Faitau tala i te gagana Tuvalu. Kapiti te 👍🏾 pe afai e tonu te
-          kupu, pe te 👎🏾 pe afai e seki tonu. Fakasoa mai te auala faitau
-          telā e fesoasoani atu malosi, kae tusi mai se fakaleiga fou māfai e
-          isi sau manatu. Tou fakailoga e fesoasoani ki te fakalelei o te
-          masini liliu.
-        </p>
-        <p class="mt-2 text-gray-400">
-          Read articles in Tuvaluan. Tap 👍🏾 if a translation sounds good, or
-          👎🏾 if it sounds wrong. Then submit a coaching note with your
-          preferred reading mode and optional correction. These signals can be
-          exported later for preference tuning and correction review.
-        </p>
+          <section class="community-panel">
+            <div class="community-panel__head">
+              <div>
+                <p class="site-kicker">Reading</p>
+                <h2>Mode preference</h2>
+              </div>
+              <span>TV / EN</span>
+            </div>
+            <Show
+              when={modePrefs().length > 0}
+              fallback={
+                <div class="community-empty">
+                  No mode votes yet. Open any article and submit a coaching note.
+                </div>
+              }
+            >
+              <div class="community-bars community-bars--mode">
+                <For each={modePrefs()}>
+                  {(d) => (
+                    <div class="community-bar-row">
+                      <div>
+                        <span>{d.mode}</span>
+                        <span>{d.count}</span>
+                      </div>
+                      <div class="community-bar">
+                        <div
+                          class="community-bar__fill"
+                          style={{ width: `${(d.count / maxModeCount()) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+
+            <div class="community-data-card">
+              <span>Training value</span>
+              <strong>Preference + correction review</strong>
+              <p>
+                These signals can be exported as supervised corrections and
+                ranking examples for future tuning.
+              </p>
+            </div>
+          </section>
+        </div>
+
+        <section class="community-help">
+          <div>
+            <p class="site-kicker">How to help</p>
+            <h2>Pefea e fesoasoani ai?</h2>
+          </div>
+          <div class="community-help__grid">
+            <p>
+              Faitau tala i te gagana Tuvalu. Togi se vote māfai e tonu te
+              kupu, pe fakailoa mai māfai e seki tonu. Tusi mai se fakaleiga
+              fou māfai e isi sau manatu.
+            </p>
+            <p>
+              Read articles in Tuvaluan, vote on whether a translation sounds
+              right, and leave a short correction when it needs work. The
+              dashboard turns that community knowledge into training-ready
+              review data.
+            </p>
+          </div>
+        </section>
       </div>
     </main>
   );

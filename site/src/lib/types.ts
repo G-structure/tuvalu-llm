@@ -88,8 +88,10 @@ export type Island = (typeof ISLANDS)[number];
 
 // Chat types
 export interface Message {
+  id?: string;
   role: "user" | "assistant" | "system";
   content: string;
+  created_at?: string;
 }
 
 export interface ChatRequest {

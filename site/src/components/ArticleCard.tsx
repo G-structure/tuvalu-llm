@@ -1,10 +1,12 @@
 import { A } from "@solidjs/router";
 import type { Article } from "~/lib/types";
 import { timeAgo } from "~/lib/time";
+import { FOOTBALL_META } from "~/lib/site";
 
 interface ArticleCardProps {
   article: Article;
   hero?: boolean;
+  tile?: boolean;
 }
 
 export default function ArticleCard(props: ArticleCardProps) {
@@ -21,38 +23,86 @@ export default function ArticleCard(props: ArticleCardProps) {
     };
     return map[props.article.source_id] || props.article.source_id;
   };
+  const categoryLabel = () => (props.article.category || "Talafuti").replace(/-/g, " ");
+  const hasImage = () => !!props.article.image_url;
+  const imageSrc = () => props.article.image_url || FOOTBALL_META.articleFallbackOgImage;
+  const imageAlt = () =>
+    props.article.image_alt ||
+    (hasImage() ? title() : FOOTBALL_META.articleFallbackImageAlt);
+  const imageWidth = () =>
+    props.article.image_width ||
+    (hasImage()
+      ? FOOTBALL_META.defaultOgImageWidth
+      : FOOTBALL_META.articleFallbackImageWidth);
+  const imageHeight = () =>
+    props.article.image_height ||
+    (hasImage()
+      ? FOOTBALL_META.defaultOgImageHeight
+      : FOOTBALL_META.articleFallbackImageHeight);
 
   if (props.hero) {
     return (
       <A
         href={`/articles/${props.article.id}`}
-        class="block rounded-xl overflow-hidden bg-white border border-[var(--sky-dark)] no-underline text-inherit hover:border-[var(--ocean-bright)] transition-colors"
+        class="article-card article-card--hero"
       >
-        {props.article.image_url && (
+        <div class="article-card__media article-card__media--hero">
           <img
-            src={props.article.image_url}
-            alt={props.article.image_alt || title()}
-            width={props.article.image_width || undefined}
-            height={props.article.image_height || undefined}
+            src={imageSrc()}
+            alt={imageAlt()}
+            width={imageWidth()}
+            height={imageHeight()}
             loading="eager"
             fetchpriority="high"
             decoding="async"
-            class="w-full h-48 sm:h-64 object-cover"
+            sizes="(max-width: 900px) 100vw, 56vw"
+            class="article-card__image"
           />
-        )}
-        <div class="p-4">
-          <h2 class="text-lg sm:text-xl font-bold text-gray-900 leading-snug">
+        </div>
+        <div class="article-card__body">
+          <div class="article-card__meta-row">
+            <span class="article-card__source">{sourceName()}</span>
+            <span>{ago()}</span>
+          </div>
+          <h2 class="article-card__title article-card__title--hero">
             {title()}
           </h2>
           {hasTranslation() && (
-            <p class="mt-1 text-sm text-gray-400 italic leading-snug line-clamp-2">
+            <p class="article-card__subtitle line-clamp-2">
               {titleEn()}
             </p>
           )}
-          <div class="mt-2 flex items-center gap-2 text-sm text-gray-500">
-            <span>{sourceName()}</span>
-            <span>&middot;</span>
+        </div>
+      </A>
+    );
+  }
+
+  if (props.tile) {
+    return (
+      <A
+        href={`/articles/${props.article.id}`}
+        class="article-card article-card--tile"
+      >
+        <div class="article-card__media article-card__media--tile">
+          <img
+            src={imageSrc()}
+            alt={imageAlt()}
+            width={imageWidth()}
+            height={imageHeight()}
+            loading="lazy"
+            decoding="async"
+            sizes="(max-width: 760px) 100vw, 25vw"
+            class="article-card__image"
+          />
+          <span class="article-card__badge">{categoryLabel()}</span>
+        </div>
+        <div class="article-card__body article-card__body--tile">
+          <h3 class="article-card__title line-clamp-2">
+            {title()}
+          </h3>
+          <div class="article-card__tile-foot">
             <span>{ago()}</span>
+            <span class="article-card__bookmark" aria-hidden="true" />
           </div>
         </div>
       </A>
@@ -62,33 +112,33 @@ export default function ArticleCard(props: ArticleCardProps) {
   return (
     <A
       href={`/articles/${props.article.id}`}
-      class="flex gap-3 p-3 rounded-lg bg-white no-underline text-inherit hover:bg-[var(--sky)] transition-colors"
+      class="article-card article-card--row"
     >
-      {props.article.image_url && (
+      <div class="article-card__media article-card__media--thumb">
         <img
-          src={props.article.image_url}
-          alt={props.article.image_alt || title()}
-          width={props.article.image_width || undefined}
-          height={props.article.image_height || undefined}
+          src={imageSrc()}
+          alt={imageAlt()}
+          width={imageWidth()}
+          height={imageHeight()}
           loading="lazy"
           decoding="async"
-          class="w-24 h-24 sm:w-28 sm:h-28 object-cover rounded-lg shrink-0"
+          sizes="(max-width: 520px) 100vw, 8.5rem"
+          class="article-card__image"
         />
-      )}
-      <div class="flex flex-col justify-center min-w-0">
-        <h3 class="text-base font-semibold text-gray-900 leading-snug line-clamp-3">
+      </div>
+      <div class="article-card__body article-card__body--row">
+        <div class="article-card__meta-row">
+          <span class="article-card__source">{sourceName()}</span>
+          <span>{ago()}</span>
+        </div>
+        <h3 class="article-card__title line-clamp-3">
           {title()}
         </h3>
         {hasTranslation() && (
-          <p class="mt-0.5 text-xs text-gray-400 italic line-clamp-1">
+          <p class="article-card__subtitle article-card__subtitle--row line-clamp-1">
             {titleEn()}
           </p>
         )}
-        <div class="mt-1 flex items-center gap-2 text-xs text-gray-500">
-          <span>{sourceName()}</span>
-          <span>&middot;</span>
-          <span>{ago()}</span>
-        </div>
       </div>
     </A>
   );
