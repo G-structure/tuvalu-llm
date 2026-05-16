@@ -5,7 +5,7 @@ import { Suspense, Show, onMount } from "solid-js";
 import { isServer } from "solid-js/web";
 import Header from "~/components/Header";
 import IslandSelector from "~/components/IslandSelector";
-import FateleTeaser from "~/components/FateleTeaser";
+import SiteFooter from "~/components/SiteFooter";
 import { registerServiceWorker } from "~/lib/register-sw";
 import { SITE_META } from "~/lib/site";
 import "./app.css";
@@ -73,9 +73,7 @@ function Shell(props: { children: any }) {
           <Suspense>
             {props.children}
           </Suspense>
-          <Show when={location.pathname !== "/fatele"}>
-            <FateleTeaser />
-          </Show>
+          <SiteFooter />
           <IslandSelector />
         </div>
       </Show>

@@ -387,7 +387,8 @@ export default function Training() {
                 </Show>
 
                 <footer class="training-footer">
-                  Tuvalu mo te Atua - Te gagana o Tuvalu
+                  Tuvalu mo te Atua - Te gagana o Tuvalu -{" "}
+                  <a href="/legal">Privacy and Terms</a>
                 </footer>
               </div>
             </main>

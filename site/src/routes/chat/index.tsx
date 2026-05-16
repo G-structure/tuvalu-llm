@@ -686,7 +686,8 @@ export default function Chat() {
               <span aria-hidden="true" />
               <p>
                 Chats stay on this device first. Sync stores JSON transcripts in
-                D1 so Fenua can learn from real Tuvaluan-English use.
+                D1 so Fenua can learn from real Tuvaluan-English use.{" "}
+                <a href="/legal#privacy">Privacy and Terms</a>
               </p>
             </div>
             <ChatInput

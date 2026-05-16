@@ -434,22 +434,3 @@ export async function getFateleStats(): Promise<FateleStats> {
     }[],
   };
 }
-
-// Lightweight version for the teaser bar — single query, no islands breakdown
-export async function getFateleTeaserCount(): Promise<number> {
-  const db = await getDb();
-  await ensureCommunitySchema(db);
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS cnt FROM (
-         SELECT created_at FROM implicit_signals
-         UNION ALL
-         SELECT created_at FROM feedback
-         UNION ALL
-         SELECT created_at FROM article_feedback_forms
-       )
-       WHERE created_at >= date('now', 'start of month')`
-    )
-    .first();
-  return (row as any)?.cnt ?? 0;
-}
