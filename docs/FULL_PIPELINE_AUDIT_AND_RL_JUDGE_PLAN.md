@@ -8,7 +8,8 @@ build and verify a specialized Tuvaluan system that can beat general frontier
 models and public Tuvaluan MT baselines on frozen, source-disjoint Tuvaluan task
 slices.
 
-Last updated: 2026-05-15.
+Last updated: 2026-05-15 (Phase 4.5 implementation status: harness
+substrate landed in sibling `rl-agent-work`; tuvalu adapter pending).
 
 ## Executive Summary
 
@@ -33,8 +34,13 @@ vNext path is:
 5. Expand Stage C as high-quality native steering data.
 6. Run the Codex subscription as a tool-using teacher (Phase 4.5) to generate
    native TVL chat, tool-call trajectories, and rejection-sampling candidates
-   that Stage A cannot produce. Route every output through the same judge
-   gates as any other synthetic row.
+   that Stage A cannot produce. The harness substrate (`DistillJobRunner`,
+   `passthrough_to_default`, JSONL sink) shipped in sibling `rl-agent-work`
+   on 2026-05-15 and is validated at 96 % accept on 25 MATH tasks via the
+   chatgpt subscription. Tuvalu still owes the `tv/data/codex/` adapter
+   (task builder, per-family verifiers, prompt templates, decontamination
+   second-pass). Route every output through the same judge gates as any
+   other synthetic row.
 7. Use GPT-5.5 as a RAG-backed offline judge to create calibrated preference
    pairs.
 8. Train preference-tuned models with DPO or ORPO before attempting heavier RL.
@@ -342,15 +348,34 @@ synthetic row before it is allowed into training.
 
 #### Architecture
 
-The codex harness already exists in this repo's wider workspace:
+The codex harness lives in the sibling `rl-agent-work` workspace and is
+already wired end to end:
 
-- [`src/codex-proxy`](../../src/codex-proxy/) — translates between the
-  OpenAI Responses API the CLI speaks and our trainable backend's token
-  interface; captures per-token logprobs and writes per-rollout trajectory
-  records. See `codex-training-proxy.md` and
-  `codex-harness-rl-training-landscape.md` for the design rationale and the
-  prior art survey.
-- [`vendor/ttt_discover/codex_runtime/`](../../vendor/ttt_discover/codex_runtime)
+- [`src/codex-proxy`](../../../rl-agent-work/src/codex-proxy/) —
+  translates between the OpenAI Responses API the Codex CLI speaks and
+  the trainable backend's token interface; captures per-token logprobs
+  and writes per-rollout trajectory records. See
+  [`codex-training-proxy.md`](../../../rl-agent-work/codex-training-proxy.md)
+  and
+  [`codex-harness-rl-training-landscape.md`](../../../rl-agent-work/codex-harness-rl-training-landscape.md)
+  for the design rationale and the prior art survey.
+- [`src/codex-control`](../../../rl-agent-work/src/codex-control/) —
+  async puppeteer for `codex app-server`. Spawns the codex subprocess,
+  starts threads, drives turns, captures structured `Turn` items
+  (`agentMessage`, `commandExecution`, `fileChange`, `mcpToolCall`,
+  `reasoning`, ...). This is what records the trajectory in
+  `harvest` mode without needing the proxy in the model-traffic path.
+- [`src/codex-orchestrate`](../../../rl-agent-work/src/codex-orchestrate/) —
+  the job dispatcher. Exposes
+  `codex_orchestrate.jobs.distill.DistillJobRunner`, the harvest
+  runner that wraps `codex-control` + a workspace verifier behind a
+  single `run_job(DistillJobSpec(...))` call. Already implements
+  Milestone C.1.b of `rl-agent-work/todo.md`: per-task rollout, gold-
+  threshold rejection filter, cost accounting via `settle_cost`,
+  per-task `traces.jsonl` sink under `spec.output_dir`. The Parquet
+  sink (C.2) is the longer-term home but JSONL is what landed first
+  and is sufficient for SFT consumption.
+- [`vendor/ttt_discover/codex_runtime/`](../../../rl-agent-work/vendor/ttt_discover/codex_runtime)
   — the reference `LoggingProxy` implementation the proxy is a port of.
 
 Three deployment modes:
@@ -530,6 +555,399 @@ Emit per-row:
 - subscription cost is within the budget declared in the manifest
 - a per-row replay is possible from `proxy_record_id` for at least 30 days
   after generation
+
+#### Implementation Status (2026-05-15)
+
+The harness-side substrate landed in `rl-agent-work` and was validated
+end-to-end against the OpenAI Codex subscription on a 25-task math
+smoke before integration with tuvalu-llm. What is shipped:
+
+| Piece | Where | Status |
+|---|---|---|
+| `OpenAIPassthroughBackend` (for proxy-in-path mode, future use) | `rl-agent-work/src/codex-proxy/src/codex_proxy/backends/openai_passthrough.py` | Shipped |
+| `DistillJobSpec` / `DistillOutcome` | `rl-agent-work/src/codex-orchestrate/src/codex_orchestrate/jobs/spec.py` | Shipped |
+| `DistillJobRunner.run()` | `rl-agent-work/src/codex-orchestrate/src/codex_orchestrate/jobs/distill.py` | Shipped, with per-task `traces.jsonl` sink |
+| `passthrough_to_default` flag on `spawn_codex_session` | `rl-agent-work/src/codex-orchestrate/src/codex_orchestrate/pools/codex_session.py` | Shipped |
+| Cost accounting (`estimate_cost`, `settle_cost`) | `rl-agent-work/src/codex-orchestrate/src/codex_orchestrate/jobs/distill_cost.py` | Shipped |
+| Driver: `scripts/distill_math_python.py` | `rl-agent-work/scripts/` | Shipped (reference impl; tuvalu version below) |
+| Parquet sink (C.2) | not yet | Deferred; JSONL is the v0 sink |
+| `tv/data/codex/` tuvalu adapter (C.4) | not yet | Listed in backlog |
+| Decontamination check against tuvalu eval splits | not yet | Listed in backlog |
+
+The critical architectural fact for tuvalu: when `passthrough_to_default=
+True`, `spawn_codex_session` returns an empty env dict, codex inherits
+`~/.codex/auth.json` (chatgpt-mode token), and codex talks to its
+configured endpoint (the hosted OpenAI Responses API) directly. No
+proxy sits in the model-traffic path. We capture the trajectory from
+codex-control's `Turn` events (the `items` list including `agentMessage`,
+tool calls, and reasoning summaries), not from the proxy's record store.
+The proxy is still useful for the `replay` mode and for record capture
+when the trainable policy is being served, but it is not on the
+critical path for codex-subscription-driven harvest.
+
+#### Validated Smoke (2026-05-15): 25 MATH Problems via gpt-5.3-codex
+
+Run command:
+
+```bash
+DISTILL_TEACHER_MODEL=gpt-5.3-codex DISTILL_N=25 \
+  /home/freiza/rl-agent-work/vendor/worldlines/.venv/bin/python \
+    /home/freiza/rl-agent-work/scripts/distill_math_python.py
+```
+
+Result:
+
+| metric | value |
+|---|---|
+| teacher | `gpt-5.3-codex` via `~/.codex/auth.json` (auth_mode=chatgpt) |
+| n_tasks | 25 (Hendrycks MATH train subset) |
+| accepted (reward >= 0.95, exact `\boxed{...}` match) | 24 |
+| rejected | 1 (`math-012`: 3×1 pmatrix LaTeX format quirk in the rubric, not a teacher failure) |
+| `dollars_spent` from `settle_cost` | $0.00 (chatgpt subscription is not metered through the API rate table) |
+| wall time | 372.7 s ≈ 15 s / rollout |
+| JSONL artifact | `runs/distill_math_python_25_1778890189/traces/traces.jsonl` (66 KB, 25 rows) |
+
+The 96 % acceptance number is the relevant signal that the harness is
+honest: codex routes through `~/.codex/auth.json`, the workspace
+verifier reads `.codex/last_turn.json` written by the runner, the
+rubric scores against the gold answer, the rejection filter passes
+real correctness through. The single rejection is a `verifiers.MathRubric`
++ `math_verify` normalization mismatch on column-vector pmatrix syntax;
+re-running with a tuvalu-specific rubric would replace `MathRubric`
+with a task-family-specific verifier (next subsection).
+
+#### JSONL → Normalized Tuvalu Example Schema
+
+`DistillJobRunner` writes one row per task to
+`<spec.output_dir>/traces.jsonl`, accepted and rejected alike. Each row
+has the fields below; consumers re-filter by `accepted` at load time.
+
+```json
+{
+  "task_id": "math-000",
+  "rollout_id": "distill-math-000-...",
+  "provenance": "hosted_teacher",
+  "teacher_model": "gpt-5.3-codex",
+  "teacher_endpoint": "https://api.openai.com",
+  "prompt": "...",
+  "completion": "Let the original numbers be:\n- Blue \\(=8x\\)...",
+  "items": [ /* full Turn item stream — agentMessage, reasoning, tool calls */ ],
+  "token_usage": {"totalTokens": 15898, "inputTokens": 15552,
+                   "cachedInputTokens": 7552, "outputTokens": 346,
+                   "reasoningOutputTokens": 187},
+  "reward": 1.0,
+  "verifier_ok": true,
+  "verifier_reason": "math=1.00 gold='24'",
+  "hard_gate_passed": true,
+  "accepted": true,
+  "gold_answer": "24",
+  "min_reward_threshold": 0.95,
+  "require_hard_gate": true,
+  "written_at": 1778890189.42
+}
+```
+
+Mapping into `tv.common.schema.make_example(...)`:
+
+```python
+def codex_trace_to_tvl_example(row: dict, *, release: str) -> dict:
+    """Convert one rl-agent-work DistillJobRunner traces.jsonl row into a
+    normalized tuvalu training example. Caller pre-filters by row['accepted']."""
+    from tv.common.schema import make_example
+
+    task_family = row["metadata"].get("task_family") if "metadata" in row else "chat"
+    # Tuvalu's TaskFamily ∈ {chat, tool, math, code, qa, summarization, translation}.
+    # The DistillJobSpec carries no task_family field today; the tuvalu adapter
+    # below pins it per batch (Phase 4.5 task families: qa_grounded,
+    # native_chat, tool_call_trajectory, hard_translation, rejection_candidate).
+    return make_example(
+        id=f"codex_{release}_{row['rollout_id']}",
+        task_family=task_family,
+        messages=[
+            {"role": "user", "content": row["prompt"]},
+            {"role": "assistant", "content": row["completion"]},
+        ],
+        metadata={
+            "provenance": "codex_subscription",
+            "teacher_model": row["teacher_model"],
+            "teacher_endpoint": row["teacher_endpoint"],
+            "rollout_id": row["rollout_id"],
+            "reward": row["reward"],
+            "gold_answer": row.get("gold_answer"),
+            "verifier_reason": row["verifier_reason"],
+            "verifier_ok": row["verifier_ok"],
+            "hard_gate_passed": row["hard_gate_passed"],
+            "token_usage": row["token_usage"],
+            "items_count": len(row.get("items") or []),
+            "min_reward_threshold": row["min_reward_threshold"],
+            "release": release,
+            "written_at": row["written_at"],
+        },
+    )
+```
+
+Three notes:
+
+1. `items` in the source row is the full structured Turn stream. For
+   the SFT row we collapse to `(user, assistant)` chat; the full stream
+   stays available in the source `traces.jsonl` for later experiments
+   that train on tool calls or reasoning summaries.
+2. `task_family` must be set by the caller per batch — the
+   `DistillJobSpec` is task-family-agnostic; the adapter wraps it.
+3. Decontamination is **not** performed at this stage. Run the eval-
+   split overlap check on the produced examples *before* mixing them
+   into Stage B. Use the same n-gram + exact-text checker that
+   `tv/training/synthetic` runs on Stage A's outputs.
+
+#### Tuvalu Adapter Layer: `tv/data/codex/`
+
+Required deliverables to bridge the harness into the tuvalu pipeline.
+Total work is ≈ 250 LOC, mostly wiring; the heavy lifting is already
+in `DistillJobRunner`.
+
+```text
+tv/data/codex/
+  __init__.py
+  spec.py                       # per-task-family DistillJobSpec presets + budget caps
+  prompts/                      # Jinja templates, one per task family
+    qa_grounded.j2
+    native_chat.j2
+    tool_call_trajectory.j2
+    hard_translation.j2
+    rejection_candidate.j2
+  task_builder.py               # tuvalu source row -> codex_env.Task (writes
+                                # prompt.md + task.toml dirs the runner consumes)
+  verifiers/                    # per-task-family WorkspaceVerifier implementations
+    __init__.py
+    grounded_qa.py
+    native_chat.py
+    tool_call_trajectory.py
+    hard_translation.py
+  harvest.py                    # main runner: builds task list, dispatches via
+                                # run_job(DistillJobSpec, ctx), persists traces.jsonl
+  convert.py                    # codex_trace_to_tvl_example (above) + batch loader
+  decontam.py                   # cross-check against eval splits before promote
+```
+
+The harvest entry point:
+
+```python
+# tv/data/codex/harvest.py
+async def run_codex_harvest(
+    *,
+    release: str,
+    task_family: str,       # qa_grounded | native_chat | tool_call_trajectory | ...
+    source_rows: list[dict],  # tuvalu rows (prompt, source spans, gold, ...)
+    teacher_model: str = "gpt-5.3-codex",
+    min_reward_threshold: float = 0.95,
+    out_dir: Path,
+) -> DistillOutcome:
+    from codex_orchestrate.jobs.spec import DistillJobSpec, JobKind, RunContext
+    from codex_orchestrate.lifecycle.run_job import run_job
+    from codex_orchestrate.pools.verifier_runner import VerifierRunner
+
+    tasks = [
+        build_task(row, task_family=task_family, prompt_template=load_template(task_family))
+        for row in source_rows
+    ]
+    verifier = build_verifier(task_family)  # per-family WorkspaceVerifier
+
+    spec = DistillJobSpec(
+        kind=JobKind.DISTILL,
+        task=tasks[0],
+        agent_policy_endpoint="https://api.openai.com",
+        teacher_model=teacher_model,
+        teacher_endpoint="https://api.openai.com",
+        min_reward_threshold=min_reward_threshold,
+        require_hard_gate=True,
+        max_dollars=load_quota(task_family),  # configs/codex_quota.yaml
+        output_dir=out_dir / "traces",
+    )
+    ctx = RunContext(
+        proxy=None,  # passthrough_to_default in the runner — no proxy needed
+        verifier_runner=VerifierRunner(),
+        extra={"tasks": tasks, "verifier": verifier},
+    )
+    return await run_job(spec, ctx=ctx)
+```
+
+The runner deposits `traces.jsonl` under `out_dir / "traces"`. The
+acceptance gates (language ID, protected terms, decontam) listed in the
+prior section run as a **second pass** over `traces.jsonl` rather than
+inside the runner — that keeps the runner task-family-agnostic and
+lets per-family acceptance rules evolve without changing the runner
+itself.
+
+#### Task-Family Verifier Sketches
+
+`DistillJobRunner` is task-family-agnostic — it just calls the
+`WorkspaceVerifier` passed in via `ctx.extra["verifier"]`. The
+verifier reads `<workspace>/.codex/last_turn.json` (which the runner
+writes for every turn) and returns a `codex_env.VerifierResult`. Tuvalu
+needs one verifier per task family; below are sketches sized for
+`tv/data/codex/verifiers/`.
+
+##### `grounded_qa.py`
+
+Score answers to retrieval-backed Tuvaluan QA. Combines language-ID,
+entity preservation, source-support entailment, and chrF++ against a
+reference if one exists.
+
+```python
+class GroundedQAVerifier:
+    def __init__(self, *, langid_threshold=0.85,
+                 source_support_min=4, tvl_quality_min=3):
+        self._langid = load_fasttext_langid()  # tv.common.langid
+        self._judge = GPT55RAGJudge()          # tv.data.judge (Phase 5)
+        ...
+
+    async def __call__(self, *, workspace_dir, task):
+        completion = read_last_assistant_text(workspace_dir)
+        gold = task.metadata.get("gold_answer")
+        spans = task.metadata.get("retrieved_span_ids") or []
+        protected = task.metadata.get("protected_terms") or []
+
+        lang_ok = self._langid.score(completion, "tvl") >= langid_threshold
+        protected_ok = all(term in completion for term in protected)
+        scores = await self._judge.score(
+            prompt=task.prompt, completion=completion,
+            retrieved_spans=spans, rubric="grounded_qa_v1",
+        )
+        reward = (scores["source_support"] >= source_support_min
+                  and scores["tuvaluan_quality"] >= tvl_quality_min
+                  and lang_ok and protected_ok) * 1.0
+        return VerifierResult(
+            reward=reward, ok=reward >= 1.0,
+            hard_gate_passed=(lang_ok and protected_ok),
+            reason=f"langid={lang_ok} protected={protected_ok} judge={scores}",
+            public_metrics={"answer_seen": completion[:200]},
+            hidden_metrics=scores,
+            info={"completion_head": completion[:240], "gold_answer": gold},
+        )
+```
+
+##### `tool_call_trajectory.py`
+
+Score multi-turn rollouts where the value is in the structured tool
+calls. The runner already preserves the full `items` stream; the
+verifier reads it back from `last_turn.json`.
+
+```python
+class ToolCallTrajectoryVerifier:
+    """Score rollouts whose value is the structured tool-call sequence.
+
+    Reward = 1.0 iff every tool call in `items` has args validating
+    against the task's declared JSON schema, and the final assistant
+    message answers the user's request. Used as the source for the
+    Stage B 'structured/tool tasks' pool.
+    """
+
+    async def __call__(self, *, workspace_dir, task):
+        items = read_items(workspace_dir)  # from .codex/last_turn.json
+        schema = task.metadata.get("tool_schema")
+        calls = [i for i in items if i.get("type") in (
+            "function_call", "mcpToolCall", "commandExecution",
+        )]
+        if not calls:
+            return VerifierResult(reward=0.0, ok=False,
+                                  reason="no tool calls", hard_gate_passed=False)
+        schema_ok = all(validate_args(c, schema) for c in calls)
+        final = next(
+            (i.get("text") or i.get("content") for i in reversed(items)
+             if i.get("type") in ("agentMessage", "assistantMessage")),
+            "",
+        )
+        answer_ok = task.metadata.get("expected_pattern", "") in final \
+                    if task.metadata.get("expected_pattern") else bool(final)
+        reward = 1.0 if (schema_ok and answer_ok) else 0.0
+        return VerifierResult(reward=reward, ok=reward >= 1.0,
+                              hard_gate_passed=schema_ok,
+                              reason=f"schema={schema_ok} answer={answer_ok}",
+                              info={"n_calls": len(calls)})
+```
+
+##### `hard_translation.py`
+
+Active-learning loop on Stage A failures. The tuvalu pipeline routes
+rows where Stage A's chrF++ on the gold pair is below threshold; codex
+re-translates conditioned on the source span; the verifier scores the
+codex output against the gold using the same chrF++ + entity-preservation
+checks Stage A is evaluated on.
+
+```python
+class HardTranslationVerifier:
+    def __init__(self, *, chrf_min=0.45, entity_recall_min=0.95):
+        from tv.common.metrics import chrf_plus_plus, entity_recall
+        self.chrf = chrf_plus_plus
+        self.entity_recall = entity_recall
+        self.chrf_min, self.entity_recall_min = chrf_min, entity_recall_min
+
+    async def __call__(self, *, workspace_dir, task):
+        completion = read_last_assistant_text(workspace_dir)
+        gold = task.metadata["gold_translation"]
+        protected = task.metadata.get("protected_terms") or []
+        chrf = self.chrf(completion, gold)
+        ent_recall = self.entity_recall(completion, protected)
+        reward = (chrf >= self.chrf_min and ent_recall >= self.entity_recall_min) * 1.0
+        return VerifierResult(
+            reward=reward, ok=reward >= 1.0,
+            hard_gate_passed=(ent_recall >= self.entity_recall_min),
+            reason=f"chrf={chrf:.3f} ent_recall={ent_recall:.3f}",
+            info={"chrf": chrf, "entity_recall": ent_recall,
+                  "completion_head": completion[:240]},
+        )
+```
+
+##### `native_chat.py` and `rejection_candidate.py`
+
+Both delegate to the GPT-5.5 RAG judge from the next section. The
+distinction is that `native_chat` rejects on a single score (judge
+`tuvaluan_quality + task_completion`) while `rejection_candidate`
+returns the *raw* judge scores so Phase 5's pairwise builder can pick
+chosen/rejected from the K-sample batch. Concretely, set
+`min_reward_threshold=0.0` for `rejection_candidate` (no rejection at
+harvest time) and let Phase 5's pair builder do the selection.
+
+#### Cost Notes (Validated)
+
+Through `~/.codex/auth.json` with `auth_mode=chatgpt`, the
+`distill_cost.settle_cost` rate table returns $0.00 because the
+chatgpt subscription is not metered through the public API pricing —
+the user's plan absorbs the cost. The `cost_dollars` telemetry will
+read 0 until either:
+
+1. The subscription is swapped for a metered API key (in which case
+   `settle_cost` correctly attributes per-token costs against the rate
+   table), or
+2. We add a parallel `subscription_request_count` counter and per-plan
+   rate-limit budget — `requests/day`, `requests/minute` — to enforce
+   ceilings the dollar accounting can't see.
+
+For tuvalu's Phase 4.5 budget tracking, the right v0 metric is
+**request count** per task family rather than dollars, with the
+quota table at `configs/codex_quota.yaml` capping by counts. The
+dollar field stays on each row for forward-compatibility with metered-
+API runs.
+
+#### Smoke Test for Tuvalu
+
+Before running a real harvest, validate the adapter wiring with a
+5-task tuvaluan-shape smoke:
+
+```bash
+uv run tv-data-codex smoke \
+  --task-family qa_grounded \
+  --teacher-model gpt-5.3-codex \
+  --n 5 \
+  --out runs/codex_smoke_$(date +%s)
+```
+
+Expected output: `runs/codex_smoke_*/traces/traces.jsonl` with 5 rows,
+non-zero accept rate, no language-id failures, every accepted row
+matching its retrieved span ids in `metadata.retrieved_span_ids`.
+Acceptance for the smoke gate: accept rate >= 60 % AND zero hard-gate
+failures on the language-id check. If the smoke fails, debug the
+adapter (`tv/data/codex/`) before authorizing a full harvest run.
 
 ### Phase 5: Preference And RL Layer
 
@@ -817,14 +1235,29 @@ Priority order:
    - call GPT-5.5 judge
    - write preference JSONL
    - build human review packs
-7. Add `tv/data/codex/` module (Phase 4.5):
+7. Add `tv/data/codex/` module (Phase 4.5). The harness substrate
+   already landed in sibling `rl-agent-work` (`DistillJobRunner`,
+   `passthrough_to_default`, `traces.jsonl` sink — validated 2026-05-15
+   on a 25-task math smoke at 96 % accept, $0 cost via chatgpt
+   subscription). Remaining tuvalu-side work:
    - prompt templates by task family with span-injection slots
-   - rate-limited subscription client wrapping the codex-proxy
-     `replay` and `harvest` runners (sibling `src/codex-proxy`)
-   - per-task-family quota config `configs/codex_quota.yaml`
-   - decontamination check against all eval splits
+     (`tv/data/codex/prompts/<task_family>.j2`)
+   - per-task-family `WorkspaceVerifier` implementations
+     (`tv/data/codex/verifiers/<task_family>.py`)
+   - `task_builder.py`: tuvalu source row -> `codex_env.Task` dir
+     (writes `prompt.md` + `task.toml` consumed by `DistillJobRunner`)
+   - `harvest.py`: assembles `DistillJobSpec` + `RunContext` and
+     dispatches via `run_job(...)` from `codex_orchestrate.lifecycle.run_job`
+   - `convert.py`: `codex_trace_to_tvl_example(row)` from the
+     JSONL sink into `tv.common.schema.make_example` rows
+   - per-task-family quota config `configs/codex_quota.yaml` with
+     request-count budgets (chatgpt subscription is not dollar-metered
+     through the public rate table; counts are the right v0 budget)
+   - decontamination check against all eval splits, run as a second
+     pass over `traces.jsonl` before promoting rows to Stage B SFT
    - acceptance-gate runner that emits accepted + rejected JSONL plus
-     a manifest of model id, request ids, cost, and rate-limit incidents
+     a manifest of model id, request ids, request count, and rate-
+     limit incidents
 8. Add DPO/ORPO renderers from preference JSONL.
 9. Add product feedback normalization into typed preference candidates.
 10. Add judge calibration reports and dashboards.
@@ -847,10 +1280,15 @@ Do not start Phase 4.5 codex generation until:
 
 - Stage C retrieval corpus is built and source-disjoint splits are validated
 - prompt templates per task family are reviewed and hashed
-- per-task-family quota and budget are declared in the manifest
+- per-task-family quota and budget (request counts under the chatgpt
+  subscription; dollar caps when swapping to a metered API key) are
+  declared in the manifest
 - decontamination check runs against every eval split, not just train
-- the codex-proxy reachable in the workspace can capture trajectories
-  with per-token logprobs on at least one smoke prompt
+- the `tv/data/codex/` adapter passes the 5-task tuvaluan-shape smoke
+  described in Phase 4.5 (accept rate >= 60 %, zero language-id hard-
+  gate failures). The harness substrate itself is already validated:
+  `rl-agent-work` smoked 25 MATH tasks against `gpt-5.3-codex` on
+  2026-05-15 with 96 % accept rate and full `traces.jsonl` capture.
 
 Do not start DPO/ORPO until:
 
