@@ -1,15 +1,33 @@
 import type { APIEvent } from "@solidjs/start/server";
+import {
+  normalizeChatConversation,
+  upsertChatConversation,
+} from "~/lib/chat-conversations";
+import { getChatBackendUrl } from "~/lib/chat-backend";
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_MESSAGES = 50;
 const MAX_BODY_BYTES = 64 * 1024; // 64 KB
 
-function getBackendUrl(event: APIEvent): string {
-  const cfEnv = (event.context as any)?.cloudflare?.env;
-  return cfEnv?.CHAT_BACKEND_URL || process.env.CHAT_BACKEND_URL || "http://localhost:8787";
+function cleanText(value: unknown, max: number): string {
+  return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
-function validateChatBody(body: unknown): { ok: true; payload: object } | { ok: false; error: string } {
+function validateChatBody(body: unknown):
+  | {
+      ok: true;
+      payload: object;
+      persistence: {
+        conversation_id: string;
+        session_id: string;
+        title: string;
+        consent_state: "sync_training" | "local_only";
+        island: string | null;
+        language_mode: string | null;
+        source: string;
+      };
+    }
+  | { ok: false; error: string } {
   if (!body || typeof body !== "object") return { ok: false, error: "Invalid request body" };
   const b = body as Record<string, unknown>;
 
@@ -39,11 +57,21 @@ function validateChatBody(body: unknown): { ok: true; payload: object } | { ok: 
       temperature: b.temperature ?? 0.3,
       max_tokens: b.max_tokens ?? 1024,
     },
+    persistence: {
+      conversation_id: cleanText(b.conversation_id, 120),
+      session_id: cleanText(b.session_id, 200),
+      title: cleanText(b.title, 120) || "Untitled chat",
+      consent_state:
+        b.consent_state === "local_only" ? "local_only" : "sync_training",
+      island: cleanText(b.island, 80) || null,
+      language_mode: cleanText(b.language_mode, 40) || null,
+      source: cleanText(b.source, 40) || "web",
+    },
   };
 }
 
 export async function POST(event: APIEvent) {
-  const backendUrl = getBackendUrl(event);
+  const backendUrl = getChatBackendUrl(event);
   const targetUrl = `${backendUrl}/api/chat`;
 
   try {
@@ -78,7 +106,54 @@ export async function POST(event: APIEvent) {
       });
     }
 
-    return new Response(resp.body, {
+    const data = await resp.json().catch(() => null);
+    const content =
+      typeof data?.content === "string" ? data.content : "";
+
+    if (!content) {
+      return new Response(JSON.stringify({ error: "Invalid chat response" }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const persist = validation.persistence;
+    if (
+      persist.conversation_id &&
+      persist.session_id &&
+      persist.consent_state === "sync_training"
+    ) {
+      const requestMessages = (body as any).messages || [];
+      const assistantMessage = {
+        id: cleanText((body as any).assistant_message_id, 120) || undefined,
+        role: "assistant" as const,
+        content,
+        created_at: new Date().toISOString(),
+      };
+
+      upsertChatConversation(
+        normalizeChatConversation({
+          id: persist.conversation_id,
+          session_id: persist.session_id,
+          title: persist.title,
+          messages: [...requestMessages, assistantMessage],
+          source: persist.source,
+          language_mode: persist.language_mode,
+          island: persist.island,
+          consent_state: persist.consent_state,
+          updated_at: new Date().toISOString(),
+          metadata: {
+            model_info: data?.model_info || null,
+            saved_from: "chat_proxy",
+          },
+        }),
+        event
+      ).catch((error) => {
+        console.error("Chat persistence failed:", error);
+      });
+    }
+
+    return new Response(JSON.stringify(data), {
       headers: { "Content-Type": "application/json" },
     });
   } catch {

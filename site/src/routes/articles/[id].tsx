@@ -105,16 +105,16 @@ function BilingualParagraph(props: {
   };
 
   return (
-    <div class="mb-5">
+    <div class="article-body-block">
       <Show when={props.mode === "tv" || props.mode === "tv+en"}>
-        <div class="flex items-start gap-2">
-          <p class="flex-1 text-base leading-relaxed text-gray-900">{props.tvl}</p>
-          <div class="shrink-0 flex gap-1 mt-0.5">
+        <div class="article-body-block__row">
+          <p>{props.tvl}</p>
+          <div class="article-votes">
             <button
               type="button"
               onClick={() => handleVote("thumbs_up")}
-              class={`cursor-pointer bg-transparent border-none p-2 min-w-[36px] min-h-[36px] rounded text-base leading-none flex items-center justify-center ${
-                vote() === "thumbs_up" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
+              class={`article-vote ${
+                vote() === "thumbs_up" ? "article-vote--active" : ""
               }`}
               title="Tonu! (Good translation)"
               aria-label="Good translation"
@@ -125,8 +125,8 @@ function BilingualParagraph(props: {
             <button
               type="button"
               onClick={() => handleVote("thumbs_down")}
-              class={`cursor-pointer bg-transparent border-none p-2 min-w-[36px] min-h-[36px] rounded text-base leading-none flex items-center justify-center ${
-                vote() === "thumbs_down" ? "opacity-100 scale-110" : "opacity-40 hover:opacity-70"
+              class={`article-vote ${
+                vote() === "thumbs_down" ? "article-vote--active" : ""
               }`}
               title="Seki tonu (Bad translation)"
               aria-label="Bad translation"
@@ -141,25 +141,25 @@ function BilingualParagraph(props: {
       <Show when={props.mode === "tv"}>
         <button
           onClick={handleReveal}
-          class="mt-1.5 text-xs text-[var(--ocean)] hover:text-[var(--ocean-deep)] cursor-pointer bg-transparent border-none p-0 min-h-0"
+          class="article-reveal"
         >
           {showEn() ? "Funa te English" : "Fakakite English"}
         </button>
         <Show when={showEn()}>
-          <p class="mt-1.5 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-[var(--ocean-bright)]">
+          <p class="article-translation">
             {props.en}
           </p>
         </Show>
       </Show>
 
       <Show when={props.mode === "tv+en"}>
-        <p class="mt-2 pl-3 text-sm leading-relaxed text-gray-400 italic border-l-2 border-[var(--ocean-bright)]">
+        <p class="article-translation">
           {props.en}
         </p>
       </Show>
 
       <Show when={props.mode === "en"}>
-        <p class="text-base leading-relaxed text-gray-900">{props.en}</p>
+        <p>{props.en}</p>
       </Show>
     </div>
   );
@@ -171,11 +171,11 @@ export default function ArticlePage() {
   const [langMode, setLangMode] = createSignal<LanguageMode>("tv");
 
   return (
-    <Show when={article() !== undefined} fallback={<main class="max-w-3xl mx-auto pb-12" />}>
+    <Show when={article() !== undefined} fallback={<main class="site-page" />}>
       <Show
         when={article()}
         fallback={
-          <main class="max-w-3xl mx-auto p-4 text-center">
+          <main class="site-page">
             <HttpStatusCode code={404} />
             <OGMeta
               title="Article not found"
@@ -183,19 +183,17 @@ export default function ArticlePage() {
               url={absoluteFootballUrl(`/articles/${params.id}`)}
               image={FOOTBALL_META.articleFallbackOgImage}
               imageOrigin={SITE_ORIGINS.football}
-              imageWidth={FOOTBALL_META.defaultOgImageWidth}
-              imageHeight={FOOTBALL_META.defaultOgImageHeight}
-              imageAlt="Talafutipolo fallback social card for football articles."
+              imageWidth={FOOTBALL_META.articleFallbackImageWidth}
+              imageHeight={FOOTBALL_META.articleFallbackImageHeight}
+              imageAlt={FOOTBALL_META.articleFallbackImageAlt}
               siteName={FOOTBALL_META.productName}
               titleSuffix={FOOTBALL_META.productName}
               robots={NOINDEX_ROBOTS}
             />
-            <h1 class="text-xl font-bold text-gray-900 mt-8">
-              Article not found
-            </h1>
-            <p class="mt-2 text-gray-500">
-              This article may have been removed or the ID is invalid.
-            </p>
+            <div class="site-shell site-empty">
+              <strong>Article not found</strong>
+              <span>This article may have been removed or the ID is invalid.</span>
+            </div>
           </main>
         }
       >
@@ -211,17 +209,32 @@ export default function ArticlePage() {
           a().body_tvl ? splitParagraphs(a().body_tvl!) : [];
         const hasTvl = () => tvlParagraphs().length > 0;
         const effectiveMode = () => (hasTvl() ? langMode() : "en");
+        const hasArticleImage = () => !!a().image_url;
+        const imageSrc = () => a().image_url || FOOTBALL_META.articleFallbackOgImage;
+        const imageWidth = () =>
+          a().image_width ||
+          (hasArticleImage()
+            ? FOOTBALL_META.defaultOgImageWidth
+            : FOOTBALL_META.articleFallbackImageWidth);
+        const imageHeight = () =>
+          a().image_height ||
+          (hasArticleImage()
+            ? FOOTBALL_META.defaultOgImageHeight
+            : FOOTBALL_META.articleFallbackImageHeight);
+        const imageAlt = () =>
+          a().image_alt ||
+          (hasArticleImage() ? title() : FOOTBALL_META.articleFallbackImageAlt);
 
         return (
-          <main class="max-w-3xl mx-auto pb-12">
+          <main class="site-page article-page lagoon-subpage">
             <OGMeta
               title={a().title_tvl || a().title_en}
               description={description() || undefined}
-              image={a().image_url || FOOTBALL_META.articleFallbackOgImage}
+              image={imageSrc()}
               imageOrigin={SITE_ORIGINS.football}
-              imageWidth={a().image_width || FOOTBALL_META.defaultOgImageWidth}
-              imageHeight={a().image_height || FOOTBALL_META.defaultOgImageHeight}
-              imageAlt={a().image_alt || "Talafutipolo fallback social card for football articles."}
+              imageWidth={imageWidth()}
+              imageHeight={imageHeight()}
+              imageAlt={imageAlt()}
               publishedAt={a().published_at}
               category={a().category || undefined}
               type="article"
@@ -232,10 +245,10 @@ export default function ArticlePage() {
             <StructuredData data={footballNewsArticleStructuredData(a())} />
 
             {/* Top bar with back + language toggle */}
-            <div class="flex items-center justify-between px-4 py-2">
+            <div class="site-shell site-shell--wide article-topbar">
               <A
                 href="/"
-                class="text-sm text-gray-500 hover:text-gray-700 no-underline min-h-[36px]"
+                class="article-back-link"
               >
                 &larr; Foki
               </A>
@@ -248,22 +261,10 @@ export default function ArticlePage() {
             </div>
 
             {/* Hero image */}
-            <Show when={a().image_url}>
-              <img
-                src={a().image_url!}
-                alt={a().image_alt || title()}
-                width={a().image_width || undefined}
-                height={a().image_height || undefined}
-                class="w-full h-56 sm:h-72 object-cover"
-                loading="eager"
-                fetchpriority="high"
-                decoding="async"
-              />
-            </Show>
-
-            <article class="px-4 pt-4">
+            <article class="site-shell site-shell--article article-shell article-shell--lagoon">
               {/* Title — TVL first */}
-              <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight">
+              <p class="site-kicker">Football story</p>
+              <h1 class="article-title">
                 {title()}
               </h1>
 
@@ -275,7 +276,7 @@ export default function ArticlePage() {
                   a().title_en !== a().title_tvl
                 }
               >
-                <p class="mt-1 text-base text-gray-400 italic">
+                <p class="article-subtitle">
                   {a().title_en}
                 </p>
               </Show>
@@ -288,13 +289,13 @@ export default function ArticlePage() {
                   a().title_tvl
                 }
               >
-                <p class="mt-1 text-base text-gray-400 italic">
+                <p class="article-subtitle">
                   {a().title_tvl}
                 </p>
               </Show>
 
               {/* Meta line */}
-              <div class="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+              <div class="article-meta">
                 <span>{formatDate(a().published_at)}</span>
                 <span>&middot;</span>
                 <SourceName sourceId={a().source_id} />
@@ -314,15 +315,42 @@ export default function ArticlePage() {
                 </Show>
               </div>
 
+              <div class="article-info-strip" aria-label="Story tools">
+                <div>
+                  <span>Reading mode</span>
+                  <strong>{effectiveMode().toUpperCase()}</strong>
+                </div>
+                <div>
+                  <span>Source</span>
+                  <strong><SourceName sourceId={a().source_id} /></strong>
+                </div>
+                <div>
+                  <span>Community</span>
+                  <strong>Coach ready</strong>
+                </div>
+              </div>
+
+              <figure class="article-hero-image">
+                <img
+                  src={imageSrc()}
+                  alt={imageAlt()}
+                  width={imageWidth()}
+                  height={imageHeight()}
+                  loading="eager"
+                  fetchpriority="high"
+                  decoding="async"
+                />
+              </figure>
+
               {/* Body */}
-              <div class="mt-6">
+              <div class="article-body">
                 <Show
                   when={hasTvl()}
                   fallback={
                     /* English only — no translation available */
                     <For each={enParagraphs()}>
                       {(p) => (
-                        <p class="mb-4 text-base leading-relaxed text-gray-900">
+                        <p>
                           {p}
                         </p>
                       )}
@@ -353,12 +381,12 @@ export default function ArticlePage() {
               </Show>
 
               {/* Source attribution + share */}
-              <div class="mt-8 pt-4 border-t border-[var(--sky-dark)] flex items-center justify-between">
+              <div class="article-footer">
                 <a
                   href={a().url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="text-sm text-[var(--ocean)] hover:text-[var(--ocean-deep)] no-underline"
+                  class="article-source-link"
                 >
                   Read original at <SourceName sourceId={a().source_id} />
                 </a>
@@ -378,7 +406,7 @@ export default function ArticlePage() {
                       navigator.clipboard.writeText(window.location.href);
                     }
                   }}
-                  class="px-4 py-2 bg-[var(--ocean-deep)] text-white text-sm rounded-lg cursor-pointer border-none hover:bg-[var(--ocean)] transition-colors"
+                  class="site-button site-button--primary"
                   aria-label="Fakasoa (Share)"
                 >
                   Fakasoa

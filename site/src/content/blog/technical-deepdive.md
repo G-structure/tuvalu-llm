@@ -444,4 +444,4 @@ This project exists because of the people and organizations who made it possible
 
 ---
 
-*This post is part of the [Language Lab](https://tuvalugpt.tv/demo) project — a 501(c)(3) nonprofit building open-source AI infrastructure for endangered languages. If you want to help, [join the mailing list](https://tuvalugpt.tv/demo#newsletter) or reach out at [contact@sanative.ai](mailto:contact@sanative.ai).*
+*This post is part of the [Language Lab](https://tuvalugpt.tv/demo) project — a 501(c)(3) nonprofit building open-source AI infrastructure for endangered languages. If you want to help, [join the mailing list](https://tuvalugpt.tv/demo#newsletter) or reach out at [admin@choruslanguagelabs.org](mailto:admin@choruslanguagelabs.org).*

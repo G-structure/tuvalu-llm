@@ -55,7 +55,7 @@ export default function CategoryPage() {
   const description = () => `${displayName()} football news in Tuvaluan and English`;
 
   return (
-    <main class="max-w-3xl mx-auto pb-8">
+    <main class="site-page lagoon-subpage category-dashboard-page">
       <OGMeta
         title={socialTitle()}
         description={description()}
@@ -91,61 +91,81 @@ export default function CategoryPage() {
 
           return (
             <>
-              {/* Category filter pills */}
-              <CategoryPills categories={d().categories} />
+              <section class="site-hero site-hero--compact lagoon-subhero">
+                <div class="site-shell site-shell--wide lagoon-subhero__grid">
+                  <div>
+                  <p class="site-kicker">Category</p>
+                  <h1 class="site-title capitalize">{displayName()}</h1>
+                  <p class="site-lede">{description()}</p>
+                  </div>
+                  <aside class="lagoon-subhero__panel">
+                    <span>Active beat</span>
+                    <strong>{articles().length}</strong>
+                    <em>translated stories on this page</em>
+                  </aside>
+                </div>
+              </section>
 
-              {/* Category heading */}
-              <div class="px-4 pt-2 pb-2">
-                <h1 class="text-xl font-bold text-gray-900 capitalize">
-                  {displayName()}
-                </h1>
+              <div class="site-shell site-shell--wide category-dashboard">
+                <div class="category-dashboard__pills">
+                  <CategoryPills categories={d().categories} />
+                </div>
+
+                <Show when={articles().length === 0}>
+                  <div class="site-empty">
+                    <strong>Seki isi tala</strong>
+                    <span>No articles in this category</span>
+                  </div>
+                </Show>
+
+                <Show when={articles().length > 0}>
+                  <section class="category-feature-grid">
+                    <ArticleCard article={articles()[0]} hero />
+                    <aside class="category-insight-card">
+                      <p class="site-kicker">Latest in {displayName()}</p>
+                      <h2>Follow this beat in Tuvaluan first.</h2>
+                      <p>
+                        Stories here keep the same bilingual reading and coaching tools
+                        as the main wire, with translations ready for community review.
+                      </p>
+                      <A href="/fatele" class="site-button site-button--gold">
+                        Coach translations
+                      </A>
+                    </aside>
+                  </section>
+                </Show>
+
+                <Show when={articles().length > 1}>
+                  <section class="site-section category-tile-section">
+                    <div class="home-card-grid">
+                      <For each={articles().slice(1)}>
+                        {(article) => <ArticleCard article={article} tile />}
+                      </For>
+                    </div>
+                  </section>
+                </Show>
+
+                <Show when={hasPrev() || hasNext()}>
+                  <div class="site-pagination">
+                    <Show when={hasPrev()}>
+                      <A
+                        href={d().page === 2 ? `/category/${params.slug}` : `/category/${params.slug}?page=${d().page - 1}`}
+                        class="site-button site-button--ghost"
+                      >
+                        &larr; Foki
+                      </A>
+                    </Show>
+                    <Show when={hasNext()}>
+                      <A
+                        href={`/category/${params.slug}?page=${d().page + 1}`}
+                        class="site-button site-button--primary"
+                      >
+                        Faitau atu &darr;
+                      </A>
+                    </Show>
+                  </div>
+                </Show>
               </div>
-
-              {/* Empty state */}
-              <Show when={articles().length === 0}>
-                <div class="p-8 text-center text-gray-400">
-                  <p class="text-lg font-medium">Seki isi tala</p>
-                  <p class="mt-1 text-sm">No articles in this category</p>
-                </div>
-              </Show>
-
-              {/* Hero card for first article */}
-              <Show when={articles().length > 0}>
-                <div class="px-4">
-                  <ArticleCard article={articles()[0]} hero />
-                </div>
-              </Show>
-
-              {/* Remaining articles */}
-              <Show when={articles().length > 1}>
-                <div class="mt-4 divide-y divide-gray-100">
-                  <For each={articles().slice(1)}>
-                    {(article) => <ArticleCard article={article} />}
-                  </For>
-                </div>
-              </Show>
-
-              {/* Pagination */}
-              <Show when={hasPrev() || hasNext()}>
-                <div class="px-4 mt-4 flex gap-3">
-                  <Show when={hasPrev()}>
-                    <A
-                      href={d().page === 2 ? `/category/${params.slug}` : `/category/${params.slug}?page=${d().page - 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
-                    >
-                      &larr; Foki
-                    </A>
-                  </Show>
-                  <Show when={hasNext()}>
-                    <A
-                      href={`/category/${params.slug}?page=${d().page + 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
-                    >
-                      Faitau atu &darr;
-                    </A>
-                  </Show>
-                </div>
-              </Show>
             </>
           );
         }}

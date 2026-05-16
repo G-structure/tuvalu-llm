@@ -67,6 +67,11 @@ export async function GET(event: APIEvent) {
       image: absoluteFootballImageUrl(FOOTBALL_META.communityOgImage),
       imageTitle: "Kominiti",
     },
+    {
+      loc: absoluteFootballUrl("/legal"),
+      image: absoluteFootballImageUrl(FOOTBALL_META.defaultOgImage),
+      imageTitle: "Privacy Policy and Terms of Service",
+    },
     ...categories.map((category) => ({
       loc: absoluteFootballUrl(`/category/${category.slug}`),
       image: absoluteFootballImageUrl(
@@ -87,6 +92,11 @@ export async function GET(event: APIEvent) {
       loc: absoluteUrl("/demo"),
       image: absoluteImageUrl("/judges/rainbow-ocean.webp"),
       imageTitle: SITE_META.productName,
+    },
+    {
+      loc: absoluteUrl("/legal"),
+      image: absoluteImageUrl(SITE_META.defaultOgImage),
+      imageTitle: "Privacy Policy and Terms of Service",
     },
     {
       loc: absoluteChatUrl("/chat"),

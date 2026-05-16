@@ -82,20 +82,20 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
   };
 
   return (
-    <section class="mt-8 rounded-2xl border border-[var(--gold)]/40 bg-[var(--ocean-deep)] text-white p-5">
-      <div class="flex items-start justify-between gap-4">
+    <section class="coach-card">
+      <div class="coach-card__head">
         <div>
-          <p class="text-xs uppercase tracking-[0.2em] text-[var(--gold)]">
+          <p class="site-kicker">
             Kominiti
           </p>
-          <h2 class="mt-1 text-xl font-bold">Coach the Translator</h2>
-          <p class="mt-2 text-sm leading-relaxed text-[var(--sky-dark)]">
+          <h2>Coach the Translator</h2>
+          <p class="coach-card__intro">
             Add one real community signal from this football story. Vote on the
             translation, tell us which reading mode worked best, and leave a
             better Tuvaluan phrasing if you spot one.
           </p>
         </div>
-        <div class="rounded-full bg-white/10 px-3 py-1 text-xs text-[var(--gold)]">
+        <div class="coach-card__badge">
           +1 signal
         </div>
       </div>
@@ -103,8 +103,8 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
       <Show
         when={!submitted()}
         fallback={
-          <div class="mt-4 rounded-xl bg-white/10 p-4 text-sm text-[var(--sky-dark)]">
-            <p class="font-medium text-white">Malo!</p>
+          <div class="coach-card__success">
+            <p>Malo!</p>
             <p class="mt-1">
               Your coaching note was saved. This article now contributes
               structured feedback for translation review and future tuning.
@@ -113,18 +113,18 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
         }
       >
         <>
-          <div class="mt-5">
-            <p class="text-sm font-medium text-white">
+          <div class="coach-card__group">
+            <p class="coach-card__label">
               Was this translation helpful?
             </p>
-            <div class="mt-2 flex flex-wrap gap-2">
+            <div class="coach-card__options">
               <button
                 type="button"
                 onClick={() => setHelpfulScore(1)}
-                class={`rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer border ${
+                class={`coach-option ${
                   helpfulScore() === 1
-                    ? "border-[var(--gold)] bg-[var(--gold)] text-[var(--ocean-deep)]"
-                    : "border-white/20 bg-white/10 text-white hover:bg-white/15"
+                    ? "coach-option--active"
+                    : ""
                 }`}
               >
                 Yes, keep this style
@@ -132,10 +132,10 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
               <button
                 type="button"
                 onClick={() => setHelpfulScore(0)}
-                class={`rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer border ${
+                class={`coach-option ${
                   helpfulScore() === 0
-                    ? "border-[var(--gold)] bg-[var(--gold)] text-[var(--ocean-deep)]"
-                    : "border-white/20 bg-white/10 text-white hover:bg-white/15"
+                    ? "coach-option--active"
+                    : ""
                 }`}
               >
                 Needs work
@@ -143,11 +143,11 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
             </div>
           </div>
 
-          <div class="mt-5">
-            <p class="text-sm font-medium text-white">
+          <div class="coach-card__group">
+            <p class="coach-card__label">
               Which reading mode helped most?
             </p>
-            <div class="mt-2 flex flex-wrap gap-2">
+            <div class="coach-card__options">
               <For
                 each={[
                   { value: "tv", label: "TV" },
@@ -159,10 +159,10 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
                   <button
                     type="button"
                     onClick={() => setModePreference(option.value)}
-                    class={`rounded-full px-4 py-2 text-sm font-medium transition-colors cursor-pointer border ${
+                    class={`coach-option ${
                       modePreference() === option.value
-                        ? "border-[var(--gold)] bg-[var(--gold)] text-[var(--ocean-deep)]"
-                        : "border-white/20 bg-white/10 text-white hover:bg-white/15"
+                        ? "coach-option--active"
+                        : ""
                     }`}
                   >
                     {option.label}
@@ -172,16 +172,16 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
             </div>
           </div>
 
-          <div class="mt-5 grid gap-3 sm:grid-cols-[200px_1fr]">
+          <div class="coach-card__correction-grid">
             <div>
-              <label class="block text-sm font-medium text-white" for="coach-paragraph">
+              <label class="coach-card__label" for="coach-paragraph">
                 Paragraph to improve
               </label>
               <select
                 id="coach-paragraph"
                 value={correctionParagraphIdx()}
                 onInput={(e) => setCorrectionParagraphIdx(e.currentTarget.value)}
-                class="mt-2 w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white"
+                class="coach-field"
               >
                 <option value="">Optional</option>
                 <For each={paragraphs()}>
@@ -194,7 +194,7 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
               </select>
             </div>
             <div>
-              <label class="block text-sm font-medium text-white" for="coach-correction">
+              <label class="coach-card__label" for="coach-correction">
                 Better Tuvaluan phrasing
               </label>
               <textarea
@@ -204,19 +204,19 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
                 rows={4}
                 maxLength={1000}
                 placeholder="Optional. Paste a better translation, wording, or name fix."
-                class="mt-2 w-full rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-sm text-white placeholder:text-[var(--sky-dark)]"
+                class="coach-field coach-field--textarea"
               />
             </div>
           </div>
 
           <Show when={error()}>
             {(message) => (
-              <p class="mt-3 text-sm text-[#ffd6d6]">{message()}</p>
+              <p class="coach-card__error">{message()}</p>
             )}
           </Show>
 
-          <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-            <p class="text-xs text-[var(--sky-dark)]">
+          <div class="coach-card__footer">
+            <p class="coach-card__note">
               Anonymous browser session only. We group your feedback, island,
               and optional correction note under one session so they can be
               exported later for preference tuning.
@@ -225,7 +225,7 @@ export default function CoachTranslatorCard(props: CoachTranslatorCardProps) {
               type="button"
               disabled={submitting()}
               onClick={submit}
-              class="rounded-xl bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--ocean-deep)] transition-colors hover:bg-[#f7d55e] disabled:cursor-not-allowed disabled:opacity-60"
+              class="site-button site-button--gold disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submitting() ? "Saving..." : "Save coaching note"}
             </button>

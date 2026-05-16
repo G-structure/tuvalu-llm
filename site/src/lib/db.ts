@@ -10,8 +10,36 @@ import type {
 // D1 binding is injected by Cloudflare Workers runtime
 // In dev mode, lazily initialize via wrangler's getPlatformProxy()
 let _devProxy: any = null;
+let _devProxyReady: Promise<any> | null = null;
 let _communitySchemaReady: Promise<void> | null = null;
 let _usingDevProxy = false;
+
+const FATELE_SEED_ISLANDS: Record<string, number> = {
+  Funafuti: 47,
+  Vaitupu: 23,
+  Nanumea: 18,
+  Nui: 14,
+  Nukufetau: 11,
+  Niutao: 19,
+  Nanumaga: 9,
+  Nukulaelae: 6,
+  Niulakita: 3,
+  "I fafo": 31,
+};
+
+const FATELE_SEED_MODES: Record<"tv" | "tv+en" | "en", number> = {
+  tv: 64,
+  "tv+en": 38,
+  en: 12,
+};
+
+const FATELE_SEED_TOTALS = {
+  total: 217,
+  feedback: 43,
+  corrections: 28,
+  yes: 86,
+  no: 19,
+};
 
 async function getDb(): Promise<D1Database> {
   const db = (process.env as any).DB || (globalThis as any).__env__?.DB;
@@ -21,11 +49,15 @@ async function getDb(): Promise<D1Database> {
   }
 
   // Dev fallback: use wrangler's local D1 emulation
-  if (!_devProxy) {
-    const { getPlatformProxy } = await import("wrangler");
-    _devProxy = await getPlatformProxy({ persist: { path: ".wrangler/state/v3" } });
-    (globalThis as any).__env__ = _devProxy.env;
+  if (!_devProxyReady) {
+    _devProxyReady = (async () => {
+      const { getPlatformProxy } = await import("wrangler");
+      const proxy = await getPlatformProxy({ persist: { path: ".wrangler/state/v3" } });
+      (globalThis as any).__env__ = proxy.env;
+      return proxy;
+    })();
   }
+  _devProxy = await _devProxyReady;
   _usingDevProxy = true;
   return _devProxy.env.DB;
 }
@@ -40,6 +72,62 @@ async function ensureCommunitySchema(db: D1Database): Promise<void> {
   }
 
   _communitySchemaReady = (async () => {
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS feedback (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          article_id TEXT NOT NULL REFERENCES articles(id),
+          paragraph_idx INTEGER NOT NULL,
+          feedback_type TEXT NOT NULL,
+          island TEXT,
+          session_id TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_feedback_article
+         ON feedback(article_id)`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_feedback_created
+         ON feedback(created_at)`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS implicit_signals (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          article_id TEXT NOT NULL REFERENCES articles(id),
+          signal_type TEXT NOT NULL,
+          paragraph_index INTEGER,
+          session_id TEXT,
+          island TEXT,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_implicit_signals_article
+         ON implicit_signals(article_id)`
+      )
+      .run();
+
+    await db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_implicit_signals_created
+         ON implicit_signals(created_at)`
+      )
+      .run();
+
     await db
       .prepare(
         `CREATE TABLE IF NOT EXISTS article_feedback_forms (
@@ -360,62 +448,40 @@ export async function getFateleStats(): Promise<FateleStats> {
       .all(),
   ]);
 
-  // Seed baseline activity so the dashboard looks alive from day one
-  const SEED_ISLANDS: Record<string, number> = {
-    Funafuti: 47, Vaitupu: 23, Nanumea: 18, Nui: 14,
-    Nukufetau: 11, Niutao: 19, Nanumaga: 9, Nukulaelae: 6,
-    Niulakita: 3, "I fafo": 31,
-  };
-  const SEED_MODES: Record<string, number> = { tv: 64, "tv+en": 38, en: 12 };
-  const SEED_TOTALS = {
-    total: 217, feedback: 43, corrections: 28, yes: 86, no: 19,
-  };
-
+  // Baseline activity keeps the public Fatele dashboard populated while real
+  // community signals accumulate on top.
   const rawIslands = islands as unknown as { island: string; count: number }[];
-  const boostedIslands = rawIslands.map((i) => ({
-    island: i.island,
-    count: i.count + (SEED_ISLANDS[i.island] || 0),
+  const boostedIslands = rawIslands.map((island) => ({
+    island: island.island,
+    count: island.count + (FATELE_SEED_ISLANDS[island.island] ?? 0),
   }));
-  // Add any seed islands not already in the DB results
-  for (const [name, cnt] of Object.entries(SEED_ISLANDS)) {
-    if (!boostedIslands.find((i) => i.island === name)) {
-      boostedIslands.push({ island: name, count: cnt });
+
+  for (const [island, count] of Object.entries(FATELE_SEED_ISLANDS)) {
+    if (!boostedIslands.some((item) => item.island === island)) {
+      boostedIslands.push({ island, count });
     }
   }
   boostedIslands.sort((a, b) => b.count - a.count);
 
-  const rawModes = modePreferences as unknown as { mode: string; count: number }[];
-  const boostedModes = Object.entries(SEED_MODES).map(([mode, seed]) => {
-    const existing = rawModes.find((m) => m.mode === mode);
-    return { mode: mode as "tv" | "tv+en" | "en", count: (existing?.count ?? 0) + seed };
+  const rawModes = modePreferences as unknown as {
+    mode: "tv" | "tv+en" | "en";
+    count: number;
+  }[];
+  const boostedModes = Object.entries(FATELE_SEED_MODES).map(([mode, seed]) => {
+    const existing = rawModes.find((item) => item.mode === mode);
+    return {
+      mode: mode as "tv" | "tv+en" | "en",
+      count: (existing?.count ?? 0) + seed,
+    };
   });
 
   return {
-    total_this_month: ((total as any)?.cnt ?? 0) + SEED_TOTALS.total,
+    total_this_month: ((total as any)?.cnt ?? 0) + FATELE_SEED_TOTALS.total,
     islands: boostedIslands,
-    article_feedback_count: ((articleFeedback as any)?.cnt ?? 0) + SEED_TOTALS.feedback,
-    corrections_count: ((corrections as any)?.cnt ?? 0) + SEED_TOTALS.corrections,
-    helpful_yes: ((helpful as any)?.helpful_yes ?? 0) + SEED_TOTALS.yes,
-    helpful_no: ((helpful as any)?.helpful_no ?? 0) + SEED_TOTALS.no,
+    article_feedback_count: ((articleFeedback as any)?.cnt ?? 0) + FATELE_SEED_TOTALS.feedback,
+    corrections_count: ((corrections as any)?.cnt ?? 0) + FATELE_SEED_TOTALS.corrections,
+    helpful_yes: ((helpful as any)?.helpful_yes ?? 0) + FATELE_SEED_TOTALS.yes,
+    helpful_no: ((helpful as any)?.helpful_no ?? 0) + FATELE_SEED_TOTALS.no,
     mode_preferences: boostedModes,
   };
-}
-
-// Lightweight version for the teaser bar — single query, no islands breakdown
-export async function getFateleTeaserCount(): Promise<number> {
-  const db = await getDb();
-  await ensureCommunitySchema(db);
-  const row = await db
-    .prepare(
-      `SELECT COUNT(*) AS cnt FROM (
-         SELECT created_at FROM implicit_signals
-         UNION ALL
-         SELECT created_at FROM feedback
-         UNION ALL
-         SELECT created_at FROM article_feedback_forms
-       )
-       WHERE created_at >= date('now', 'start of month')`
-    )
-    .first();
-  return (row as any)?.cnt ?? 0;
 }

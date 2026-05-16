@@ -1,11 +1,12 @@
 import { createAsync, cache, useSearchParams, A } from "@solidjs/router";
 import { For, Show } from "solid-js";
-import { getArticles, getCategories } from "~/lib/db";
-import type { Article, Category } from "~/lib/types";
+import { getArticles, getCategories, getFateleStats } from "~/lib/db";
+import type { Article } from "~/lib/types";
 import ArticleCard from "~/components/ArticleCard";
 import CategoryPills from "~/components/CategoryPills";
 import OGMeta from "~/components/OGMeta";
 import StructuredData from "~/components/StructuredData";
+import { timeAgo } from "~/lib/time";
 import {
   footballCollectionPage,
   footballWebsite,
@@ -18,12 +19,25 @@ const PER_PAGE = 20;
 const loadHome = cache(async (page: number) => {
   "use server";
   const offset = (page - 1) * PER_PAGE;
-  const [articles, categories] = await Promise.all([
+  const [articles, categories, stats] = await Promise.all([
     getArticles(PER_PAGE + 1, offset),
     getCategories(),
+    getFateleStats(),
   ]);
-  return { articles, categories, page };
+  return { articles, categories, stats, page };
 }, "home");
+
+function storyTitle(article: Article) {
+  return article.title_tvl || article.title_en;
+}
+
+function storyCategory(article: Article) {
+  return (article.category || "Talafuti").replace(/-/g, " ");
+}
+
+function storyImage(article: Article, fallback: string) {
+  return article.image_url || fallback;
+}
 
 export const route = {
   load: ({ location }: { location: { query: Record<string, string> } }) => {
@@ -41,7 +55,7 @@ export default function Home() {
     "Tala futipolo mai te lalolagi i te gagana Tuvalu. Football news from around the world in Tuvaluan and English.";
 
   return (
-    <main class="max-w-3xl mx-auto pb-8">
+    <main class="site-page home-dashboard-page">
       <OGMeta
         title={FOOTBALL_META.productName}
         description={description}
@@ -70,105 +84,190 @@ export default function Home() {
       <Show when={data()}>
         {(d) => {
           const articles = () => d().articles.slice(0, PER_PAGE);
+          const homePillCategories = () =>
+            d().categories.filter((category) => category.slug.toLowerCase() !== "kominiti");
           const hasNext = () => d().articles.length > PER_PAGE;
           const hasPrev = () => d().page > 1;
 
           return (
             <>
-              <div class="px-4 pt-4 pb-2">
-                <h1 class="text-2xl font-bold text-gray-900">
-                  Talafutipolo
-                </h1>
-                <p class="mt-1 text-sm text-gray-500">
-                  Football news in Tuvaluan and English.
-                </p>
-              </div>
-
-              {/* Category filter pills */}
-              <Show when={d().categories.length > 0}>
-                <CategoryPills categories={d().categories} />
-              </Show>
-
-              {/* Empty state */}
-              <Show when={articles().length === 0}>
-                <div class="p-8 text-center text-gray-400">
-                  <p class="text-lg font-medium">Seki isi tala</p>
-                  <p class="mt-2 text-sm">No articles yet</p>
-                </div>
-              </Show>
-
-              <Show when={articles().length > 0}>
-                <div class="px-4 pt-3">
-                  <div class="rounded-2xl border border-[var(--gold)]/50 bg-[var(--ocean-deep)] text-white p-4">
-                    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p class="text-xs uppercase tracking-[0.2em] text-[var(--gold)]">
-                          Kominiti
-                        </p>
-                        <h2 class="mt-1 text-lg font-bold">
-                          Help coach the Tuvaluan model
-                        </h2>
-                        <p class="mt-1 text-sm text-[var(--sky-dark)]">
-                          Open a story, vote on the translation, choose your
-                          preferred reading mode, and leave a better phrasing.
-                        </p>
+              <section class="home-dashboard" aria-label="Fenua Intelligence dashboard">
+                <div class="site-shell site-shell--wide home-dashboard__layout">
+                  <section class="home-chat-panel">
+                    <div class="home-chat-panel__content">
+                      <p class="home-chat-panel__eyebrow">TVL Chat</p>
+                      <h1>
+                        TVL Chat <span aria-hidden="true" class="home-star" />
+                      </h1>
+                      <p>AI for Tuvalu. By Tuvalu.</p>
+                      <div class="home-chat-panel__actions">
+                        <A href="/chat" class="home-pill-button home-pill-button--dark">
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                          </svg>
+                          Fesili i te AI
+                        </A>
+                        <A href="/chat" class="home-pill-button home-pill-button--light">
+                          Ask AI
+                        </A>
                       </div>
-                      <div class="flex gap-2">
-                        <A
-                          href={`/articles/${articles()[0].id}`}
-                          class="rounded-xl bg-[var(--gold)] px-4 py-2 text-sm font-semibold text-[var(--ocean-deep)] no-underline"
-                        >
-                          Coach latest story
-                        </A>
-                        <A
-                          href="/fatele"
-                          class="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white no-underline"
-                        >
-                          View community
-                        </A>
+                      <A href="/chat" class="home-chat-prompt">
+                        <span>Fesili i te AI...</span>
+                        <span class="home-chat-prompt__send" aria-hidden="true">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="m9 18 6-6-6-6" />
+                          </svg>
+                        </span>
+                      </A>
+                      <div class="home-chat-panel__chips">
+                        <span>Fakamatalaaga e uiga ki Tuvalu</span>
+                        <span>Tulafono o te Pasefika</span>
+                        <span>Kaupulega o te Kaupule</span>
                       </div>
                     </div>
+                    <div class="home-chat-panel__secure">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect width="18" height="11" x="3" y="11" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                      Secure. Private. Built for Tuvalu.
+                    </div>
+                  </section>
+
+                  <Show when={articles().length > 0}>
+                    <A href={`/articles/${articles()[0].id}`} class="home-lead-card">
+                      <img
+                        src={storyImage(articles()[0], "/judges/nick-football-community.webp")}
+                        alt={articles()[0].image_alt || storyTitle(articles()[0])}
+                        width={articles()[0].image_width || undefined}
+                        height={articles()[0].image_height || undefined}
+                        loading="eager"
+                        fetchpriority="high"
+                        decoding="async"
+                      />
+                      <div class="home-lead-card__shade" />
+                      <div class="home-lead-card__content">
+                        <span class="home-lead-card__badge">Latest</span>
+                        <h2>{storyTitle(articles()[0])}</h2>
+                        <p>
+                          {storyCategory(articles()[0])} · {timeAgo(articles()[0].published_at)}
+                        </p>
+                        <span class="home-lead-card__cta">
+                          Lau Fakamatalaaga
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14" />
+                            <path d="m12 5 7 7-7 7" />
+                          </svg>
+                        </span>
+                      </div>
+                      <div class="home-lead-card__scorebar">
+                        <span class="home-flag-mark" aria-hidden="true" />
+                        <span>Tuvaluan</span>
+                        <strong>TVL</strong>
+                        <span>English</span>
+                        <strong>EN</strong>
+                      </div>
+                    </A>
+                  </Show>
+
+                  <aside class="home-side-rail">
+                    <section class="home-rail-card home-rail-card--learning">
+                      <div class="home-rail-card__head">
+                        <h2>Fenua learning loop</h2>
+                        <p>Real signals from chat corrections and article feedback.</p>
+                      </div>
+                      <div class="home-learning-list">
+                        <div class="home-learning-row">
+                          <span>Collected</span>
+                          <strong>{d().stats.total_this_month}</strong>
+                          <em>database-backed signals this month</em>
+                        </div>
+                        <div class="home-learning-row">
+                          <span>Corrections</span>
+                          <strong>{d().stats.corrections_count}</strong>
+                          <em>translation fixes ready for review</em>
+                        </div>
+                        <div class="home-learning-row">
+                          <span>Notes</span>
+                          <strong>{d().stats.article_feedback_count}</strong>
+                          <em>article feedback forms submitted</em>
+                        </div>
+                      </div>
+                      <A href="/fatele" class="home-rail-link">
+                        View signal dashboard
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="m9 18 6-6-6-6" />
+                        </svg>
+                      </A>
+                    </section>
+                  </aside>
+
+                  <section id="latest" class="home-latest-board">
+                    <div class="home-latest-board__head">
+                      <h2>Talafutipolo & Latest</h2>
+                      <Show when={homePillCategories().length > 0}>
+                        <CategoryPills categories={homePillCategories()} />
+                      </Show>
+                    </div>
+                    <Show when={articles().length > 1}>
+                      <div class="home-card-grid">
+                        <For each={articles().slice(1, 5)}>
+                          {(article) => <ArticleCard article={article} tile />}
+                        </For>
+                      </div>
+                    </Show>
+                  </section>
+                </div>
+              </section>
+
+              <div class="site-shell site-shell--wide">
+                {/* Empty state */}
+                <Show when={articles().length === 0}>
+                  <div class="site-empty">
+                    <strong>Seki isi tala</strong>
+                    <span>No articles yet</span>
                   </div>
-                </div>
-              </Show>
+                </Show>
 
-              {/* Hero card for latest article */}
-              <Show when={articles().length > 0}>
-                <div class="px-4 pt-2">
-                  <ArticleCard article={articles()[0]} hero />
-                </div>
-              </Show>
+                {/* Remaining articles as thumbnail rows */}
+                <Show when={articles().length > 5}>
+                  <section class="site-section home-more-list">
+                    <div class="site-section-head">
+                      <div>
+                        <p class="site-kicker">Catch up</p>
+                        <h2 class="site-section-title">More football news</h2>
+                      </div>
+                    </div>
+                    <div class="site-grid">
+                      <For each={articles().slice(5)}>
+                        {(article) => <ArticleCard article={article} />}
+                      </For>
+                    </div>
+                  </section>
+                </Show>
 
-              {/* Remaining articles as thumbnail rows */}
-              <Show when={articles().length > 1}>
-                <div class="mt-4 divide-y divide-gray-100">
-                  <For each={articles().slice(1)}>
-                    {(article) => <ArticleCard article={article} />}
-                  </For>
+                {/* Pagination */}
+                <Show when={hasPrev() || hasNext()}>
+                  <div class="site-pagination">
+                    <Show when={hasPrev()}>
+                      <A
+                        href={d().page === 2 ? "/" : `/?page=${d().page - 1}`}
+                        class="site-button site-button--ghost"
+                      >
+                        &larr; Foki
+                      </A>
+                    </Show>
+                    <Show when={hasNext()}>
+                      <A
+                        href={`/?page=${d().page + 1}`}
+                        class="site-button site-button--primary"
+                      >
+                        Faitau atu &darr;
+                      </A>
+                    </Show>
+                  </div>
+                </Show>
                 </div>
-              </Show>
-
-              {/* Pagination */}
-              <Show when={hasPrev() || hasNext()}>
-                <div class="px-4 mt-4 flex gap-3">
-                  <Show when={hasPrev()}>
-                    <A
-                      href={d().page === 2 ? "/" : `/?page=${d().page - 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
-                    >
-                      &larr; Foki
-                    </A>
-                  </Show>
-                  <Show when={hasNext()}>
-                    <A
-                      href={`/?page=${d().page + 1}`}
-                      class="flex-1 py-3 text-center text-sm font-medium text-[var(--ocean-deep)] bg-white rounded-lg no-underline hover:bg-[var(--sky-dark)] transition-colors border border-[var(--sky-dark)]"
-                    >
-                      Faitau atu &darr;
-                    </A>
-                  </Show>
-                </div>
-              </Show>
             </>
           );
         }}

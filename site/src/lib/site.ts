@@ -10,7 +10,11 @@ export const FOOTBALL_META = {
   productName: "Talafutipolo",
   productTagline: "Tuvaluan football news in Tuvaluan and English.",
   defaultOgImage: "/social/talafutipolo-football.jpg",
-  articleFallbackOgImage: "/social/football-article-fallback.jpg",
+  articleFallbackOgImage: "/social/football-free-kick-fallback.jpg",
+  articleFallbackImageWidth: 1200,
+  articleFallbackImageHeight: 675,
+  articleFallbackImageAlt:
+    "A cinematic football free-kick under stadium lights for Talafutipolo articles.",
   searchOgImage: "/social/football-search.jpg",
   communityOgImage: "/social/football-community.jpg",
   notFoundOgImage: "/social/football-not-found.jpg",

@@ -1,10 +1,51 @@
 import type { APIEvent } from "@solidjs/start/server";
 import { hasDb, getLatestMetric, getTrainingConfig } from "~/lib/chat-db";
+import { getChatBackendUrl } from "~/lib/chat-backend";
 
-const BACKEND_URL = process.env.CHAT_BACKEND_URL || "http://localhost:8787";
 const DEFAULT_RUN_ID = "stage_b_llama8b";
 
-export async function GET(_event: APIEvent) {
+function offlineModelInfo() {
+  return {
+    sampler_path: "",
+    step: "0",
+    run: DEFAULT_RUN_ID,
+    status: "offline",
+    latest_train_step: 0,
+    latest_train_nll: null,
+    latest_val_nll: null,
+  };
+}
+
+async function fetchBackendHealth(backendUrl: string) {
+  try {
+    const resp = await fetch(`${backendUrl}/api/health`);
+    if (!resp.ok) return null;
+    const data = await resp.json().catch(() => null);
+    if (!data || data.status !== "ok") return null;
+    const sampler = typeof data.sampler === "string" ? data.sampler : "";
+    const model = typeof data.model === "string" ? data.model : DEFAULT_RUN_ID;
+    return {
+      sampler_path: sampler,
+      step: sampler.match(/gen_eval_(\d+)/)?.[1] ?? "0",
+      run: model,
+      status: "online",
+      latest_train_step: Number(sampler.match(/gen_eval_(\d+)/)?.[1] ?? 0),
+      latest_train_nll: null,
+      latest_val_nll: null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+export async function GET(event: APIEvent) {
   // If D1 is available, read from it directly
   if (hasDb()) {
     try {
@@ -30,27 +71,27 @@ export async function GET(_event: APIEvent) {
         latest_val_nll: valParsed?.validation_mean_nll ?? null,
       };
 
-      return new Response(JSON.stringify(result), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return json(result);
     } catch (e: any) {
-      return new Response(
-        JSON.stringify({ error: e.message || "D1 query failed" }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
+      return json({
+        ...offlineModelInfo(),
+        error: e.message || "D1 query failed",
+      });
     }
   }
 
   // Fallback: proxy to Python backend
+  const backendUrl = getChatBackendUrl(event);
   try {
-    const resp = await fetch(`${BACKEND_URL}/api/model-info`);
-    return new Response(resp.body, {
-      headers: { "Content-Type": "application/json" },
-    });
+    const resp = await fetch(`${backendUrl}/api/model-info`);
+    if (resp.ok) {
+      return new Response(resp.body, {
+        headers: { "Content-Type": "application/json" },
+      });
+    }
   } catch {
-    return new Response(JSON.stringify({ error: "Backend unavailable" }), {
-      status: 503,
-      headers: { "Content-Type": "application/json" },
-    });
+    // Health fallback below covers newer inference-only backends.
   }
+
+  return json((await fetchBackendHealth(backendUrl)) || offlineModelInfo());
 }

@@ -18,25 +18,25 @@ export default function CategoryPills(props: CategoryPillsProps) {
   };
 
   return (
-    <div class="category-scroll flex gap-2 overflow-x-auto py-3 px-4">
+    <div class="category-scroll category-pills">
       <A
         href="/"
-        class={`shrink-0 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors ${
+        class={`category-pill ${
           isAll()
-            ? "bg-[var(--gold)] text-[var(--ocean-deep)] font-bold"
-            : "bg-white text-[var(--ocean-deep)] hover:bg-[var(--sky-dark)]"
+            ? "category-pill--active"
+            : ""
         }`}
       >
-        All
+        Katoa
       </A>
       <For each={props.categories}>
         {(cat) => (
           <A
             href={`/category/${cat.slug}`}
-            class={`shrink-0 px-4 py-2 rounded-full text-sm font-medium no-underline transition-colors capitalize ${
+            class={`category-pill capitalize ${
               isActive(cat.slug)
-                ? "bg-[var(--gold)] text-[var(--ocean-deep)] font-bold"
-                : "bg-white text-[var(--ocean-deep)] hover:bg-[var(--sky-dark)]"
+                ? "category-pill--active"
+                : ""
             }`}
           >
             {cat.slug.replace(/-/g, " ")}
