@@ -33,6 +33,7 @@ Use those files for presentation copy. Use the docs in this folder for implement
 | [UNSTRUCTURED_DATA_PIPELINE.md](UNSTRUCTURED_DATA_PIPELINE.md) | OCR and unstructured-source ingestion |
 | [UNSTRUCTURED_DATA_SOURCES.md](UNSTRUCTURED_DATA_SOURCES.md) | Inventory of raw assets under `unstruct_lang_data/` and their current usage status |
 | [STAGE_C_NATIVE_GROUNDING_SPEC.md](STAGE_C_NATIVE_GROUNDING_SPEC.md) | Concrete Stage C data spec for grounded native-TVL SFT, preferences, and evals |
+| [FULL_PIPELINE_AUDIT_AND_RL_JUDGE_PLAN.md](FULL_PIPELINE_AUDIT_AND_RL_JUDGE_PLAN.md) | End-to-end pipeline audit plus GPT-5.5 RAG judge and preference/RL plan |
 | [STAGE_C_PLAN_FROM_RESEARCH.md](STAGE_C_PLAN_FROM_RESEARCH.md) | Canonical literature-backed Stage C plan and execution order |
 | [SELECTIVE_TRANSLATION_SPEC.md](SELECTIVE_TRANSLATION_SPEC.md) | Rules for preserving code, JSON, and tool schemas during translation |
 | [LOCAL_MLX_TRAINING.md](LOCAL_MLX_TRAINING.md) | Local MLX export and training path |
