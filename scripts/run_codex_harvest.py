@@ -23,14 +23,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from tv.data.codex.harvest import load_cleaned_subset, run_codex_harvest  # noqa: E402
+from tv.data.codex.harvest import (  # noqa: E402
+    load_audited_subset,
+    load_cleaned_subset,
+    run_codex_harvest,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run codex distill harvest.")
     parser.add_argument(
         "--task-family",
-        choices=["native_chat", "hard_translation", "qa_grounded"],
+        choices=["native_chat", "hard_translation", "qa_grounded", "reframe"],
         required=True,
     )
     parser.add_argument("--n", type=int, default=50, help="number of tasks to harvest")
@@ -47,15 +51,41 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--budget-seconds", type=float, default=180.0)
     parser.add_argument("--max-dollars", type=float, default=None)
+    # Source loaders.
+    parser.add_argument(
+        "--audit-jsonl",
+        default="data/external/tv2en-cleaned/audit.jsonl",
+        help="audited corpus path (Phase 4.5b). Falls back to cleaned.jsonl when missing.",
+    )
     parser.add_argument(
         "--cleaned-jsonl",
         default="data/external/tv2en-cleaned/cleaned.jsonl",
+        help="raw cleaned corpus (no audit) — used when --audit-jsonl is missing.",
+    )
+    parser.add_argument(
+        "--bucket",
+        action="append",
+        default=None,
+        choices=["low", "med", "high"],
+        help="restrict to bucket(s) — Phase 4.5b filtering. Repeatable. "
+        "Default behaviour when omitted: use low+med.",
+    )
+    parser.add_argument(
+        "--max-religious-density",
+        type=float,
+        default=None,
+        help="per-row religious_density cap (Phase 4.5b). Tighter than bucket filtering.",
     )
     parser.add_argument(
         "--domain",
         action="append",
         default=None,
-        help="restrict to one or more domains (book, article, etc). Repeatable.",
+        help="restrict to one or more domains (book, bible, dictionary, daily_text). Repeatable.",
+    )
+    parser.add_argument(
+        "--use-personas",
+        action="store_true",
+        help="native_chat only — round-robin a persona per task for question diversity (Phase 4.5b).",
     )
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args(argv)
@@ -65,14 +95,32 @@ def main(argv: list[str] | None = None) -> int:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
 
-    print(f"loading source corpus subset n={args.n} from {args.cleaned_jsonl}", flush=True)
-    source_rows = load_cleaned_subset(
-        cleaned_jsonl=args.cleaned_jsonl,
-        n=args.n,
-        skip=args.skip,
-        seed=args.seed,
-        domains=args.domain,
-    )
+    audit_path = Path(args.audit_jsonl)
+    if audit_path.exists():
+        buckets = tuple(args.bucket) if args.bucket else ("low", "med")
+        print(
+            f"loading audited subset n={args.n} buckets={buckets} "
+            f"max_density={args.max_religious_density} from {audit_path}",
+            flush=True,
+        )
+        source_rows = load_audited_subset(
+            audit_jsonl=audit_path,
+            n=args.n,
+            skip=args.skip,
+            seed=args.seed,
+            buckets=buckets,
+            domains=args.domain,
+            max_religious_density=args.max_religious_density,
+        )
+    else:
+        print(f"audit missing; loading from {args.cleaned_jsonl}", flush=True)
+        source_rows = load_cleaned_subset(
+            cleaned_jsonl=args.cleaned_jsonl,
+            n=args.n,
+            skip=args.skip,
+            seed=args.seed,
+            domains=args.domain,
+        )
     print(f"loaded {len(source_rows)} source rows", flush=True)
 
     args.out.mkdir(parents=True, exist_ok=True)
@@ -88,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             budget_seconds=args.budget_seconds,
             max_dollars=args.max_dollars,
             translation_direction=args.direction,
+            use_personas=args.use_personas,
         )
     )
 

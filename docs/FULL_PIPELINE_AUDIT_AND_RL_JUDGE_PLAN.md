@@ -8,8 +8,10 @@ build and verify a specialized Tuvaluan system that can beat general frontier
 models and public Tuvaluan MT baselines on frozen, source-disjoint Tuvaluan task
 slices.
 
-Last updated: 2026-05-15 (Phase 4.5 implementation status: harness
-substrate landed in sibling `rl-agent-work`; tuvalu adapter pending).
+Last updated: 2026-05-16 (Phase 4.5 harness validated on 500-row math +
+500-row TVL native_chat smokes; tuvalu adapter + Phase 4.5b source-bias
+mitigation shipped — audit, persona-conditioning, reframe-augment all
+smoke-validated against gpt-5.3-codex).
 
 ## Executive Summary
 
@@ -949,6 +951,231 @@ Acceptance for the smoke gate: accept rate >= 60 % AND zero hard-gate
 failures on the language-id check. If the smoke fails, debug the
 adapter (`tv/data/codex/`) before authorizing a full harvest run.
 
+### Phase 4.5b: Source-Bias Mitigation
+
+The codex distillation in Phase 4.5 is rate-limited only by the
+teacher and the chatgpt subscription; the **quality ceiling is the
+source corpus**. The 2026-05-16 audit of
+`data/external/tv2en-cleaned/cleaned.jsonl` (176,157 rows) shows the
+corpus is a near-monoculture:
+
+| source | rows | share |
+|---|---:|---:|
+| wol.jw.org (Jehovah's Witnesses publications) | 171,747 | **97.5 %** |
+| tuvalu.aa-ken.jp (Tuvaluan-English dictionary) | 4,410 | 2.5 % |
+
+If we distill native_chat unmodified from this corpus the resulting
+Stage B will be fluent Tuvaluan with severe JW-flavored register and
+topical bias. Three orthogonal mitigations apply.
+
+#### 1. Audit + Bucket
+
+`scripts/audit_cleaned_corpus.py` tags every row with a
+`religious_density` score (count of JW-vocab tokens in TVL+EN
+normalized by word count) and buckets each row as `low | med | high`.
+
+After expanded vocabulary (Bible names, prayer/resurrection/ministry/
+Christian/Watchtower terminology, JW-specific Tuvaluan words like
+`Kelisiano`, `talo`, `tukuatuga`, `talai`):
+
+| bucket | rows | content shape |
+|---|---:|---|
+| high (density >= 0.08) | ~32k | explicit Bible verses, JW theology, congregation arrangements — **skip for native_chat; route through reframe-augment** |
+| med (0.02 < density < 0.08) | ~85k | mixed: religious framing on universal topics — **route through persona-prompt** to force topic shift |
+| low (density <= 0.02) | ~59k | low explicit JW vocab; topics often genuinely secular (marriage advice, dress, current events, history) — **harvest as-is is acceptable, persona-prompt is better** |
+| dictionary | 4,310 | TVL ↔ EN lexicon with categories — **seed entity-substitution dictionary** |
+
+The audit doesn't change the corpus; it sets the input distribution
+for the next two strategies. The audit JSONL becomes the canonical
+source for all downstream codex harvests.
+
+#### 2. Reframe-Augment (Bible → Tuvalu local)
+
+For high-density rows (and a sample of med-density rows), the codex
+teacher rewrites BOTH the Tuvaluan and the English to preserve the
+grammatical structure but swap Biblical entities for Tuvaluan ones.
+
+Prompt template at `tv/data/codex/prompts/reframe.j2` (to add) takes:
+
+- the original TVL/EN pair
+- a Tuvalu-local entity table (from the dictionary subset + a seed
+  list of place names, given names, occupations, items)
+- an explicit "preserve clause structure / preserve agreement /
+  preserve verbatim numbers and quotes that aren't religious" rubric
+
+and produces:
+
+- a rewritten TVL string
+- a rewritten EN string
+- a Tuvalu-local theme tag ("fishing", "civics", "family", ...)
+
+Verifier (`tv/data/codex/verifiers/reframe.py`, to add):
+
+- structure preservation check: codex's output has roughly the same
+  clause count + word-count ratio as the source
+- entity-leak check: no JW-vocab tokens from the audit dictionary
+  remain in either side
+- bilingual langid (TVL stays TVL, EN stays EN)
+- chrF++ between the codex EN and a Stage-A or codex-translation of
+  the codex TVL — sanity check that the two halves agree
+
+Seed entity table per category (initial set, expand from the
+dictionary subset):
+
+```yaml
+biblical_to_tuvaluan:
+  names_masculine:
+    - {biblical: Pauro, tuvalu: Telupe}
+    - {biblical: Pita, tuvalu: Faiva}
+    - {biblical: Iosua, tuvalu: Kelese}
+    - {biblical: Saulu, tuvalu: Mafua}
+    - {biblical: Kitiona, tuvalu: Lavea}
+  names_feminine:
+    - {biblical: Mareta, tuvalu: Apinelu}
+    - {biblical: Mali, tuvalu: Sega}
+  places_country:
+    - {biblical: Ihirama, tuvalu: Tuvalu}
+    - {biblical: Iutaia, tuvalu: "te Pasifika"}
+  places_settlement:
+    - {biblical: Ielusalema, tuvalu: Funafuti}
+    - {biblical: Petelehema, tuvalu: Vaitupu}
+    - {biblical: Kaperināuma, tuvalu: Nukulaelae}
+  occupations:
+    - {biblical: perofeta, tuvalu: faiākoga}      # prophet -> teacher
+    - {biblical: uatese, tuvalu: faifeau}         # priest -> minister/community elder (non-doctrinal)
+    - {biblical: tavini, tuvalu: faifaiga}        # servant -> worker
+  items_food:
+    - {biblical: falaoa, tuvalu: pulaka}          # bread -> taro
+    - {biblical: uaina, tuvalu: kaleve}           # wine -> coconut toddy
+  items_animal:
+    - {biblical: mamoe, tuvalu: ika}              # sheep -> fish
+    - {biblical: kāmela, tuvalu: vaka}            # camel -> boat (closest "transport" analogue)
+```
+
+The substitutions are **not** word-for-word find/replace — codex sees
+the seed table as guidance and applies them with adjustment for
+register, agreement, and pragmatic plausibility ("a fisherman walking
+from Funafuti to Vaitupu" is not pragmatically plausible by foot;
+codex should adjust to "sailing").
+
+#### 3. Persona + Retrieval
+
+Orthogonal to filtering and substitution: regardless of which subset
+the source passage came from, vary **what kind of question gets
+asked**. The current `native_chat.j2` is silent on persona, so codex
+defaults to a Watchtower-style instructional question
+(`Ne a te mea e ‵tau o tausi?` — "What should one keep?").
+
+`tv/data/codex/prompts/native_chat_persona.j2` (to add) rotates a
+persona pool per task:
+
+```text
+You are a fluent Tuvaluan speaker. The user is a {persona}. Write
+the question THIS user would naturally ask about the passage, in a
+register and topic-frame appropriate to their daily life.
+```
+
+Persona pool (initial):
+
+- Tuvaluan fisherman asking about navigation, weather, fishing technique
+- village teacher asking about lesson planning, classroom management
+- nurse at a community clinic asking about prevention, hygiene
+- civil servant asking about budgeting, policy, public works
+- parent asking about child-rearing, household economy, schooling
+- young person preparing for tertiary study abroad
+- elder recounting oral history
+
+For passages where retrieval is meaningful (Stage C native sources
+once we have them), the persona prompt also takes top-k retrieved
+spans from an embedding index over the audited subset. Retrieval
+diversifies the source passage codex sees beyond the single triggering
+row, so the answer can synthesize across multiple Tuvaluan documents
+even when the seed prompt is from a single JW article.
+
+#### Combined Pipeline
+
+The three mitigations stack:
+
+```
+audit                  bucket-tag every row by religious_density
+   │
+   ▼
+        ┌──────────────────────────┐
+   ┌────┤   bucket = "high"        │── reframe-augment ──┐
+   │    └──────────────────────────┘                     │
+   │    ┌──────────────────────────┐                     │
+   │    │   bucket = "med"         │── persona-prompt ──┤── harvest via codex ──► traces.jsonl
+   │    └──────────────────────────┘                     │
+   │    ┌──────────────────────────┐                     │
+   └────┤   bucket = "low"         │── as-is + persona ──┘
+        └──────────────────────────┘
+
+(dictionary subset → entity-substitution seed for reframe templates)
+
+harvest output  ─►  decontamination  ─►  Stage B mix
+```
+
+#### Acceptance Criteria for 4.5b
+
+- audit JSONL covers 100 % of cleaned.jsonl rows with bucket assigned
+- reframe-augment smoke (50 rows, mixed med/high): >= 50 % accept,
+  zero biblical-vocab leakage on accepted rows
+- persona-prompt smoke (50 rows on low+med): question distribution
+  measurably broader than non-persona baseline (manual spot-check or
+  trigram-overlap statistic against the existing nc500 harvest)
+- combined batch (5000 rows: 60 % low/med non-religious-as-is +
+  30 % med-persona + 10 % high-reframed) achieves >= 90 % accept rate
+- realized religious-density of the produced TVL completions in
+  `traces.jsonl` is bucketed (and reported); the bulk-mass should
+  shift left of the source distribution
+
+#### Implementation Status (2026-05-16)
+
+The three mitigations shipped in this commit and were smoke-validated
+on the live chatgpt-subscription codex teacher:
+
+| Module | Path | Smoke (n=5) | Result |
+|---|---|---:|---|
+| `audit_cleaned_corpus.py` | `scripts/` | 176,157 rows audited | `low` 59k / `med` 85k / `high` 32k, ~12k row movement after vocab refinement |
+| Persona pool + prompt | `tv/data/codex/personas.py`, `prompts/native_chat_persona.j2` | 5/5 accepted | every question framed in persona voice — fisherman / teacher / nurse / civil servant / parent each asked a domain-appropriate question |
+| Persona-aware harvest CLI | `scripts/run_codex_harvest.py --use-personas --bucket low --bucket med` | smoke ✓ | wall 206 s / 5 rows ≈ 41 s/row (longer than no-persona because the persona prompt is bigger) |
+| `ReframeVerifier` + reframe prompt | `tv/data/codex/verifiers/reframe.py`, `prompts/reframe.j2` | 4/5 accepted | religious entities swapped: `Jehovah → kaupule`, `Malo o te Atua → kaupule mo te malo`, `Saulu → Mafua`. The one rejection lacked TVL-local content — verifier's `local=False` hard-gate caught it correctly. |
+| `load_audited_subset` | `tv/data/codex/harvest.py` | smoke ✓ | filters by bucket / domain / max_density |
+
+Sample reframed output (high-bucket source, codex output verbatim):
+
+```
+SOURCE  TVL: "Ka Lasi te Filemu" e Maua Mai Lalo i te Pulega a te Malo
+SOURCE  EN:  Under God's Kingdom "Peace Will Abound"
+
+REFRAMED TVL: "Ka Lasi te Filemu" e Maua Mai Lalo i te Pulega a te kaupule mo te malo
+REFRAMED EN:  Under the council and the government "Peace Will Abound"
+```
+
+The reframe is structurally identical (same number of clauses, same
+quoted material, same future-action shape) but the religious anchor
+("God's Kingdom") is replaced by a civic anchor ("council and
+government"). This is the exact kind of row that lets a Stage B
+trained on JW grammar generalize to civic / governance contexts.
+
+#### Honest Limits
+
+Tuvaluan is severely low-resource. The JW translations are the
+largest publicly-available high-quality TVL corpus. **Filtering and
+substitution improve the distribution but do not invent secular
+Tuvaluan data that doesn't exist.** Two complementary moves outside
+this phase carry more long-term leverage:
+
+1. **English capability + crosslingual pools.** Stage B mix's other
+   20-30 % shares come from English datasets and Stage-A-translated
+   crosslingual prompts. Codex Phase 4.5 isn't a substitute for
+   those — it's a quality lift on the TVL-side pool.
+2. **Native source mining.** The audit doc's Phase 4 (Stage C) talks
+   about pulling civic / health / education / oral-history TVL
+   documents. Those are the only true escape from the JW monoculture.
+   Phase 4.5b is what makes the existing corpus more usable; Phase 4
+   is what makes a non-JW corpus exist at all.
+
 ### Phase 5: Preference And RL Layer
 
 Goal: optimize for source-faithful, natural Tuvaluan answers without letting a
@@ -1235,29 +1462,29 @@ Priority order:
    - call GPT-5.5 judge
    - write preference JSONL
    - build human review packs
-7. Add `tv/data/codex/` module (Phase 4.5). The harness substrate
-   already landed in sibling `rl-agent-work` (`DistillJobRunner`,
-   `passthrough_to_default`, `traces.jsonl` sink — validated 2026-05-15
-   on a 25-task math smoke at 96 % accept, $0 cost via chatgpt
-   subscription). Remaining tuvalu-side work:
-   - prompt templates by task family with span-injection slots
-     (`tv/data/codex/prompts/<task_family>.j2`)
-   - per-task-family `WorkspaceVerifier` implementations
-     (`tv/data/codex/verifiers/<task_family>.py`)
-   - `task_builder.py`: tuvalu source row -> `codex_env.Task` dir
-     (writes `prompt.md` + `task.toml` consumed by `DistillJobRunner`)
-   - `harvest.py`: assembles `DistillJobSpec` + `RunContext` and
-     dispatches via `run_job(...)` from `codex_orchestrate.lifecycle.run_job`
-   - `convert.py`: `codex_trace_to_tvl_example(row)` from the
-     JSONL sink into `tv.common.schema.make_example` rows
-   - per-task-family quota config `configs/codex_quota.yaml` with
-     request-count budgets (chatgpt subscription is not dollar-metered
-     through the public rate table; counts are the right v0 budget)
-   - decontamination check against all eval splits, run as a second
-     pass over `traces.jsonl` before promoting rows to Stage B SFT
-   - acceptance-gate runner that emits accepted + rejected JSONL plus
-     a manifest of model id, request ids, request count, and rate-
-     limit incidents
+7. Add `tv/data/codex/` module (Phase 4.5 + 4.5b). Shipped 2026-05-16:
+   - prompt templates per family: `native_chat`, `native_chat_persona`,
+     `hard_translation`, `qa_grounded`, `reframe` (`tv/data/codex/prompts/*.j2`)
+   - per-task-family `WorkspaceVerifier` implementations:
+     `NativeChatVerifier`, `HardTranslationVerifier`, `GroundedQAVerifier`,
+     `ReframeVerifier` (`tv/data/codex/verifiers/`)
+   - `task_builder.py`, `harvest.py` (dispatches via `run_job(...)`),
+     `convert.py` (traces.jsonl -> `tv.common.schema.make_example`),
+     `decontam.py` (eval-split overlap check), `personas.py`
+   - audit-aware corpus loader (`load_audited_subset`) that filters by
+     bucket / domain / `religious_density` cap
+   - CLI driver `scripts/run_codex_harvest.py` with `--use-personas`,
+     `--bucket low|med|high`, `--max-religious-density`
+   - audit script `scripts/audit_cleaned_corpus.py` that bucket-tags
+     every cleaned.jsonl row by JW-vocab density
+   Still pending (deferred):
+   - per-task-family quota config `configs/codex_quota.yaml` (subscription
+     is request-count-bounded, not dollar-bounded)
+   - decontamination second-pass run against the actual eval splits
+     once Phase 1's frozen benchmark JSONL exists
+   - acceptance-gate manifest writer (model id, request ids, run-level
+     stats) — fields are in the per-row traces.jsonl already; just
+     need an aggregator script
 8. Add DPO/ORPO renderers from preference JSONL.
 9. Add product feedback normalization into typed preference candidates.
 10. Add judge calibration reports and dashboards.

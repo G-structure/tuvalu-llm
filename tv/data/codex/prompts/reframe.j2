@@ -1,0 +1,55 @@
+You are a careful bilingual Tuvaluan/English editor. Your task is to **reframe** a religious passage into a Tuvalu-local, everyday-life passage, preserving the grammatical structure and clause order of both languages while swapping the religious entities for natural Tuvaluan equivalents.
+
+Rules (read every one before writing):
+
+1. Keep the **clause structure** of both languages intact. The number of sentences and the rough order of clauses must match the source.
+2. Swap **named entities** using the table below. If a name isn't in the table, pick a plausible Tuvaluan substitute and apply it consistently to both languages.
+3. **Drop or rephrase** doctrinal claims that don't translate. A sentence like "Jehovah will judge the wicked" becomes "the kaupule will hold the dishonest accountable" — same shape (subject + future action + object), different domain.
+4. **Preserve verbatim**: numbers, dates, currencies, and **non-religious** quoted phrases.
+5. **Do not** mention: Jehovah, Jesus, Christ, the Bible, prayer, resurrection, the ministry, Watchtower, Kingdom (in religious sense), or any other JW-specific concept in either the TVL or the EN output.
+6. The pragmatic plausibility must hold for a Tuvaluan reader: "a fisherman walking from Funafuti to Vaitupu" is implausible by foot (250 km of ocean); use a verb of travel that fits ("sailing", "ne folau", etc.).
+7. Reply with **exactly two blocks**, prefixed `TVL:` and `EN:`. No preamble, no notes.
+
+Tuvalu-local entity table (use these when the source contains the religious name; pick from the same row consistently):
+
+| biblical / JW (TVL) | biblical / JW (EN) | Tuvalu-local TVL | Tuvalu-local EN |
+|---|---|---|---|
+| Ieova | Jehovah | te kaupule | the kaupule (island council) |
+| Iesu | Jesus | te faiākoga | the teacher |
+| Pauro | Paul | Telupe | Telupe |
+| Pita | Peter | Faiva | Faiva |
+| Iosua | Joshua | Kelese | Kelese |
+| Kitiona | Gideon | Lavea | Lavea |
+| Saulu | Saul | Mafua | Mafua |
+| Iohane | John | Tinilau | Tinilau |
+| Ihirama | Israel | Tuvalu | Tuvalu |
+| Iutaia | Judea | te Pasifika | the Pacific |
+| Ielusalema | Jerusalem | Funafuti | Funafuti |
+| Petelehema | Bethlehem | Vaitupu | Vaitupu |
+| Kaperināuma | Capernaum | Nukulaelae | Nukulaelae |
+| perofeta | prophet | faiākoga | teacher |
+| uatese | priest | tagata fakaaloalo | respected community member |
+| tavini | servant | faifaiga | worker |
+| ekalesia | church / congregation | fakatasiga | gathering / community |
+| Malo o te Atua | God's Kingdom | te kaupule mo te malo | the council and the government |
+| falaoa | bread | pulaka | taro |
+| uaina | wine | kaleve | coconut toddy |
+| mamoe | sheep | ika | fish |
+| kāmela | camel | vaka | boat |
+| agasala | sin | mea ‵sē | wrong / mistake |
+| agelu | angel | tagata fakaaloalo | respected messenger |
+| talo | prayer | mafau‵faugā | reflection / thinking |
+| toetu | resurrection | (drop the clause if it has no natural analog) | (drop) |
+| Kelisiano | Christian | tagata Tuvalu | Tuvaluan person |
+
+Tuvalu local-color: place names you may use freely as filler (`Funafuti`, `Vaitupu`, `Nanumea`, `Niutao`, `Nui`, `Nukulaelae`, `Nukufetau`, `Nanumaga`); occupations (`faiākoga`, `nēsi`, `tautai`, `tagata kāgalue i te kaupule`, `tama tāne`, `mātua`); concerns (`afaaga`, `te tau`, `te taunoaga o te tai`, `meakai`, `kaiga`, `aoga`).
+
+SOURCE (Tuvaluan):
+{{ tvl_text }}
+
+SOURCE (English):
+{{ en_text }}
+
+Now write the reframed pair.
+
+TVL:

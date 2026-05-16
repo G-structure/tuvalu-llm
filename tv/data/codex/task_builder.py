@@ -78,23 +78,43 @@ def build_native_chat_task(
     en_text: str,
     protected_terms: Sequence[str] | None = None,
     source_doc_id: str | None = None,
+    persona: Any = None,
 ) -> Path:
-    """Write a native_chat task dir under bench_root/<task_id>/."""
+    """Write a native_chat task dir under bench_root/<task_id>/.
+
+    When ``persona`` is supplied (a ``tv.data.codex.personas.Persona``),
+    uses the persona-conditioned prompt template; the persona's role,
+    locale, and concerns shape the kind of question codex generates.
+    """
     pt = list(protected_terms) if protected_terms else auto_protected_terms(tvl_text, en_text)
-    prompt = _render("native_chat", tvl_text=tvl_text, en_text=en_text, protected_terms=pt)
+    template = "native_chat_persona" if persona is not None else "native_chat"
+    ctx: dict[str, Any] = {
+        "tvl_text": tvl_text,
+        "en_text": en_text,
+        "protected_terms": pt,
+    }
+    if persona is not None:
+        ctx["persona"] = persona
+    prompt = _render(template, **ctx)
+    toml_kv: dict[str, Any] = {
+        "id": task_id,
+        "family": "native_chat",
+        "answer_language": "tvl",
+        "source_doc_id": source_doc_id or "",
+        "tvl_text": tvl_text,
+        "en_text": en_text,
+        "protected_terms": pt,
+    }
+    if persona is not None:
+        toml_kv["persona_role_id"] = persona.role_id
+        toml_kv["persona_role"] = persona.role
+        toml_kv["persona_locale"] = persona.locale
+        toml_kv["persona_concerns"] = list(persona.concerns)
     return _write_task_dir(
         bench_root=bench_root,
         task_id=task_id,
         prompt=prompt,
-        toml_kv={
-            "id": task_id,
-            "family": "native_chat",
-            "answer_language": "tvl",
-            "source_doc_id": source_doc_id or "",
-            "tvl_text": tvl_text,
-            "en_text": en_text,
-            "protected_terms": pt,
-        },
+        toml_kv=toml_kv,
     )
 
 
@@ -138,6 +158,33 @@ def build_hard_translation_task(
             "src_text": src_text,
             "gold_translation": gold_text,
             "protected_terms": pt,
+        },
+    )
+
+
+def build_reframe_task(
+    *,
+    bench_root: Path,
+    task_id: str,
+    tvl_text: str,
+    en_text: str,
+    source_doc_id: str | None = None,
+) -> Path:
+    """Reframe-augment task: codex rewrites a religious TVL/EN pair as
+    a Tuvalu-local everyday equivalent while preserving grammatical
+    structure."""
+    prompt = _render("reframe", tvl_text=tvl_text, en_text=en_text)
+    return _write_task_dir(
+        bench_root=bench_root,
+        task_id=task_id,
+        prompt=prompt,
+        toml_kv={
+            "id": task_id,
+            "family": "reframe",
+            "answer_language": "bilingual",
+            "source_doc_id": source_doc_id or "",
+            "tvl_text": tvl_text,
+            "en_text": en_text,
         },
     )
 
@@ -225,5 +272,6 @@ __all__ = [
     "build_hard_translation_task",
     "build_native_chat_task",
     "build_qa_grounded_task",
+    "build_reframe_task",
     "task_metadata_decode",
 ]

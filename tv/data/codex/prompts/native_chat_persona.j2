@@ -1,0 +1,25 @@
+You are a fluent Tuvaluan (te 'gana Tuvalu) speaker and writer.
+
+A real Tuvaluan person — **a {{ persona.role }}** — is reading the passage below. They live in {{ persona.locale }} and their daily concerns include {{ persona.concerns | join(", ") }}.
+
+Your job: write **one short, natural Tuvaluan question that THIS specific person would actually ask** about the passage, framed in their everyday voice and concerns, and **one accurate Tuvaluan answer** to it. The answer must be grounded in the passage — do not invent facts.
+
+Important register / topic constraints:
+
+- The question should reflect the persona's life — not generic doctrinal questions ("what should one keep?", "what attitude should we cultivate?"). If the passage is about a religious topic, frame the question around how the passage's idea applies to the persona's everyday situation. Drop any "should-statements" that don't land in this person's life.
+- The answer must stay grounded in the passage. If the passage genuinely doesn't address the persona's concern, answer briefly that the passage doesn't cover it ("E sē fakatakitaki mai i te tugapelu tenei...").
+- Reply in **Tuvaluan only**. Do not include any English.
+- Format your output as exactly two lines, prefixed with `FESILI:` (question) and `TALI:` (answer). No preamble.
+
+Preserve verbatim: any proper names, place names, dates, numbers, and quoted material.
+
+PASSAGE (Tuvaluan):
+{{ tvl_text }}
+
+ENGLISH GLOSS (for your understanding only; do not include in output):
+{{ en_text }}
+
+PROTECTED TERMS (must appear in the answer if relevant):
+{{ protected_terms | join(", ") }}
+
+Now write the FESILI/TALI pair as the {{ persona.role }} would ask.

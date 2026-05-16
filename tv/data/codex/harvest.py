@@ -44,6 +44,70 @@ log = logging.getLogger(__name__)
 # Source loaders — pull a sized subset of the cleaned HF dataset.
 # ---------------------------------------------------------------------------
 
+def load_audited_subset(
+    *,
+    audit_jsonl: Path | str = "data/external/tv2en-cleaned/audit.jsonl",
+    n: int = 50,
+    min_tvl_len: int = 40,
+    max_tvl_len: int = 600,
+    seed: int = 0,
+    skip: int = 0,
+    buckets: Sequence[str] = ("low", "med"),
+    domains: Sequence[str] | None = None,
+    max_religious_density: float | None = None,
+) -> list[dict[str, Any]]:
+    """Stream the *audited* corpus and reservoir-sample ``n`` rows that
+    match the bucket / domain / density filter.
+
+    Phase 4.5b: this is the canonical loader for codex harvests once the
+    audit has been run. Falls back to ``load_cleaned_subset`` when the
+    audit JSONL doesn't exist (no prior audit pass).
+    """
+    path = Path(audit_jsonl)
+    if not path.exists():
+        return load_cleaned_subset(
+            n=n, seed=seed, skip=skip,
+            min_tvl_len=min_tvl_len, max_tvl_len=max_tvl_len,
+            domains=domains,
+        )
+    rng = random.Random(seed)
+    reservoir: list[dict[str, Any]] = []
+    bucket_set = set(buckets) if buckets else None
+    domain_set = set(domains) if domains else None
+    cnt = 0
+    with path.open("r", encoding="utf-8") as fp:
+        for line in fp:
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            tvl = row.get("tvl") or ""
+            en = row.get("en") or ""
+            if not isinstance(tvl, str) or not isinstance(en, str):
+                continue
+            if not (min_tvl_len <= len(tvl) <= max_tvl_len):
+                continue
+            if bucket_set is not None and row.get("bucket") not in bucket_set:
+                continue
+            if domain_set is not None and row.get("domain") not in domain_set:
+                continue
+            if (
+                max_religious_density is not None
+                and float(row.get("religious_density") or 0) > max_religious_density
+            ):
+                continue
+            cnt += 1
+            target = n + skip
+            if len(reservoir) < target:
+                reservoir.append(row)
+            else:
+                i = rng.randint(0, cnt - 1)
+                if i < target:
+                    reservoir[i] = row
+    rng.shuffle(reservoir)
+    return reservoir[skip : skip + n]
+
+
 def load_cleaned_subset(
     *,
     cleaned_jsonl: Path | str = "data/external/tv2en-cleaned/cleaned.jsonl",
@@ -114,6 +178,7 @@ async def run_codex_harvest(
     budget_seconds: float = 180.0,
     max_dollars: float | None = None,
     translation_direction: str | None = None,  # for hard_translation only
+    use_personas: bool = False,                 # native_chat only
 ) -> dict[str, Any]:
     """Run a codex distill harvest for ``task_family`` over ``source_rows``.
 
@@ -136,11 +201,13 @@ async def run_codex_harvest(
         build_hard_translation_task,
         build_native_chat_task,
         build_qa_grounded_task,
+        build_reframe_task,
     )
     from .verifiers import (
         GroundedQAVerifier,
         HardTranslationVerifier,
         NativeChatVerifier,
+        ReframeVerifier,
     )
 
     out_root = Path(out_dir)
@@ -152,14 +219,20 @@ async def run_codex_harvest(
     # Build task dirs + select verifier based on task_family.
     if task_family == "native_chat":
         verifier = NativeChatVerifier()
+        persona_pool = None
+        if use_personas:
+            from .personas import round_robin_persona
+            persona_pool = round_robin_persona
         for i, src in enumerate(source_rows):
             tid = f"nc-{i:04d}"
+            persona = persona_pool(i) if persona_pool is not None else None
             build_native_chat_task(
                 bench_root=bench_root,
                 task_id=tid,
                 tvl_text=src.get("tvl") or "",
                 en_text=src.get("en") or "",
                 source_doc_id=str(src.get("doc_id") or ""),
+                persona=persona,
             )
     elif task_family == "hard_translation":
         verifier = HardTranslationVerifier()
@@ -194,10 +267,21 @@ async def run_codex_harvest(
                 spans=[(f"src-{i:04d}", tvl)],
                 source_doc_id=str(src.get("doc_id") or ""),
             )
+    elif task_family == "reframe":
+        verifier = ReframeVerifier()
+        for i, src in enumerate(source_rows):
+            tid = f"rf-{i:04d}"
+            build_reframe_task(
+                bench_root=bench_root,
+                task_id=tid,
+                tvl_text=src.get("tvl") or "",
+                en_text=src.get("en") or "",
+                source_doc_id=str(src.get("doc_id") or ""),
+            )
     else:
         raise ValueError(
             f"unknown task_family={task_family!r}. "
-            "Supported: native_chat, hard_translation, qa_grounded"
+            "Supported: native_chat, hard_translation, qa_grounded, reframe"
         )
 
     # Load tasks back as codex_env.Task objects so the runner reads

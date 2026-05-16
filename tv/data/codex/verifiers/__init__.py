@@ -4,9 +4,11 @@ distill harvest."""
 from .hard_translation import HardTranslationVerifier
 from .native_chat import NativeChatVerifier
 from .qa_grounded import GroundedQAVerifier
+from .reframe import ReframeVerifier
 
 __all__ = [
     "GroundedQAVerifier",
     "HardTranslationVerifier",
     "NativeChatVerifier",
+    "ReframeVerifier",
 ]
