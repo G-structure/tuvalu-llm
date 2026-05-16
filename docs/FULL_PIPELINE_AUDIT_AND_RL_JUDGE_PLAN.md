@@ -31,9 +31,13 @@ vNext path is:
 3. Improve Stage A because Stage B synthetic quality depends on it.
 4. Rebuild Stage B with explicit mix ratios and synthetic filtering.
 5. Expand Stage C as high-quality native steering data.
-6. Use GPT-5.5 as a RAG-backed offline judge to create calibrated preference
+6. Run the Codex subscription as a tool-using teacher (Phase 4.5) to generate
+   native TVL chat, tool-call trajectories, and rejection-sampling candidates
+   that Stage A cannot produce. Route every output through the same judge
+   gates as any other synthetic row.
+7. Use GPT-5.5 as a RAG-backed offline judge to create calibrated preference
    pairs.
-7. Train preference-tuned models with DPO or ORPO before attempting heavier RL.
+8. Train preference-tuned models with DPO or ORPO before attempting heavier RL.
 
 The current public wording should stay careful:
 
@@ -125,6 +129,7 @@ If `data/` is absent, the first task is artifact restore or regeneration.
 | Stage A | Train TVL <-> EN translation adapter | `tv/training/stage_a_mt/*` | Code present, public model card exists |
 | Stage B | Train bilingual capability adapter | `tv/training/stage_b_agent/*` | Code/configs present, mix needs canonicalization |
 | Stage C | Native source grounding and DPO candidates | `tv/training/stage_c/*` | Reports present, artifacts absent in checkout |
+| Codex subscription distill/augment | Tool-using teacher for native TVL chat + tool-call trajectories + rejection-sampling candidates | `src/codex-proxy/*` (in sibling repo); `tv/data/codex/*` to add | Proxy implementation lives in the sibling `rl-agent-work` workspace; this repo has no data rows yet |
 | Product loop | Collect corrections and feedback | `site/`, `tv/apps/football/*` | Code present, signals need preference conversion |
 | Eval | Benchmark and native eval | `eval/`, `scripts/*eval*` | Artifacts present, baseline needs refresh |
 
@@ -312,6 +317,220 @@ Acceptance criteria:
 - default SFT arm remains mostly TVL assistant output
 - held-out eval includes noisy OCR and terminology slices
 
+### Phase 4.5: Codex Subscription Distillation And Augmentation
+
+Goal: use the OpenAI Codex subscription (GPT-5.x served through the Codex CLI
+harness) as a tool-using teacher to (a) generate high-quality synthetic
+Tuvaluan training rows where Stage A translation is too narrow, (b) produce
+multi-turn tool-call trajectories Stage B's "structured/tool tasks" pool can
+train on, and (c) supply candidate answers for Phase 5 rejection-sampling SFT.
+
+This phase sits between Stage C native grounding and the preference layer
+because:
+
+- Stage C provides the source-grounded retrieval corpus the codex prompts will
+  be conditioned on.
+- The judge in the next section is what scores codex outputs before they enter
+  any training set.
+- Phase 5 rejection-sampling SFT is the consumer that turns codex's K
+  candidates into the chosen row.
+
+Codex is **not** a Tuvaluan oracle. It is competent in English with strong
+tool-use and reasoning, weaker in Tuvaluan, and entirely capable of inventing
+sources. Every codex output must pass the same judge gates as any other
+synthetic row before it is allowed into training.
+
+#### Architecture
+
+The codex harness already exists in this repo's wider workspace:
+
+- [`src/codex-proxy`](../../src/codex-proxy/) — translates between the
+  OpenAI Responses API the CLI speaks and our trainable backend's token
+  interface; captures per-token logprobs and writes per-rollout trajectory
+  records. See `codex-training-proxy.md` and
+  `codex-harness-rl-training-landscape.md` for the design rationale and the
+  prior art survey.
+- [`vendor/ttt_discover/codex_runtime/`](../../vendor/ttt_discover/codex_runtime)
+  — the reference `LoggingProxy` implementation the proxy is a port of.
+
+Three deployment modes:
+
+| Mode | Direction | Use |
+|---|---|---|
+| `harvest` | Codex CLI -> subscription endpoint, proxy records the trajectory | Capture teacher trajectories on Tuvaluan tasks |
+| `replay` | Programmatic Responses API client -> subscription, proxy records | Bulk-generate synthetic rows from prompt batches |
+| `serve` | Codex CLI -> our trained model, proxy records | Eval-time and product-loop after training |
+
+The `harvest` and `replay` modes are the ones that feed this phase; `serve` is
+a Phase 5+ concern.
+
+#### Roles The Codex Subscription Fills
+
+1. **Synthetic TVL chat generation.** Replaces or augments the 30% "Synthetic
+   TVL capability" pool in the Stage B mix. Currently sourced from Stage A
+   translations of English prompts, which inherits Stage A's failure modes
+   (low-resource MT noise, religious/JW300 register bleed). Codex, conditioned
+   on Stage C retrieved spans, generates native-task-shaped answers that
+   Stage A cannot.
+2. **Tool-call and structured-output trajectories.** The Stage B mix lists
+   "Structured/tool tasks - 100 examples" in the eval slices but is silent on
+   their training-side source. Codex emits real `function_call` items as part
+   of its harness behavior; recorded trajectories supply these directly with
+   matching prompts.
+3. **Active-learning loop on Stage A failures.** When Stage A's translator
+   has low confidence or low chrF++ on a row (entity drop, mid-document
+   structure mismatch), route the row to a codex `replay` job conditioned on
+   the source span. The result enters the preference pool, not the bulk SFT
+   pool.
+4. **Phase 5 candidate generation.** Rejection-sampling SFT requires multiple
+   candidates per prompt. Codex with `n=K, temperature>0` over the same task
+   set yields K candidates per prompt; the judge picks `chosen` and one or
+   more `rejected`.
+5. **Reasoning-mode supervision (optional, post-MVP).** Codex exposes
+   `{type: "reasoning"}` items with a reasoning summary. These can supervise
+   a "show your work then answer" trace for Tuvaluan tasks. Default off until
+   we have evidence this helps and doesn't make the model imitate codex's
+   English-language reasoning prose.
+
+#### Prompt Construction
+
+Every codex call in this phase is **grounded** by default. The system message
+and `instructions` field must:
+
+- declare the requested output language (typically `tvl`)
+- pin protected terms, dates, amounts, quotes, and named entities that must
+  survive verbatim
+- inject the retrieved Stage C spans into the prompt with explicit `[span_id]`
+  citation markers
+- list the allowed tool surface (usually just `apply_patch` if writing files,
+  none for pure-text generation, never `shell` outside a sandboxed eval env)
+- name the task family so the judge knows which rubric weights to apply
+
+The prompt template lives at
+`tv/data/codex/prompts/<task_family>.j2` and is hashed into the row manifest.
+
+#### Data Contract
+
+Each codex trajectory writes a row to `data/codex/<release>/<task_family>.jsonl`:
+
+```json
+{
+  "id": "codex_stage_d_000001",
+  "task_family": "qa_grounded",
+  "prompt_id": "stage_c_eval_00042",
+  "prompt": "...",
+  "answer": "...",
+  "answer_language": "tvl",
+  "trajectory": {
+    "messages": [{"role": "...", "content": "..."}],
+    "tool_calls": [{"name": "apply_patch", "arguments": "...", "output": "..."}],
+    "reasoning_summary": "...",
+    "completion_token_ids": [12345, 67890, "..."],
+    "completion_logprobs": [-0.21, -1.04, "..."],
+    "stop_reason": "stop"
+  },
+  "codex_model": "gpt-5.5",
+  "codex_temperature": 0.7,
+  "codex_top_p": 1.0,
+  "codex_n": 1,
+  "subscription_request_id": "resp_...",
+  "retrieved_span_ids": ["doc_12:p4", "doc_12:p5"],
+  "protected_terms": ["Funafuti", "2025"],
+  "prompt_template_hash": "sha256:...",
+  "judge_status": "pending",
+  "decontam_status": "pending",
+  "language_id_pass": null,
+  "metadata": {
+    "source_doc_id": "doc_12",
+    "source_split": "train",
+    "created_at": "2026-05-15T00:00:00Z",
+    "proxy_record_id": "..."
+  }
+}
+```
+
+Notes:
+
+- `completion_token_ids` and `completion_logprobs` are captured by the proxy
+  for free and are useful for distillation experiments later; they are not
+  required to be present in MVP rows.
+- `judge_status` starts as `pending`; gets updated by the Phase 5 judge run.
+- `decontam_status` starts as `pending`; gets updated by a decontamination
+  check that asserts the prompt + answer do not appear in any eval split.
+
+#### Acceptance Gates
+
+A codex row may enter Stage B SFT only if it passes all of:
+
+| Gate | Implementation |
+|---|---|
+| Language ID match | fastText langid on answer = `answer_language` |
+| Protected-term preservation | regex/string presence of each entry in `protected_terms` |
+| Source-support entailment | judge `source_support >= 4` (rubric in next section) |
+| Tuvaluan quality | judge `tuvaluan_quality >= 3` |
+| Decontamination | answer not appearing in any held-out eval document by exact text or held-out n-gram check |
+| Tool-call structure | if `tool_calls` present, every call's arguments validate against the declared JSON schema |
+| Privacy | no PII or product-private content unless explicit permission tag |
+| Cost cap | per-task-family cap on subscription spend, measured by recorded request count and `usage` metadata when available |
+
+Rows that fail any gate are written to a parallel `data/codex/<release>/rejected/<task_family>.jsonl`
+with the failing gate id, never deleted, so audit and retry are possible.
+
+#### Operational Concerns
+
+- **Rate limits.** The codex subscription enforces requests-per-minute and
+  daily caps. The replay generator must throttle, respect 429 Retry-After,
+  and write a checkpoint after every K rows so a restart resumes cleanly.
+  Per-task-family quotas in `configs/codex_quota.yaml`.
+- **Cost.** Each request is metered. The harvest mode also pays for the tool
+  calls the harness chooses to make. Budget per release is recorded in the
+  manifest; runs that would exceed it stop without partial-row corruption.
+- **Determinism.** Codex is not bit-reproducible. Every row stores the codex
+  model id, temperature, top_p, seed (when supported), and the OpenAI
+  `request_id` so the row is traceable back to a specific subscription call.
+- **Subscription rotation.** If the subscription tier changes (different
+  model, different limits), the row's `codex_model` field is the only field
+  that disambiguates between rows generated under different policies; do not
+  mix codex_model values within a single training mix without an explicit
+  per-row indicator in the manifest.
+- **Decontamination.** The codex subscription's training cutoff is unknown
+  but post-dates much of our held-out Tuvaluan source material. Every row
+  must be checked against eval splits before entering training. Eval prompts
+  that match codex outputs are flagged as **contaminated** and excluded from
+  eval, not laundered into training.
+
+#### Telemetry
+
+Emit per-row:
+
+- `codex.row_count` by task_family and judge_status
+- `codex.cost_dollars` by task_family
+- `codex.rate_limit_hits` by hour
+- `codex.gate_rejection_rate` by gate id
+- `codex.decontam_collisions` (should be near zero; if not, investigate)
+
+#### Deliverables
+
+- `tv/data/codex/` module: prompt templates, replay runner, harvest runner,
+  rate-limited subscription client
+- `configs/codex_quota.yaml`: per-task-family quotas
+- `data/codex/<release>/`: per-task-family JSONL of accepted and rejected
+  rows
+- Manifest: prompt template hashes, codex model id, total subscription cost,
+  rate-limit incidents
+- Decontamination report: collisions found between codex outputs and eval
+  splits
+
+#### Acceptance Criteria
+
+- realized accept rate per task family is reported and explained
+- accepted-row decontamination check shows zero overlap with any eval split
+- Stage B mix manifest distinguishes codex-sourced rows from Stage-A-sourced
+  synthetic rows
+- subscription cost is within the budget declared in the manifest
+- a per-row replay is possible from `proxy_record_id` for at least 30 days
+  after generation
+
 ### Phase 5: Preference And RL Layer
 
 Goal: optimize for source-faithful, natural Tuvaluan answers without letting a
@@ -319,9 +538,13 @@ judge become an ungrounded oracle.
 
 Recommended sequence:
 
-1. Rejection-sampling SFT: generate multiple candidates, keep the best
-   source-grounded answer.
+1. Rejection-sampling SFT: generate multiple candidates **via Phase 4.5
+   codex replay with n=K, temperature>0**, keep the best source-grounded
+   answer (selected by the judge).
 2. Pairwise preference data: store chosen/rejected outputs with source evidence.
+   `chosen` and `rejected` can both come from the same Phase 4.5 codex batch
+   (different sampling settings or different `replay` runs) or from a
+   chosen-codex / rejected-current-model pairing.
 3. DPO or ORPO: run stable offline preference optimization.
 4. Reward model: train only after judge labels agree with humans.
 5. PPO/GRPO-style RL: defer until reward hacking tests pass.
@@ -594,10 +817,19 @@ Priority order:
    - call GPT-5.5 judge
    - write preference JSONL
    - build human review packs
-7. Add DPO/ORPO renderers from preference JSONL.
-8. Add product feedback normalization into typed preference candidates.
-9. Add judge calibration reports and dashboards.
-10. Run vNext Stage A, Stage B, Stage C, then DPO/ORPO in that order.
+7. Add `tv/data/codex/` module (Phase 4.5):
+   - prompt templates by task family with span-injection slots
+   - rate-limited subscription client wrapping the codex-proxy
+     `replay` and `harvest` runners (sibling `src/codex-proxy`)
+   - per-task-family quota config `configs/codex_quota.yaml`
+   - decontamination check against all eval splits
+   - acceptance-gate runner that emits accepted + rejected JSONL plus
+     a manifest of model id, request ids, cost, and rate-limit incidents
+8. Add DPO/ORPO renderers from preference JSONL.
+9. Add product feedback normalization into typed preference candidates.
+10. Add judge calibration reports and dashboards.
+11. Run vNext Stage A, Stage B, Stage C, **codex Phase 4.5 harvest +
+    replay batches**, then DPO/ORPO in that order.
 
 ## Go/No-Go Gates
 
@@ -611,12 +843,23 @@ Do not start expensive vNext training until:
 - Stage C eval sources are source-disjoint from train
 - judge calibration pack exists
 
+Do not start Phase 4.5 codex generation until:
+
+- Stage C retrieval corpus is built and source-disjoint splits are validated
+- prompt templates per task family are reviewed and hashed
+- per-task-family quota and budget are declared in the manifest
+- decontamination check runs against every eval split, not just train
+- the codex-proxy reachable in the workspace can capture trajectories
+  with per-token logprobs on at least one smoke prompt
+
 Do not start DPO/ORPO until:
 
 - GPT-5.5 judge agreement meets target thresholds
 - preference rows include retrieved evidence ids
 - hard-fail examples are excluded or flagged
 - human review pack has been sampled
+- codex-sourced rows in any mix have been distinctly labeled and the
+  decontamination report shows zero collisions with eval
 
 Do not publish a SOTA claim until:
 
