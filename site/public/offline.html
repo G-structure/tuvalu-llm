@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#013A63" />
+    <title>Fenua Intelligence · Offline</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #052b46;
+        --muted: #48657c;
+        --ocean: #0076b6;
+        --foam: #eaf8fb;
+        --sun: #ffc400;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background:
+          radial-gradient(circle at 20% 18%, rgba(255, 196, 0, 0.2), transparent 30%),
+          linear-gradient(145deg, #eaf8fb 0%, #f8fdff 46%, #d8f3fa 100%);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(100%, 30rem);
+        border: 1px solid rgba(0, 118, 182, 0.16);
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        background: rgba(255, 255, 255, 0.84);
+        box-shadow: 0 24px 70px rgba(5, 43, 70, 0.12);
+      }
+
+      span {
+        display: inline-grid;
+        place-items: center;
+        width: 3rem;
+        height: 3rem;
+        border-radius: 1rem;
+        background: linear-gradient(135deg, var(--ocean), #2fc7ee);
+        color: white;
+        font-weight: 900;
+        box-shadow: inset 0 -0.25rem 0 rgba(255, 196, 0, 0.45);
+      }
+
+      h1 {
+        margin: 1rem 0 0.5rem;
+        font-size: clamp(1.6rem, 8vw, 2.5rem);
+        line-height: 1;
+        letter-spacing: 0;
+      }
+
+      p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 2.75rem;
+        margin-top: 1.25rem;
+        border-radius: 999px;
+        padding: 0 1rem;
+        background: var(--ink);
+        color: white;
+        font-weight: 800;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <span>FI</span>
+      <h1>You are offline</h1>
+      <p>
+        Fenua Intelligence can still open cached pages and saved local chats.
+        Reconnect to send new messages or sync language feedback.
+      </p>
+      <a href="/chat">Open cached chat</a>
+    </main>
+  </body>
+</html>

@@ -1,108 +1,109 @@
-const CACHE_VERSION = "talafutipolo-v1";
-const STATIC_CACHE = CACHE_VERSION + "-static";
-const PAGES_CACHE = CACHE_VERSION + "-pages";
+const CACHE_VERSION = "fenua-pwa-v3";
+const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
+const ASSET_CACHE = `${CACHE_VERSION}-assets`;
+const PAGE_CACHE = `${CACHE_VERSION}-pages`;
+const OFFLINE_URL = "/offline.html";
 
-// Static assets to pre-cache on install
-const PRECACHE_URLS = ["/", "/fatele", "/search", "/chat", "/legal"];
+const APP_SHELL_URLS = [
+  "/",
+  "/chat",
+  "/chat/training",
+  "/legal",
+  OFFLINE_URL,
+  "/manifest.json",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
+  "/social/tuvalu-chat.jpg"
+];
+
+function isHttpRequest(request) {
+  return request.url.startsWith("http://") || request.url.startsWith("https://");
+}
+
+function isApiRequest(url) {
+  return url.pathname.startsWith("/api/");
+}
+
+function isStaticAsset(url) {
+  return (
+    url.pathname.startsWith("/_build/") ||
+    /\.(?:avif|css|gif|ico|jpe?g|js|json|png|svg|webp|woff2?)$/i.test(url.pathname)
+  );
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) return cached;
+
+  const response = await fetch(request);
+  if (response.ok) {
+    const cache = await caches.open(ASSET_CACHE);
+    cache.put(request, response.clone());
+  }
+  return response;
+}
+
+async function networkFirstPage(request) {
+  const cache = await caches.open(PAGE_CACHE);
+  try {
+    const response = await fetch(request);
+    if (response.ok) cache.put(request, response.clone());
+    return response;
+  } catch {
+    return (
+      (await cache.match(request)) ||
+      (await caches.match(OFFLINE_URL)) ||
+      new Response("Offline", {
+        status: 503,
+        headers: { "Content-Type": "text/plain; charset=utf-8" }
+      })
+    );
+  }
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
-      .open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .open(APP_SHELL_CACHE)
+      .then((cache) => cache.addAll(APP_SHELL_URLS))
       .then(() => self.skipWaiting())
   );
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((k) => !k.startsWith(CACHE_VERSION))
-            .map((k) => caches.delete(k))
-        )
-      )
-      .then(() => self.clients.claim())
+    Promise.all([
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((key) => !key.startsWith(CACHE_VERSION))
+              .map((key) => caches.delete(key))
+          )
+        ),
+      self.registration.navigationPreload?.enable?.()
+    ]).then(() => self.clients.claim())
   );
 });
 
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+  const { request } = event;
+  if (request.method !== "GET" || !isHttpRequest(request)) return;
 
-  // Skip non-GET and API/signal requests
-  if (event.request.method !== "GET") return;
-  if (url.pathname.startsWith("/api/")) return;
+  const url = new URL(request.url);
+  if (isApiRequest(url)) return;
 
-  // Static assets (JS, CSS, images): cache-first
-  if (
-    url.pathname.startsWith("/_build/") ||
-    url.pathname.match(/\.(js|css|woff2?|png|jpg|jpeg|webp|svg|ico)$/)
-  ) {
-    event.respondWith(
-      caches.match(event.request).then(
-        (cached) =>
-          cached ||
-          fetch(event.request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
-            }
-            return response;
-          })
-      )
-    );
+  if (isStaticAsset(url)) {
+    event.respondWith(cacheFirst(request));
     return;
   }
 
-  // HTML pages (articles, homepage): network-first, cache fallback
-  if (event.request.headers.get("accept")?.includes("text/html")) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const clone = response.clone();
-            caches.open(PAGES_CACHE).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() =>
-          caches.match(event.request).then(
-            (cached) =>
-              cached ||
-              new Response(
-                "<html><body style='font-family:system-ui;text-align:center;padding:4rem'>" +
-                  "<h1>Seki isi te initaneti</h1>" +
-                  "<p>You are offline. Previously visited articles are available.</p>" +
-                  "<p><a href='/'>Foki ki te laupepa muaki</a></p>" +
-                  "</body></html>",
-                { status: 503, headers: { "Content-Type": "text/html" } }
-              )
-          )
-        )
-    );
-    return;
-  }
-
-  // Article images: cache on first view
-  if (url.hostname.includes("365dm.com") ||
-      url.hostname.includes("assets.goal.com") ||
-      url.hostname.includes("digitalhub.fifa.com")) {
-    event.respondWith(
-      caches.match(event.request).then(
-        (cached) =>
-          cached ||
-          fetch(event.request).then((response) => {
-            if (response.ok) {
-              const clone = response.clone();
-              caches.open(STATIC_CACHE).then((cache) => cache.put(event.request, clone));
-            }
-            return response;
-          })
-      )
-    );
-    return;
+  if (request.mode === "navigate" || request.headers.get("accept")?.includes("text/html")) {
+    event.respondWith(networkFirstPage(request));
   }
 });

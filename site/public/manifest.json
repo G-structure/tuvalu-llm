@@ -1,22 +1,31 @@
 {
-  "name": "Talafutipolo — Tala Futipolo i te Gagana Tuvalu",
-  "short_name": "Talafutipolo",
-  "description": "Football news in the Tuvaluan language",
-  "start_url": "/",
+  "id": "/?source=pwa",
+  "name": "Fenua Intelligence",
+  "short_name": "Fenua AI",
+  "description": "Tuvaluan-English AI chat, learning feedback, and community language tools from Chorus Language Labs.",
+  "start_url": "/chat?source=pwa",
+  "scope": "/",
   "display": "standalone",
-  "background_color": "#EDF6F9",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#EAF8FB",
   "theme_color": "#013A63",
   "lang": "tvl",
+  "dir": "ltr",
+  "orientation": "portrait",
+  "categories": ["education", "productivity", "utilities"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512.png",
@@ -25,6 +34,43 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["news", "sports"],
-  "orientation": "portrait"
+  "screenshots": [
+    {
+      "src": "/social/tuvalu-chat.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "label": "Fenua Intelligence chat",
+      "form_factor": "wide"
+    },
+    {
+      "src": "/social/chat-training.jpg",
+      "sizes": "1200x630",
+      "type": "image/jpeg",
+      "label": "Training and feedback dashboard",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start TVL Chat",
+      "short_name": "Chat",
+      "description": "Open the Tuvaluan-English chat interface.",
+      "url": "/chat?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Training Lab",
+      "short_name": "Training",
+      "description": "Review training progress and language feedback.",
+      "url": "/chat/training?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Latest Stories",
+      "short_name": "Latest",
+      "description": "Open the latest Tuvaluan-language stories.",
+      "url": "/?source=pwa-shortcut",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }

@@ -19,6 +19,11 @@ function Shell(props: { children: any }) {
     <MetaProvider>
       <Meta name="theme-color" content="#013A63" />
       <Meta name="color-scheme" content="light" />
+      <Meta name="application-name" content="Fenua Intelligence" />
+      <Meta name="apple-mobile-web-app-capable" content="yes" />
+      <Meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      <Meta name="apple-mobile-web-app-title" content="Fenua AI" />
+      <Meta name="mobile-web-app-capable" content="yes" />
       <Show when={!isChatRoute()}>
         <>
           <Link rel="preconnect" href="https://fonts.googleapis.com" />
