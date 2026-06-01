@@ -577,6 +577,55 @@ npx vinxi build
 npx wrangler pages deploy dist --project-name tvl-chat
 ```
 
+## Chat Router Deployment
+
+The experimental router endpoint is served by the Cloudflare Pages app at
+`POST /api/chat-router`. It does not require a new VPS service. The shared
+Cybernetic Physics VPS already runs the translation backend as `tvl-chat`,
+publicly exposed by Caddy at:
+
+```text
+https://api.cyberneticphysics.com/tvl-chat/api/health
+https://api.cyberneticphysics.com/tvl-chat/api/chat
+```
+
+Production flow:
+
+```
+Cloudflare Pages /api/chat-router
+  ├─ OpenRouter Nano for route classification and general English answers
+  ├─ D1 for bilingual conversation state
+  └─ Cybernetic Physics VPS /tvl-chat/api/chat for TVL↔EN translation
+```
+
+Required Pages runtime configuration:
+
+| Variable | Purpose |
+|----------|---------|
+| `OPENROUTER_API_KEY` | Secret used for router and Nano answer calls |
+| `OPENROUTER_ROUTER_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
+| `OPENROUTER_CHAT_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
+| `CHAT_BACKEND_URL` | Optional; defaults to `https://api.cyberneticphysics.com/tvl-chat` |
+| `OPENROUTER_REFERER` | Optional OpenRouter attribution URL |
+| `OPENROUTER_TITLE` | Optional OpenRouter attribution title |
+
+For local development against a local Tinker backend:
+
+```bash
+cd site
+CHAT_BACKEND_URL=http://localhost:8787 \
+OPENROUTER_API_KEY=... \
+npm run dev
+```
+
+For production, deploy the site through the existing Pages workflow or:
+
+```bash
+cd site
+npm run build
+npx wrangler pages deploy dist --project-name=tvl-chat --branch=main
+```
+
 ## Benchmark Evaluation
 
 Live eval results are displayed at https://tvl-chat.pages.dev/eval, served
