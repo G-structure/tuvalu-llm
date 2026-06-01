@@ -625,22 +625,42 @@ function normalizeRoute(
   userMessage: string,
   requestedDisplayLanguage: RequestedDisplayLanguage
 ): RouteDecision {
+  const englishInstructionForTuvaluan = isEnglishInstructionForTuvaluan(userMessage);
+  const normalizedRoute: RouteDecision =
+    englishInstructionForTuvaluan && route.intent === "generate_in_language"
+      ? {
+          ...route,
+          input_language: "en",
+          source_language: "en",
+          target_language: "tvl",
+          needs_tvl_to_en: false,
+          needs_en_to_tvl: false,
+          needs_nano_answer: true,
+          display_language: "tvl",
+          translation_text: userMessage,
+          reason: `${route.reason} English instruction requesting Tuvaluan output; answer directly in Tuvaluan.`,
+        }
+      : route;
   const displayLanguage =
     requestedDisplayLanguage === "auto" ||
-    (route.intent === "translate" && route.target_language !== "same_as_user" && requestedDisplayLanguage !== "bilingual")
-      ? route.display_language
+    (normalizedRoute.intent === "translate" &&
+      normalizedRoute.target_language !== "same_as_user" &&
+      requestedDisplayLanguage !== "bilingual")
+      ? normalizedRoute.display_language
       : requestedDisplayLanguage;
-  const translationText = route.translation_text.trim() || userMessage;
+  const translationText = normalizedRoute.translation_text.trim() || userMessage;
 
   return {
-    ...route,
+    ...normalizedRoute,
     display_language: displayLanguage,
     translation_text:
       translationText.length > MAX_TRANSLATION_TEXT_LENGTH
         ? translationText.slice(0, MAX_TRANSLATION_TEXT_LENGTH)
         : translationText,
     needs_en_to_tvl:
-      route.needs_en_to_tvl || displayLanguage === "tvl" || displayLanguage === "bilingual",
+      normalizedRoute.needs_en_to_tvl ||
+      (!shouldAnswerDirectlyInTuvaluan({ ...normalizedRoute, display_language: displayLanguage }) &&
+        (displayLanguage === "tvl" || displayLanguage === "bilingual")),
   };
 }
 
@@ -791,10 +811,17 @@ async function answerWithNano(params: {
   event: APIEvent;
   history: ChatMessage[];
   userMessageEn: string;
+  outputLanguage?: DisplayLanguage;
   temperature: number;
   maxCompletionTokens: number;
 }): Promise<string> {
   const model = getAnswerModel(params.event);
+  const outputInstruction =
+    params.outputLanguage === "tvl"
+      ? "Answer directly in Tuvaluan. Do not add an English explanation unless the user asks for one."
+      : params.outputLanguage === "bilingual"
+        ? "Answer bilingually with Tuvaluan first, then English."
+        : "Answer in clear English. Another model may translate your answer into Tuvaluan.";
   const content = await callOpenRouter(params.event, {
     model,
     messages: [
@@ -802,7 +829,8 @@ async function answerWithNano(params: {
         role: "system",
         content:
           "You are the general reasoning model for TVL Chat. " +
-          "Answer in clear English. Another model may translate your answer into Tuvaluan. " +
+          outputInstruction +
+          " " +
           "When code, URLs, identifiers, names, markdown tables, formulas, or exact quoted text appear, preserve them carefully.",
       },
       ...params.history,
@@ -813,6 +841,30 @@ async function answerWithNano(params: {
   });
 
   return content.trim();
+}
+
+function isEnglishInstructionForTuvaluan(text: string): boolean {
+  const normalized = text.toLowerCase();
+  if (!/\btuvaluan\b|\bte\s+gana\s+tuvalu\b|\btuvalu\b/.test(normalized)) return false;
+  if (
+    !/\b(in|to|into|with|using)\s+(tuvaluan|te\s+gana\s+tuvalu|tuvalu)\b/.test(normalized) &&
+    !/\b(greet|write|say|compose|draft|create|make|translate|explain)\b/.test(normalized)
+  ) {
+    return false;
+  }
+
+  const latinLetters = text.match(/[A-Za-z]/g)?.length ?? 0;
+  const nonAsciiLetters = text.match(/[^\x00-\x7F]/g)?.length ?? 0;
+  return latinLetters > 0 && nonAsciiLetters / Math.max(latinLetters, 1) < 0.2;
+}
+
+function shouldAnswerDirectlyInTuvaluan(route: RouteDecision): boolean {
+  return (
+    route.input_language === "en" &&
+    route.intent === "generate_in_language" &&
+    route.target_language === "tvl" &&
+    route.display_language === "tvl"
+  );
 }
 
 function formatDisplay(displayLanguage: DisplayLanguage, contentEn: string | null, contentTvl: string | null): string {
@@ -912,16 +964,27 @@ export async function POST(event: APIEvent) {
       const history = await loadHistory(db, sessionId);
       const englishHistory = buildEnglishHistory(history, providedHistory);
       const userMessageEn = userContentEn || userMessage;
-      assistantContentEn = await answerWithNano({
+      const directTvlAnswer = shouldAnswerDirectlyInTuvaluan(route);
+      const nanoAnswer = await answerWithNano({
         event,
         history: englishHistory,
         userMessageEn,
+        outputLanguage: directTvlAnswer ? "tvl" : "en",
         temperature,
         maxCompletionTokens,
       });
       modelsUsed.answer = getAnswerModel(event);
 
-      if (route.needs_en_to_tvl || route.display_language === "tvl" || route.display_language === "bilingual") {
+      if (directTvlAnswer) {
+        assistantContentTvl = nanoAnswer;
+      } else {
+        assistantContentEn = nanoAnswer;
+      }
+
+      if (
+        assistantContentEn &&
+        (route.needs_en_to_tvl || route.display_language === "tvl" || route.display_language === "bilingual")
+      ) {
         const translated = await translateWithTvlModel(event, "en_to_tvl", assistantContentEn);
         modelsUsed.en_to_tvl = getTvlModelLabel(translated.modelInfo);
         assistantContentTvl = translated.content;
