@@ -627,10 +627,11 @@ function normalizeRoute(
 ): RouteDecision {
   const englishInstructionForTuvaluan = isEnglishInstructionForTuvaluan(userMessage);
   const normalizedRoute: RouteDecision =
-    englishInstructionForTuvaluan && route.intent === "generate_in_language"
+    englishInstructionForTuvaluan
       ? {
           ...route,
           input_language: "en",
+          intent: "generate_in_language",
           source_language: "en",
           target_language: "tvl",
           needs_tvl_to_en: false,
