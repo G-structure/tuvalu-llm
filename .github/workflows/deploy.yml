@@ -36,6 +36,21 @@ jobs:
         working-directory: site
         run: npm run build
 
+      - name: Sync Cloudflare Pages runtime secrets (${{ matrix.project }})
+        working-directory: site
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TINKER_API_KEY: ${{ secrets.TINKER_API_KEY }}
+        run: |
+          if [ -n "$OPENROUTER_API_KEY" ]; then
+            printf '%s' "$OPENROUTER_API_KEY" | npx wrangler pages secret put OPENROUTER_API_KEY --project-name=${{ matrix.project }}
+          fi
+          if [ -n "$TINKER_API_KEY" ]; then
+            printf '%s' "$TINKER_API_KEY" | npx wrangler pages secret put TINKER_API_KEY --project-name=${{ matrix.project }}
+          fi
+
       - name: Deploy to Cloudflare Pages (${{ matrix.project }})
         uses: cloudflare/wrangler-action@v3
         with:
