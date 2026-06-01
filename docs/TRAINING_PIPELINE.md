@@ -580,14 +580,8 @@ npx wrangler pages deploy dist --project-name tvl-chat
 ## Chat Router Deployment
 
 The experimental router endpoint is served by the Cloudflare Pages app at
-`POST /api/chat-router`. It does not require a new VPS service. The shared
-Cybernetic Physics VPS already runs the translation backend as `tvl-chat`,
-publicly exposed by Caddy at:
-
-```text
-https://api.cyberneticphysics.com/tvl-chat/api/health
-https://api.cyberneticphysics.com/tvl-chat/api/chat
-```
+`POST /api/chat-router`. It runs server-side as a Pages Function, so browser
+clients never receive OpenRouter or Tinker credentials.
 
 Production flow:
 
@@ -595,26 +589,42 @@ Production flow:
 Cloudflare Pages /api/chat-router
   ├─ OpenRouter Nano for route classification and general English answers
   ├─ D1 for bilingual conversation state
-  └─ Cybernetic Physics VPS /tvl-chat/api/chat for TVL↔EN translation
+  └─ Tinker OpenAI-compatible /chat/completions for TVL↔EN translation
 ```
+
+The TVL translation default is the Stage B Qwen checkpoint used by the benchmark
+registry:
+
+```text
+Model name:   Qwen/Qwen3-30B-A3B
+Sampler path: tinker://06e2f0d3-7d06-5c29-83a4-f44c0d29728c:train:0/sampler_weights/gen_eval_018000
+Tinker API:   https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1/chat/completions
+```
+
+If `TINKER_API_KEY` is not configured, the route falls back to the existing VPS
+backend contract at `CHAT_BACKEND_URL/api/chat`.
 
 Required Pages runtime configuration:
 
 | Variable | Purpose |
 |----------|---------|
 | `OPENROUTER_API_KEY` | Secret used for router and Nano answer calls |
+| `TINKER_API_KEY` | Secret used server-side for TVL translation through Tinker |
+| `TINKER_MODEL_PATH` | Optional; defaults to the Stage B sampler above |
+| `TINKER_MODEL_NAME` | Optional; defaults to `Qwen/Qwen3-30B-A3B` |
+| `TINKER_API_BASE_URL` | Optional; defaults to Tinker's OpenAI-compatible API base |
 | `OPENROUTER_ROUTER_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
 | `OPENROUTER_CHAT_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
-| `CHAT_BACKEND_URL` | Optional; defaults to `https://api.cyberneticphysics.com/tvl-chat` |
+| `CHAT_BACKEND_URL` | Optional fallback backend; defaults to `https://api.cyberneticphysics.com/tvl-chat` |
 | `OPENROUTER_REFERER` | Optional OpenRouter attribution URL |
 | `OPENROUTER_TITLE` | Optional OpenRouter attribution title |
 
-For local development against a local Tinker backend:
+For local development against Tinker directly:
 
 ```bash
 cd site
-CHAT_BACKEND_URL=http://localhost:8787 \
 OPENROUTER_API_KEY=... \
+TINKER_API_KEY=... \
 npm run dev
 ```
 

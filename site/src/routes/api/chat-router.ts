@@ -3,6 +3,10 @@ import type { APIEvent } from "@solidjs/start/server";
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_OPENROUTER_MODEL = "openai/gpt-5-nano";
 const DEFAULT_TRANSLATION_BACKEND_URL = "https://api.cyberneticphysics.com/tvl-chat";
+const DEFAULT_TINKER_API_BASE_URL = "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1";
+const DEFAULT_TINKER_MODEL_NAME = "Qwen/Qwen3-30B-A3B";
+const DEFAULT_TINKER_MODEL_PATH =
+  "tinker://06e2f0d3-7d06-5c29-83a4-f44c0d29728c:train:0/sampler_weights/gen_eval_018000";
 const MAX_BODY_BYTES = 96 * 1024;
 const MAX_MESSAGE_LENGTH = 8000;
 const MAX_HISTORY_MESSAGES = 30;
@@ -161,7 +165,23 @@ function getEnvValue(event: APIEvent, key: string): string | undefined {
 }
 
 function getBackendUrl(event: APIEvent): string {
-  return getEnvValue(event, "CHAT_BACKEND_URL") || DEFAULT_TRANSLATION_BACKEND_URL;
+  return (getEnvValue(event, "CHAT_BACKEND_URL") || DEFAULT_TRANSLATION_BACKEND_URL).replace(/\/+$/, "");
+}
+
+function getTinkerApiBaseUrl(event: APIEvent): string {
+  return (getEnvValue(event, "TINKER_API_BASE_URL") || DEFAULT_TINKER_API_BASE_URL).replace(/\/+$/, "");
+}
+
+function getTinkerModelName(event: APIEvent): string {
+  return getEnvValue(event, "TINKER_MODEL_NAME") || DEFAULT_TINKER_MODEL_NAME;
+}
+
+function getTinkerModelPath(event: APIEvent): string {
+  return (
+    getEnvValue(event, "TINKER_MODEL_PATH") ||
+    getEnvValue(event, "SAMPLER_PATH") ||
+    DEFAULT_TINKER_MODEL_PATH
+  );
 }
 
 function getRouterModel(event: APIEvent): string {
@@ -603,33 +623,98 @@ function normalizeRoute(
   };
 }
 
+function translationMessages(direction: "tvl_to_en" | "en_to_tvl", text: string): ChatMessage[] {
+  return direction === "tvl_to_en"
+    ? [
+        {
+          role: "system",
+          content:
+            "You are a careful Tuvaluan-to-English translator. Translate faithfully. " +
+            "Preserve code blocks, URLs, names, numbers, and formatting. Output only the English translation.",
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ]
+    : [
+        {
+          role: "system",
+          content:
+            "You are a careful English-to-Tuvaluan translator. Translate faithfully. " +
+            "Preserve code blocks, URLs, names, numbers, and formatting. Output only the Tuvaluan translation.",
+        },
+        {
+          role: "user",
+          content: text,
+        },
+      ];
+}
+
+function parseTinkerCompletion(data: any): string {
+  const choice = data?.choices?.[0];
+  if (typeof choice?.text === "string") return choice.text;
+  if (typeof choice?.message?.content === "string") return choice.message.content;
+  if (Array.isArray(choice?.message?.content)) {
+    return choice.message.content
+      .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+      .join("");
+  }
+  throw new Error("Tinker response did not include completion content");
+}
+
+async function translateWithTinkerHttp(
+  event: APIEvent,
+  direction: "tvl_to_en" | "en_to_tvl",
+  text: string
+): Promise<{ content: string; modelInfo?: unknown }> {
+  const apiKey = getEnvValue(event, "TINKER_API_KEY");
+  if (!apiKey) throw new Error("TINKER_API_KEY is not configured");
+
+  const modelPath = getTinkerModelPath(event);
+  const messages = translationMessages(direction, text);
+  const resp = await fetch(`${getTinkerApiBaseUrl(event)}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "X-Api-Key": apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: modelPath,
+      messages,
+      temperature: 0.2,
+      max_tokens: 2048,
+    }),
+    signal: AbortSignal.timeout(TRANSLATION_TIMEOUT_MS),
+  });
+
+  if (!resp.ok) {
+    const errorText = await readLimitedText(resp, MAX_ERROR_TEXT_BYTES).catch(() => "");
+    throw new Error(`Tinker translation request failed: ${resp.status} ${errorText.slice(0, 500)}`);
+  }
+
+  const data = await resp.json();
+  const content = parseTinkerCompletion(data).replace(/<\|im_end\|>$/g, "").trim();
+  if (!content) throw new Error("Tinker response was empty");
+
+  return {
+    content,
+    modelInfo: {
+      model_name: getTinkerModelName(event),
+      sampler_path: modelPath,
+      transport: "tinker-http",
+    },
+  };
+}
+
 async function translateWithTvlBackend(
   event: APIEvent,
   direction: "tvl_to_en" | "en_to_tvl",
   text: string
 ): Promise<{ content: string; modelInfo?: unknown }> {
   const backendUrl = getBackendUrl(event);
-  const messages =
-    direction === "tvl_to_en"
-      ? [
-          {
-            role: "user",
-            content:
-              "Translate this Tuvaluan text to English. Do NOT answer the question or write code. " +
-              "Only translate the words into English. Preserve code blocks, URLs, names, numbers, and formatting.\n\n" +
-              `Tuvaluan:\n${text}\n\nEnglish:`,
-          },
-        ]
-      : [
-          {
-            role: "system",
-            content:
-              "You are an English-to-Tuvaluan translator. Translate accurately. " +
-              "Keep code blocks, programming syntax, URLs, names, numbers, and markdown fences exactly as-is. " +
-              "Output only the Tuvaluan translation.",
-          },
-          { role: "user", content: text },
-        ];
+  const messages = translationMessages(direction, text);
 
   const resp = await fetch(`${backendUrl}/api/chat`, {
     method: "POST",
@@ -653,6 +738,17 @@ async function translateWithTvlBackend(
   }
 
   return { content: data.content.trim(), modelInfo: data.model_info };
+}
+
+async function translateWithTvlModel(
+  event: APIEvent,
+  direction: "tvl_to_en" | "en_to_tvl",
+  text: string
+): Promise<{ content: string; modelInfo?: unknown }> {
+  if (getEnvValue(event, "TINKER_API_KEY")) {
+    return translateWithTinkerHttp(event, direction, text);
+  }
+  return translateWithTvlBackend(event, direction, text);
 }
 
 function buildEnglishHistory(dbHistory: StoredMessage[], providedHistory: ChatMessage[]): ChatMessage[] {
@@ -725,7 +821,10 @@ export async function GET(event: APIEvent) {
     route: "/api/chat-router",
     router_model: getRouterModel(event),
     answer_model: getAnswerModel(event),
-    translation_backend: getBackendUrl(event),
+    tvl_model_name: getTinkerModelName(event),
+    tvl_model_path: getTinkerModelPath(event),
+    tvl_transport: getEnvValue(event, "TINKER_API_KEY") ? "tinker-http" : "vps-backend",
+    translation_backend_fallback: getBackendUrl(event),
   });
 }
 
@@ -765,7 +864,7 @@ export async function POST(event: APIEvent) {
 
     if (route.needs_tvl_to_en) {
       const sourceText = getTranslationSource(route, userMessage);
-      const translated = await translateWithTvlBackend(event, "tvl_to_en", sourceText);
+      const translated = await translateWithTvlModel(event, "tvl_to_en", sourceText);
       modelsUsed.tvl_to_en = getTvlModelLabel(translated.modelInfo);
       userContentEn = translated.content;
       if (!userContentTvl && route.source_language === "tvl") userContentTvl = sourceText;
@@ -774,14 +873,14 @@ export async function POST(event: APIEvent) {
     if (route.intent === "translate" && !route.needs_nano_answer) {
       const sourceText = getTranslationSource(route, userMessage);
       if (route.target_language === "tvl" || (route.target_language === "bilingual" && route.source_language !== "tvl")) {
-        const translated = await translateWithTvlBackend(event, "en_to_tvl", sourceText);
+        const translated = await translateWithTvlModel(event, "en_to_tvl", sourceText);
         modelsUsed.en_to_tvl = getTvlModelLabel(translated.modelInfo);
         assistantContentEn = sourceText;
         assistantContentTvl = translated.content;
       } else {
         assistantContentEn = userContentEn;
         if (assistantContentEn === null) {
-          const translated = await translateWithTvlBackend(event, "tvl_to_en", sourceText);
+          const translated = await translateWithTvlModel(event, "tvl_to_en", sourceText);
           modelsUsed.tvl_to_en = getTvlModelLabel(translated.modelInfo);
           assistantContentEn = translated.content;
         }
@@ -802,7 +901,7 @@ export async function POST(event: APIEvent) {
       modelsUsed.answer = getAnswerModel(event);
 
       if (route.needs_en_to_tvl || route.display_language === "tvl" || route.display_language === "bilingual") {
-        const translated = await translateWithTvlBackend(event, "en_to_tvl", assistantContentEn);
+        const translated = await translateWithTvlModel(event, "en_to_tvl", assistantContentEn);
         modelsUsed.en_to_tvl = getTvlModelLabel(translated.modelInfo);
         assistantContentTvl = translated.content;
       }
