@@ -613,8 +613,8 @@ Required Pages runtime configuration:
 | `TINKER_MODEL_PATH` | Optional; defaults to the Stage B sampler above |
 | `TINKER_MODEL_NAME` | Optional; defaults to `Qwen/Qwen3-30B-A3B` |
 | `TINKER_API_BASE_URL` | Optional; defaults to Tinker's OpenAI-compatible API base |
-| `OPENROUTER_ROUTER_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
-| `OPENROUTER_CHAT_MODEL` | Optional; defaults to `openai/gpt-5-nano` |
+| `OPENROUTER_ROUTER_MODEL` | Optional; defaults to `openai/gpt-5-nano` with minimal hidden reasoning |
+| `OPENROUTER_CHAT_MODEL` | Optional; defaults to `openai/gpt-5-nano` with minimal hidden reasoning |
 | `CHAT_BACKEND_URL` | Optional fallback backend; defaults to `https://api.cyberneticphysics.com/tvl-chat` |
 | `OPENROUTER_REFERER` | Optional OpenRouter attribution URL |
 | `OPENROUTER_TITLE` | Optional OpenRouter attribution title |

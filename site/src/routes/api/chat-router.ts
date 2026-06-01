@@ -14,6 +14,7 @@ const MAX_TRANSLATION_TEXT_LENGTH = 12000;
 const MAX_ERROR_TEXT_BYTES = 2048;
 const OPENROUTER_TIMEOUT_MS = 45_000;
 const TRANSLATION_TIMEOUT_MS = 60_000;
+const MIN_GPT5_COMPLETION_TOKENS = 1200;
 
 type Language = "tvl" | "en" | "mixed" | "unknown";
 type TargetLanguage = "tvl" | "en" | "bilingual" | "same_as_user";
@@ -531,6 +532,7 @@ async function callOpenRouter(event: APIEvent, payload: Record<string, unknown>)
     getEnvValue(event, "SITE_URL") ||
     "https://tvl-chat.pages.dev";
   const title = getEnvValue(event, "OPENROUTER_TITLE") || "TVL Chat";
+  const requestPayload = normalizeOpenRouterPayload(payload);
 
   const resp = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -540,7 +542,7 @@ async function callOpenRouter(event: APIEvent, payload: Record<string, unknown>)
       "HTTP-Referer": referer,
       "X-OpenRouter-Title": title,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
     signal: AbortSignal.timeout(OPENROUTER_TIMEOUT_MS),
   });
 
@@ -559,6 +561,25 @@ async function callOpenRouter(event: APIEvent, payload: Record<string, unknown>)
       .trim();
   }
   throw new Error("OpenRouter response did not include message content");
+}
+
+function normalizeOpenRouterPayload(payload: Record<string, unknown>): Record<string, unknown> {
+  const model = typeof payload.model === "string" ? payload.model : "";
+  if (!model.startsWith("openai/gpt-5")) return payload;
+
+  const maxCompletionTokens =
+    typeof payload.max_completion_tokens === "number"
+      ? Math.max(payload.max_completion_tokens, MIN_GPT5_COMPLETION_TOKENS)
+      : MIN_GPT5_COMPLETION_TOKENS;
+
+  return {
+    ...payload,
+    max_completion_tokens: maxCompletionTokens,
+    reasoning:
+      payload.reasoning && typeof payload.reasoning === "object"
+        ? payload.reasoning
+        : { effort: "minimal", exclude: true },
+  };
 }
 
 async function routeTurn(

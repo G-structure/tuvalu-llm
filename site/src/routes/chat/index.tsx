@@ -526,13 +526,14 @@ export default function Chat() {
     const assistantMessageId = newId("msg");
 
     try {
-      const resp = await fetch("/api/chat", {
+      const resp = await fetch("/api/chat-router", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           messages: requestMessages,
           temperature: 0.3,
           max_tokens: isConstrainedNetwork() ? 512 : 1024,
+          display_language: "auto",
           conversation_id: conversationId,
           session_id: sessionId(),
           title: titleFromMessages(requestMessages),
